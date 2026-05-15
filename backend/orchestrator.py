@@ -37,14 +37,17 @@ Available agents (choose from these only):
   Output: {{"code": str, "output": str, "success": bool}}
   Use for: writing code fixes, running scripts, generating patches.
 
-- integrator: Creates GitHub PRs, posts GitHub comments, interacts with external APIs, waits for webhooks.
-  Tools: github_pr, github_post_comment, github_read_file, http_request, wait_webhook
+- integrator: Creates NEW GitHub repos (ships a freshly-built project), creates GitHub PRs, posts comments, interacts with external APIs, waits for webhooks.
+  Tools: github_pr, github_post_comment, github_read_file, github_create_repo, http_request, wait_webhook
   Output: {{"action": str, "result": any, "url": str|null}}
   NOTE: outputs raw API data — NOT a human-readable report on its own.
-  Use for: creating PRs, posting comments on issues/PRs, API actions with side effects.
+  Use for: shipping a new project as its own repo (github_create_repo), creating PRs, posting comments, API actions with side effects.
+  For "build X and ship it as a new repo" goals use the pattern: coder writes+tests the app -> integrator calls github_create_repo with all files.
 """
 
 SYSTEM_PROMPT = f"""You are the omniBox orchestrator. Given a user goal, decompose it into the minimum set of tasks that achieves the goal, expressed as a directed acyclic graph (DAG).
+
+CRITICAL: You MUST always call submit_plan with a valid tasks list and terminal field. Even if the goal is a long document or problem statement, extract the core actionable intent and build a plan around it. Never return reasoning only — always produce tasks + terminal.
 
 {AGENT_DESCRIPTIONS}
 
@@ -122,9 +125,14 @@ async def plan(goal: GoalRow) -> PlanSchema:
     ctx_prompt = ctx_store.get_context_prompt()
     system_content = SYSTEM_PROMPT + ctx_prompt if ctx_prompt else SYSTEM_PROMPT
 
+    # Truncate very long goal texts to avoid saturating the token budget before tasks are emitted
+    goal_text = goal.goal_text
+    if len(goal_text) > 3000:
+        goal_text = goal_text[:3000] + "\n\n[...truncated for planning. Identify the core actionable goal above and build a plan for it.]"
+
     messages = [
         {"role": "system", "content": system_content},
-        {"role": "user", "content": f"Goal: {goal.goal_text}"},
+        {"role": "user", "content": f"Goal: {goal_text}"},
     ]
 
     last_error: str | None = None
@@ -147,7 +155,7 @@ async def plan(goal: GoalRow) -> PlanSchema:
                 tools=[PLAN_TOOL],
                 tool_choice=tc,
                 temperature=0.1,
-                max_tokens=2048,
+                max_tokens=4096,
             )
             if not response.choices:
                 raise ValueError("LLM returned empty response (no choices)")

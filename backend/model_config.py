@@ -16,8 +16,7 @@ AVAILABLE_MODELS = [
     {"id": "groq/meta-llama/llama-4-scout-17b-16e-instruct",     "label": "Llama 4 Scout 17B",    "provider": "Groq", "tier": "instant"},
     # Groq — Meta Llama 3.x
     {"id": "groq/llama-3.3-70b-versatile",                       "label": "Llama 3.3 70B",        "provider": "Groq", "tier": "fast"},
-    {"id": "groq/llama-3.1-70b-versatile",                       "label": "Llama 3.1 70B",        "provider": "Groq", "tier": "fast"},
-    {"id": "groq/llama-3.1-8b-instant",                          "label": "Llama 3.1 8B",         "provider": "Groq", "tier": "instant"},
+    # llama-3.1-70b-versatile and llama-3.1-8b-instant are decommissioned by Groq — removed
     {"id": "groq/llama-3.2-90b-vision-preview",                  "label": "Llama 3.2 90B Vision", "provider": "Groq", "tier": "fast"},
     {"id": "groq/llama-3.2-11b-vision-preview",                  "label": "Llama 3.2 11B Vision", "provider": "Groq", "tier": "instant"},
     {"id": "groq/llama-3.2-3b-preview",                          "label": "Llama 3.2 3B",         "provider": "Groq", "tier": "instant"},
@@ -65,7 +64,7 @@ DEFAULTS: dict[str, str] = {
     "orchestrator": "groq/llama-3.3-70b-versatile",
     "researcher":   "groq/llama-3.3-70b-versatile",
     "writer":       "groq/llama-3.3-70b-versatile",
-    "notifier":     "groq/llama-3.1-8b-instant",
+    "notifier":     "groq/llama-3.3-70b-versatile",
     "coder":        "groq/llama-3.3-70b-versatile",
     "integrator":   "groq/llama-3.3-70b-versatile",
 }

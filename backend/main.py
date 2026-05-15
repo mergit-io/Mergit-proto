@@ -16,11 +16,22 @@ from config import settings
 from tracing import init_tracing
 
 # ── Logging setup ────────────────────────────────────────────────────────────────
+_log_fmt = "%(asctime)s %(levelname)-8s %(name)-24s %(message)s"
+_log_date = "%H:%M:%S"
 logging.basicConfig(
     level=logging.DEBUG if settings.debug else logging.INFO,
-    format="%(asctime)s %(levelname)-8s %(name)-24s %(message)s",
-    datefmt="%H:%M:%S",
+    format=_log_fmt,
+    datefmt=_log_date,
 )
+# Also write to a rotating file so you can debug without watching the terminal
+import os
+from logging.handlers import RotatingFileHandler as _RFH
+_log_dir = os.path.join(os.path.dirname(__file__), "logs")
+os.makedirs(_log_dir, exist_ok=True)
+_fh = _RFH(os.path.join(_log_dir, "omnibox.log"), maxBytes=5_000_000, backupCount=3)
+_fh.setFormatter(logging.Formatter(_log_fmt, datefmt="%Y-%m-%d %H:%M:%S"))
+_fh.setLevel(logging.DEBUG)
+logging.getLogger().addHandler(_fh)
 # Silence noisy third-party loggers
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)

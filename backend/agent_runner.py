@@ -278,6 +278,22 @@ async def run(
 
             if tool_name == "submit_result":
                 result = args.get("result", args)
+                # Validate required keys for agents that have strict output schemas
+                schema_required = config.get("output_schema", {}).get("required", [])
+                missing = [k for k in schema_required if k not in result]
+                if missing:
+                    feedback = (
+                        f"submit_result rejected — missing required keys: {missing}. "
+                        f"Your result had keys: {list(result.keys())}. "
+                        f"You MUST include ALL of: {schema_required}. "
+                        "Call submit_result again with the correct keys."
+                    )
+                    logger.warning("[task=%s agent=%s] submit_result missing keys %s — rejecting and retrying",
+                                   task.id, task.agent_name, missing)
+                    tool_results.append({"role": "tool", "tool_call_id": tc_id, "content": feedback})
+                    messages = messages + tool_results
+                    tool_results = []
+                    continue
                 logger.info("[task=%s agent=%s] submit_result called — task done ✓", task.id, task.agent_name)
                 return result
 
@@ -383,6 +399,40 @@ async def run(
                     "Wrap up and call submit_result with your final answer on the next turn."
                 ),
             })
+
+    # ── Forced final submit: don't face-plant after exhausting iterations ──
+    # The agent explored but never converged. Make ONE last call that can only
+    # call submit_result, so a long-running task degrades to a usable result
+    # instead of failing the whole goal.
+    logger.warning("[task=%s] Hit iteration cap without submit — forcing final submit_result", task.id)
+    messages.append({
+        "role": "user",
+        "content": (
+            "STOP. You are out of iterations. Do NOT call any other tool. "
+            "Call submit_result NOW with your best answer based on everything gathered so far. "
+            "Partial but structured output is required — empty/no answer is a failure."
+        ),
+    })
+    try:
+        final = await acompletion(
+            model=model,
+            messages=messages,
+            tools=[SUBMIT_RESULT_TOOL],
+            tool_choice={"type": "function", "function": {"name": "submit_result"}},
+            temperature=0.1,
+        )
+        fmsg = final.choices[0].message
+        if fmsg.tool_calls:
+            fargs = json.loads(fmsg.tool_calls[0].function.arguments)
+            result = fargs.get("result", fargs)
+            logger.info("[task=%s agent=%s] forced final submit_result succeeded", task.id, task.agent_name)
+            return result
+        parsed = _try_parse_json_result(fmsg.content or "")
+        if parsed is not None:
+            logger.info("[task=%s agent=%s] forced final: parsed JSON from content", task.id, task.agent_name)
+            return parsed
+    except Exception as exc:
+        logger.warning("[task=%s] forced final submit attempt failed: %s", task.id, exc)
 
     raise RuntimeError(f"Agent {task.agent_name} did not call submit_result within {max_iter} iterations")
 
