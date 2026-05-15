@@ -7,37 +7,192 @@ from typing import Any
 import litellm
 from litellm import acompletion as _acompletion
 
+import model_health
 from config import settings
 
 logger = logging.getLogger(__name__)
 
-# Set provider keys for LiteLLM
-os.environ.setdefault("ANTHROPIC_API_KEY", settings.anthropic_api_key)
-os.environ.setdefault("GROQ_API_KEY", settings.groq_api_key)
+# Set provider keys for LiteLLM — only set if non-empty to avoid "key=empty-string" confusion
+def _setenv(var: str, val: str) -> None:
+    if val and var not in os.environ:
+        os.environ[var] = val
+
+_setenv("ANTHROPIC_API_KEY", settings.anthropic_api_key)
+_setenv("GROQ_API_KEY", settings.groq_api_key)
+_setenv("OPENAI_API_KEY", settings.openai_api_key)
+_setenv("MISTRAL_API_KEY", settings.mistral_api_key)
+# LiteLLM uses GEMINI_API_KEY for gemini/ models; accept either env var name
+_gemini_key = settings.gemini_api_key or settings.google_api_key
+if _gemini_key:
+    _setenv("GEMINI_API_KEY", _gemini_key)
+    _setenv("GOOGLE_API_KEY", _gemini_key)
 
 litellm.drop_params = True  # ignore unsupported params per provider
 
 # Fallback chain: when a model hits a hard rate limit (TPD / daily quota),
 # try these alternatives in order before giving up.
 _FALLBACKS: dict[str, list[str]] = {
+    # Groq Llama 4
+    "groq/meta-llama/llama-4-maverick-17b-128e-instruct": [
+        "groq/llama-3.3-70b-versatile",
+        "anthropic/claude-haiku-4-5-20251001",
+    ],
+    "groq/meta-llama/llama-4-scout-17b-16e-instruct": [
+        "groq/llama-3.3-70b-versatile",
+        "anthropic/claude-haiku-4-5-20251001",
+    ],
+    # Groq Llama 3.x
     "groq/llama-3.3-70b-versatile": [
         "groq/llama-3.1-8b-instant",
         "anthropic/claude-haiku-4-5-20251001",
+        "gemini/gemini-2.0-flash",
     ],
     "groq/llama-3.1-70b-versatile": [
+        "groq/llama-3.3-70b-versatile",
         "groq/llama-3.1-8b-instant",
         "anthropic/claude-haiku-4-5-20251001",
     ],
     "groq/llama-3.1-8b-instant": [
         "anthropic/claude-haiku-4-5-20251001",
+        "gemini/gemini-2.0-flash",
     ],
-    "anthropic/claude-haiku-4-5-20251001": [
+    "groq/llama-3.2-90b-vision-preview": [
+        "groq/llama-3.3-70b-versatile",
         "groq/llama-3.1-8b-instant",
+    ],
+    "groq/llama-3.2-11b-vision-preview": [
+        "groq/llama-3.2-90b-vision-preview",
+        "groq/llama-3.3-70b-versatile",
+    ],
+    "groq/llama-3.2-3b-preview": [
+        "groq/llama-3.1-8b-instant",
+        "groq/llama-3.3-70b-versatile",
+    ],
+    # Groq specialised
+    "groq/deepseek-r1-distill-llama-70b": [
+        "groq/llama-3.3-70b-versatile",
+        "anthropic/claude-haiku-4-5-20251001",
+    ],
+    "groq/qwen-qwq-32b": [
+        "groq/llama-3.3-70b-versatile",
+    ],
+    "groq/mixtral-8x7b-32768": [
+        "groq/llama-3.3-70b-versatile",
+    ],
+    "groq/gemma2-9b-it": [
+        "groq/llama-3.1-8b-instant",
+        "groq/llama-3.3-70b-versatile",
+    ],
+    # Anthropic
+    "anthropic/claude-opus-4-7": [
+        "anthropic/claude-sonnet-4-6",
+        "anthropic/claude-haiku-4-5-20251001",
         "groq/llama-3.3-70b-versatile",
     ],
     "anthropic/claude-sonnet-4-6": [
         "anthropic/claude-haiku-4-5-20251001",
         "groq/llama-3.3-70b-versatile",
+    ],
+    "anthropic/claude-haiku-4-5-20251001": [
+        "groq/llama-3.1-8b-instant",
+        "groq/llama-3.3-70b-versatile",
+        "gemini/gemini-2.0-flash",
+    ],
+    "anthropic/claude-3-5-sonnet-20241022": [
+        "anthropic/claude-sonnet-4-6",
+        "anthropic/claude-haiku-4-5-20251001",
+        "groq/llama-3.3-70b-versatile",
+    ],
+    "anthropic/claude-3-5-haiku-20241022": [
+        "anthropic/claude-haiku-4-5-20251001",
+        "groq/llama-3.3-70b-versatile",
+    ],
+    "anthropic/claude-3-opus-20240229": [
+        "anthropic/claude-opus-4-7",
+        "anthropic/claude-sonnet-4-6",
+        "groq/llama-3.3-70b-versatile",
+    ],
+    # OpenAI
+    "openai/gpt-4o": [
+        "openai/gpt-4o-mini",
+        "anthropic/claude-sonnet-4-6",
+        "groq/llama-3.3-70b-versatile",
+    ],
+    "openai/gpt-4o-mini": [
+        "groq/llama-3.3-70b-versatile",
+        "anthropic/claude-haiku-4-5-20251001",
+    ],
+    "openai/gpt-4-turbo": [
+        "openai/gpt-4o",
+        "openai/gpt-4o-mini",
+        "groq/llama-3.3-70b-versatile",
+    ],
+    "openai/gpt-3.5-turbo": [
+        "groq/llama-3.3-70b-versatile",
+        "groq/llama-3.1-8b-instant",
+    ],
+    "openai/o3": [
+        "openai/o4-mini",
+        "openai/gpt-4o",
+        "anthropic/claude-sonnet-4-6",
+    ],
+    "openai/o4-mini": [
+        "openai/gpt-4o-mini",
+        "groq/llama-3.3-70b-versatile",
+    ],
+    "openai/o3-mini": [
+        "openai/o4-mini",
+        "openai/gpt-4o-mini",
+        "groq/llama-3.3-70b-versatile",
+    ],
+    "openai/o1": [
+        "openai/gpt-4o",
+        "anthropic/claude-sonnet-4-6",
+    ],
+    # Google Gemini — paid / quota=0 on free tier
+    "gemini/gemini-2.5-pro": [
+        "gemini/gemini-2.5-flash",          # free tier, works
+        "gemini/gemini-2.0-flash",
+        "anthropic/claude-haiku-4-5-20251001",
+    ],
+    # Google Gemini — free tier (2.x series, 1.5 series deprecated by Google)
+    "gemini/gemini-2.5-flash": [
+        "gemini/gemini-2.0-flash",
+        "anthropic/claude-haiku-4-5-20251001",
+        "groq/llama-3.3-70b-versatile",
+    ],
+    "gemini/gemini-2.0-flash": [
+        "gemini/gemini-2.5-flash",
+        "anthropic/claude-haiku-4-5-20251001",
+        "groq/llama-3.3-70b-versatile",
+    ],
+    "gemini/gemini-2.0-flash-lite": [
+        "gemini/gemini-2.5-flash",
+        "gemini/gemini-2.0-flash",
+        "anthropic/claude-haiku-4-5-20251001",
+    ],
+    # Mistral
+    "mistral/mistral-large-latest": [
+        "mistral/mistral-medium-3",
+        "groq/llama-3.3-70b-versatile",
+        "anthropic/claude-haiku-4-5-20251001",
+    ],
+    "mistral/pixtral-large-latest": [
+        "mistral/mistral-large-latest",
+        "mistral/mistral-medium-3",
+        "groq/llama-3.3-70b-versatile",
+    ],
+    "mistral/mistral-medium-3": [
+        "mistral/mistral-small-3",
+        "groq/llama-3.3-70b-versatile",
+    ],
+    "mistral/mistral-small-3": [
+        "groq/llama-3.3-70b-versatile",
+        "groq/llama-3.1-8b-instant",
+    ],
+    "mistral/codestral-latest": [
+        "groq/llama-3.3-70b-versatile",
+        "anthropic/claude-haiku-4-5-20251001",
     ],
 }
 
@@ -61,6 +216,12 @@ def _is_hard_rate_limit(err: Exception) -> bool:
         or ("rate_limit" in msg and "please try again in" not in msg)
         or "quota" in msg
         or "insufficient_quota" in msg
+        or "resource_exhausted" in msg      # Gemini quota = 0
+        or "model_not_found" in msg         # deprecated / removed model
+        or ("not found" in msg and "model" in msg)
+        or ("404" in msg and "model" in msg)
+        or "unavailable" in msg             # Gemini 503 overload
+        or "overloaded" in msg
     )
 
 
@@ -89,6 +250,26 @@ def _rate_limit_delay(error: Exception, attempt: int) -> float:
     return min(2 ** attempt, 30.0)
 
 
+def _hard_limit_cooldown(err: Exception) -> float:
+    """Estimate how long to cool down after a hard rate limit."""
+    msg = str(err).lower()
+    # Daily quota / tokens-per-day — will reset tomorrow; use 1 hour as practical cap
+    if "tokens per day" in msg or "tpd" in msg or "daily" in msg:
+        return 3600
+    # Explicit retry-after header in the error message
+    match = RETRY_AFTER_RE.search(str(err))
+    if match:
+        m = RETRY_DURATION_RE.match(match.group(1).strip())
+        if m:
+            secs = (
+                float(m.group("hours") or 0) * 3600
+                + float(m.group("minutes") or 0) * 60
+                + float(m.group("seconds") or 0)
+            )
+            return max(secs + 5, 60)
+    return 300  # 5-minute default for unknown hard limits
+
+
 def _normalize_tool_choice(tool_choice: dict | str | None) -> dict | str | None:
     if (
         isinstance(tool_choice, dict)
@@ -108,45 +289,86 @@ async def acompletion(
     temperature: float = 0.2,
     max_tokens: int = 4096,
 ) -> Any:
-    models_to_try = [model] + _FALLBACKS.get(model, [])
+    all_candidates = [model] + _FALLBACKS.get(model, [])
+
+    # Skip models currently cooling down from a hard rate limit.
+    # Always keep at least one candidate (the least-cold if all are cooling).
+    healthy = [m for m in all_candidates if model_health.is_healthy(m)]
+    models_to_try = healthy if healthy else [model_health.get_least_cold(all_candidates)]
+
+    if models_to_try[0] != model:
+        logger.warning(
+            "Auto-switching: %s is cooling down — starting with %s instead",
+            model, models_to_try[0],
+        )
+
     last_err: Exception | None = None
 
     for attempt_model in models_to_try:
         if attempt_model != model:
             logger.warning("Falling back from %s → %s (rate limit / quota)", model, attempt_model)
 
+        # Claude 4 extended-thinking models don't accept `temperature`
+        _no_temp = attempt_model in {
+            "anthropic/claude-opus-4-7",
+            "anthropic/claude-sonnet-4-6",
+            "anthropic/claude-haiku-4-5-20251001",
+        }
         kwargs: dict[str, Any] = dict(
             model=attempt_model,
             messages=messages,
-            temperature=temperature,
             max_tokens=max_tokens,
         )
+        if not _no_temp:
+            kwargs["temperature"] = temperature
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = _normalize_tool_choice(tool_choice) or "auto"
 
         for retry_attempt in range(3):
             try:
-                return await _acompletion(**kwargs)
+                resp = await _acompletion(**kwargs)
+                if not getattr(resp, "choices", None):
+                    last_err = ValueError(f"{attempt_model} returned empty response (no choices)")
+                    logger.warning("Empty choices from %s; trying next model", attempt_model)
+                    model_health.mark_unhealthy(attempt_model, 120)
+                    break  # try next fallback model
+                return resp
             except Exception as exc:
                 if _is_hard_rate_limit(exc):
-                    logger.warning("Hard rate limit on %s: %s; trying next model", attempt_model, str(exc)[:120])
+                    cooldown = _hard_limit_cooldown(exc)
+                    model_health.mark_unhealthy(attempt_model, cooldown)
+                    logger.warning(
+                        "Hard rate limit on %s (cooldown %.0fs): %s; trying next model",
+                        attempt_model, cooldown, str(exc)[:120],
+                    )
                     last_err = exc
                     break
                 if _is_soft_rate_limit(exc) and retry_attempt < 2:
                     delay = _rate_limit_delay(exc, retry_attempt)
-                    if delay > 60:
-                        logger.warning("Soft rate limit wait is %.2fs for %s; trying next model", delay, attempt_model)
+                    # Threshold: if retry-after > 20s, skip to next fallback model instead of sleeping.
+                    # This prevents a single model's rate limit from blocking for > 20s per call.
+                    if delay > 20:
+                        model_health.mark_unhealthy(attempt_model, delay)
+                        logger.warning(
+                            "Soft rate limit wait is %.2fs for %s — cooling down; trying next model",
+                            delay, attempt_model,
+                        )
                         last_err = exc
                         break
                     logger.warning(
                         "Soft rate limit on %s; retrying in %.2fs (attempt %d/3)",
-                        attempt_model,
-                        delay,
-                        retry_attempt + 1,
+                        attempt_model, delay, retry_attempt + 1,
                     )
                     await asyncio.sleep(delay)
                     continue
+                # Model not found / deprecated — mark unhealthy and try next fallback
+                err_lower = str(exc).lower()
+                if "not_found_error" in err_lower or "notfounderror" in err_lower or "model not found" in err_lower:
+                    model_health.mark_unhealthy(attempt_model, 3600)
+                    logger.warning("Model %s not found — marking unhealthy; trying next fallback", attempt_model)
+                    last_err = exc
+                    break
                 raise
 
     raise last_err  # type: ignore[misc]

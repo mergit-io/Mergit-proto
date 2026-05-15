@@ -159,6 +159,12 @@ async def init_db() -> None:
     async with get_conn() as conn:
         await conn.executescript(SCHEMA)
         await conn.commit()
+        # Migrate: add waiting_credential column if not present
+        try:
+            await conn.execute("ALTER TABLE tasks ADD COLUMN waiting_credential TEXT")
+            await conn.commit()
+        except Exception:
+            pass  # column already exists
 
 
 # ── Goals ──────────────────────────────────────────────────────────────────────
@@ -382,6 +388,74 @@ async def set_task_waiting_webhook(task_id: str, wait_token: str) -> None:
             (wait_token, now, task_id),
         )
         await conn.commit()
+
+
+async def set_task_waiting_credential(task_id: str, credential_var: str) -> None:
+    now = _now()
+    async with get_conn() as conn:
+        await conn.execute(
+            "UPDATE tasks SET status='WAITING_CREDENTIAL', waiting_credential=?, "
+            "worker_id=NULL, lease_expires_at=NULL, updated_at=? WHERE id=?",
+            (credential_var, now, task_id),
+        )
+        await conn.commit()
+
+
+async def find_orphaned_goals() -> list[dict]:
+    """
+    Return goals in RUNNING/PLANNING state where no task can make further progress
+    (all tasks are DONE/FAILED/WAITING_*) so the goal will never self-resolve.
+    """
+    async with get_conn() as conn:
+        rows = await (
+            await conn.execute(
+                """
+                SELECT g.id, g.terminal_task_id, g.error,
+                       t.status  AS terminal_status,
+                       t.output  AS terminal_output_json
+                FROM goals g
+                LEFT JOIN tasks t ON t.id = g.terminal_task_id
+                WHERE g.status IN ('RUNNING', 'PLANNING')
+                  AND g.terminal_task_id IS NOT NULL
+                  AND NOT EXISTS (
+                    SELECT 1 FROM tasks sub
+                    WHERE sub.goal_id = g.id
+                      AND sub.status IN ('PENDING', 'READY', 'RUNNING')
+                  )
+                """
+            )
+        ).fetchall()
+    result = []
+    for r in rows:
+        out = None
+        if r["terminal_output_json"]:
+            try:
+                out = json.loads(r["terminal_output_json"])
+            except Exception:
+                pass
+        result.append({
+            "id": r["id"],
+            "terminal_task_id": r["terminal_task_id"],
+            "terminal_status": r["terminal_status"],
+            "terminal_output": out,
+            "error": r["error"],
+        })
+    return result
+
+
+async def resume_credential_tasks(env_var: str) -> list[dict]:
+    now = _now()
+    async with get_conn() as conn:
+        rows = await (
+            await conn.execute(
+                """UPDATE tasks SET status='READY', waiting_credential=NULL, updated_at=?
+                   WHERE status='WAITING_CREDENTIAL' AND waiting_credential=?
+                   RETURNING id, goal_id, agent_name""",
+                (now, env_var),
+            )
+        ).fetchall()
+        await conn.commit()
+    return [{"id": r["id"], "goal_id": r["goal_id"], "agent_name": r["agent_name"]} for r in rows]
 
 
 # ── Messages ───────────────────────────────────────────────────────────────────

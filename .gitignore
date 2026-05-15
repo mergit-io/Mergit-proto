@@ -11,6 +11,7 @@ build/
 # Env
 backend/.env
 backend/model_config.json
+backend/context.json
 backend/omnibox.db
 backend/omnibox.db-*
 backend/workspace/

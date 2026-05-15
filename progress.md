@@ -391,3 +391,136 @@ User ran `backend/.venv/bin/python -m py_compile llm.py agent_runner.py` from th
 - **React Flow / TaskDAG** — `TaskDAG.tsx` component exists in plan but may not be fully wired in `GoalDetail.tsx`
 - **OutputDisplay** — final goal output rendering as markdown not yet verified end-to-end
 - **Frontend bundle size** — single chunk ~686 kB; consider `React.lazy()` for React Flow if it becomes an issue
+
+---
+
+## Session 14 — Full Provider Fallback Chain + Gemini Key Bridging
+
+### Problem
+Goals were failing when using Gemini models. Two root causes:
+
+1. **`gemini-2.5-pro` has zero free-tier quota** — hits `RESOURCE_EXHAUSTED` immediately. The fallback chain only had Groq ↔ Anthropic entries; no Gemini model was in `_FALLBACKS` so it raised immediately.
+2. **`GEMINI_API_KEY` not set at startup** — `llm.py` only called `os.environ.setdefault` for Anthropic and Groq. Even if the user had `GOOGLE_API_KEY` in `.env`, LiteLLM wouldn't find it because it looks for `GEMINI_API_KEY`.
+3. **`OPENAI_API_KEY` and `MISTRAL_API_KEY` not loaded** — same startup omission for those providers.
+
+### Fixes
+
+**`backend/config.py`**:
+- Added `openai_api_key`, `gemini_api_key`, `google_api_key`, `mistral_api_key` settings fields so pydantic-settings reads them from `.env` at startup.
+
+**`backend/llm.py`**:
+- Added `os.environ.setdefault` calls for `OPENAI_API_KEY` and `MISTRAL_API_KEY`.
+- Bridges `GOOGLE_API_KEY` → `GEMINI_API_KEY` at startup (uses whichever is set in `.env`).
+- Extended `_FALLBACKS` to cover all 40 models across 5 providers:
+  - Gemini paid (`gemini-2.5-pro`, `gemini-1.5-pro`) → Gemini free flash variants → Groq
+  - Gemini free tier (`gemini-2.5-flash`, `gemini-2.0-flash`, etc.) → Groq fallback
+  - OpenAI GPT-4o, o-series → cheaper OpenAI variants → Groq
+  - Mistral Large/Medium/Small → smaller Mistral → Groq
+  - All Anthropic models (Opus 4.7, Sonnet 4.6, Haiku 4.5, 3.5/3 series) → Groq
+  - All Groq Llama 4/3.x/specialised models → smaller Groq variants → Anthropic Haiku
+- Added `resource_exhausted` to `_is_hard_rate_limit()` for Gemini quota errors.
+
+**`backend/api/keys.py`**:
+- When user saves the `google` provider key, also writes `GEMINI_API_KEY` to `.env` and `os.environ` immediately.
+
+### Result
+- Gemini 2.5 Pro → falls back to Gemini 2.5 Flash → Gemini 2.0 Flash → Anthropic Haiku automatically
+- All 5 providers fully initialised at startup from `.env`
+- Key saved via UI takes effect without restart (both `GOOGLE_API_KEY` and `GEMINI_API_KEY` set)
+
+---
+
+## Session 15 — Gemini Deprecation & Fallback Chain Fix
+
+### Diagnosis (live test, not guesswork)
+
+Ran `acompletion` against every model in `model_config.json`:
+
+| Model | Result |
+|-------|--------|
+| `gemini-2.5-pro` | QUOTA_EXCEEDED (free tier = 0) |
+| `gemini-2.5-flash` | **OK** |
+| `gemini-2.0-flash` | QUOTA_EXCEEDED (daily limit) |
+| `gemini-2.0-flash-lite` | QUOTA_EXCEEDED |
+| `gemini-1.5-flash` | **MODEL_NOT_FOUND** — deprecated by Google |
+| `gemini-1.5-flash-8b` | **MODEL_NOT_FOUND** — deprecated |
+| `gemini-1.5-pro` | **MODEL_NOT_FOUND** — deprecated |
+| Groq models | **INVALID_KEY** |
+| `anthropic/claude-haiku-4-5-20251001` | **OK** |
+
+Three distinct failure modes: quota, deprecated model IDs, invalid Groq key.
+
+### Fixes
+
+**`backend/llm.py`**:
+- Added `"not_found"`, `"model not found"`, `"404" + "model"` to `_is_hard_rate_limit()` — MODEL_NOT_FOUND now triggers the fallback chain instead of crashing immediately
+- Rewrote Gemini fallback chains: removed all `gemini-1.5-*` references (deprecated), made `anthropic/claude-haiku-4-5-20251001` the reliable last resort (Anthropic key is valid, Groq key is not)
+- `gemini-2.5-pro` → `gemini-2.5-flash` → `gemini-2.0-flash` → `anthropic/claude-haiku`
+- `gemini-2.5-flash` → `gemini-2.0-flash` → `anthropic/claude-haiku` → Groq
+- `gemini-2.0-flash-lite` → `gemini-2.5-flash` → `gemini-2.0-flash` → `anthropic/claude-haiku`
+
+**`backend/model_config.py`**:
+- Removed all 3 deprecated Gemini 1.5 models from `AVAILABLE_MODELS`
+
+**`backend/model_config.json`**:
+- `coder`: `gemini-1.5-flash-8b` → `gemini/gemini-2.5-flash`
+- `integrator`: `gemini-1.5-pro` → `gemini/gemini-2.5-flash`
+
+### Confirmed working
+`acompletion("gemini/gemini-2.5-pro", ...)` → hits quota → falls back to `gemini-2.5-flash` → SUCCESS (1 choice returned)
+
+### Pending user action
+Groq API key in `backend/.env` is invalid (rotated after GitHub exposure, not updated). Update it via the Models → API Keys section in the UI, or directly in `.env`.
+
+---
+
+## Session: 2026-05-15 — GitHub Automation Pivot
+
+### Context
+Hackathon mentor feedback: "research + summarize is too basic." Pivoted to the primary use case: **Autonomous GitHub Issue/PR Solver**. Zero human interaction: webhook fires → multi-agent pipeline → real PR created, comment posted.
+
+### New files
+- `backend/tools/github_ops.py` — 5 new GitHub tools: `github_read_file`, `github_list_dir`, `github_get_issue`, `github_post_comment`, `github_search_code`
+- `backend/api/github_webhook.py` — `POST /api/webhooks/github` — receives GitHub webhook events (issues.opened, pull_request.opened, ping) and auto-creates goals. HMAC-SHA256 verification supported via `GITHUB_WEBHOOK_SECRET` env var (optional for local dev).
+- `frontend/src/pages/Webhooks.tsx` — "GitHub Automation" page at `/app/webhooks`; webhook URL with copy, setup guide (ngrok steps), "Simulate GitHub Issue" form
+
+### Updated files
+**`backend/tools/__init__.py`**: Registered all 5 new `github_ops` tools in `TOOL_REGISTRY`
+
+**`backend/agent_registry.py`**: 
+- researcher: added github_read_file, github_list_dir, github_get_issue, github_search_code; output_schema gains `code_context` field; max_iterations 10→15
+- coder: added github_read_file for reading existing code before writing fixes
+- integrator: added github_post_comment, github_read_file; system_prompt updated with GitHub automation guidance
+
+**`backend/orchestrator.py`**:
+- Agent descriptions updated to mention GitHub tools
+- Rules 8+9 expanded with GitHub automation patterns
+- Rule 10 added: explicit "researcher→coder→integrator" 3-task DAG for GitHub issue fixing
+- `_is_github_automation_plan()` added: returns True when plan has both coder+integrator agents
+- `_validate_plan()` allows integrator as terminal task when it's a GitHub automation plan (creates PR + posts comment = the final action)
+
+**`backend/llm.py`**:
+- Claude 4 models (claude-opus-4-7, claude-sonnet-4-6, claude-haiku-4-5-20251001) excluded from `temperature` param (they return `invalid_request_error: temperature is deprecated`)
+- `not_found_error` / `notfounderror` / `model not found` in exception string → mark unhealthy 1h + try next fallback (was `raise` before, crashing the task)
+
+**`backend/main.py`**: Registered `github_webhook.router` BEFORE `webhooks.router` (specific route before generic `/{token}` catch-all to avoid route collision)
+
+**`frontend/src/App.tsx`**: Added `/app/webhooks` route
+**`frontend/src/components/AppNav.tsx`**: Added "Automate" nav link (Zap icon)
+
+### Demo flow
+```
+POST /api/webhooks/github   (X-Github-Event: issues)
+→ goal created: "Fix GitHub issue #N in owner/repo"
+→ orchestrator plans: researcher → coder → integrator
+→ researcher: reads repo structure + relevant files via GitHub API
+→ coder: writes fix, runs tests
+→ integrator: creates PR with fix, posts comment on original issue
+```
+
+Local testing: `ngrok http 8000` → paste URL into GitHub repo webhook settings. Or use "Simulate" form at /app/webhooks.
+
+### Verified
+- Webhook endpoint creates goal correctly (200 OK, goal_id returned)
+- 3-agent DAG planned and executing: researcher DONE → coder RUNNING → integrator PENDING
+- Frontend builds clean (0 TypeScript errors)

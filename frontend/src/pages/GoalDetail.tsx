@@ -1,5 +1,6 @@
-import { motion } from "framer-motion";
-import { ArrowLeft, RefreshCw, AlertCircle } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ArrowLeft, RefreshCw, AlertCircle, Key, Eye, EyeOff, X } from "lucide-react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import useSWR from "swr";
 import { LiveLog } from "../components/LiveLog";
@@ -14,6 +15,84 @@ import { api } from "../lib/api";
 import { useSSE } from "../lib/sse";
 
 const ACTIVE_STATUSES = new Set(["NEW", "PLANNING", "RUNNING"]);
+
+interface CredentialRequest {
+  task_id: string;
+  credential: string;
+  provider: string;
+  message: string;
+}
+
+function CredentialBanner({
+  req,
+  onDismiss,
+}: {
+  req: CredentialRequest;
+  onDismiss: () => void;
+}) {
+  const [value, setValue] = useState("");
+  const [show, setShow] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const save = async () => {
+    if (!value.trim()) return;
+    setSaving(true);
+    setErr(null);
+    try {
+      await api.updateApiKey(req.provider, value.trim());
+      onDismiss();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      className="mx-5 mt-4 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4"
+    >
+      <div className="flex items-start gap-3">
+        <Key className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-amber-300">Credential required</p>
+          <p className="text-xs text-amber-300/70 mt-0.5">{req.message}</p>
+          <div className="flex items-center gap-2 mt-3">
+            <div className="flex-1 flex items-center gap-2 rounded-lg border border-white/12 bg-white/3 px-3 py-2">
+              <input
+                type={show ? "text" : "password"}
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") save(); }}
+                placeholder={`Paste ${req.credential}…`}
+                autoFocus
+                className="flex-1 bg-transparent text-xs font-mono text-white outline-none placeholder:text-text-muted"
+              />
+              <button onClick={() => setShow((s) => !s)} className="text-text-muted hover:text-white transition-colors">
+                {show ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+            <button
+              onClick={save}
+              disabled={saving || !value.trim()}
+              className="px-4 py-2 rounded-lg text-xs font-semibold bg-amber-500 text-black hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            >
+              {saving ? "Saving…" : "Save & Resume"}
+            </button>
+          </div>
+          {err && <p className="mt-1.5 text-xs text-danger">{err}</p>}
+        </div>
+        <button onClick={onDismiss} className="text-text-muted hover:text-white transition-colors shrink-0">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+    </motion.div>
+  );
+}
 
 function fetcher(id: string) {
   return api.getGoal(id);
@@ -30,6 +109,15 @@ export function GoalDetail() {
 
   const isActive = data ? ACTIVE_STATUSES.has(data.status) : false;
   const sseEvents = useSSE(id, isActive);
+
+  const [credRequest, setCredRequest] = useState<CredentialRequest | null>(null);
+
+  useEffect(() => {
+    const last = [...sseEvents].reverse().find((e) => e.event === "credential_request");
+    if (last) {
+      setCredRequest(last.data as unknown as CredentialRequest);
+    }
+  }, [sseEvents]);
 
   if (isLoading) {
     return (
@@ -108,6 +196,16 @@ export function GoalDetail() {
               <TaskDAG tasks={tasks} />
             </div>
           )}
+
+          {/* Credential banner */}
+          <AnimatePresence>
+            {credRequest && (
+              <CredentialBanner
+                req={credRequest}
+                onDismiss={() => setCredRequest(null)}
+              />
+            )}
+          </AnimatePresence>
 
           {/* Tasks */}
           <div className="flex-1 overflow-y-auto p-5 space-y-2">

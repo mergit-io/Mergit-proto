@@ -50,6 +50,13 @@ export interface GoalDetail {
   updated_at: number;
 }
 
+export interface ProjectContext {
+  github_repo: string;
+  description: string;
+  tech_stack: string;
+  notes: string;
+}
+
 export interface ProviderKeyStatus {
   env_var: string;
   set: boolean;
@@ -101,8 +108,19 @@ export const api = {
     request<Record<string, ProviderKeyStatus>>("/config/keys"),
 
   updateApiKey: (provider: string, key: string) =>
-    request<{ ok: boolean; masked: string }>("/config/keys", {
+    request<{ ok: boolean; masked: string; resumed_tasks?: number }>("/config/keys", {
       method: "PUT",
       body: JSON.stringify({ provider, key }),
+    }),
+
+  getModelHealth: () =>
+    request<{ unhealthy: Record<string, number>; all_healthy: boolean }>("/config/model-health"),
+
+  getContext: () => request<ProjectContext>("/config/context"),
+
+  updateContext: (ctx: ProjectContext) =>
+    request<{ ok: boolean } & ProjectContext>("/config/context", {
+      method: "PUT",
+      body: JSON.stringify(ctx),
     }),
 };

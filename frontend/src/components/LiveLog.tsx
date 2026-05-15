@@ -17,6 +17,8 @@ function formatEvent(e: SSEEvent): { label: string; text: string; cls: string } 
       return { label: "done", text: `[${d.task_id}] completed`, cls: "text-green-400" };
     case "task_waiting":
       return { label: "wait", text: `[${d.task_id}] waiting for webhook ${d.webhook_url}`, cls: "text-amber-400" };
+    case "credential_request":
+      return { label: "auth", text: `[${d.task_id}] needs ${d.provider || d.credential} — check banner below`, cls: "text-amber-300" };
     case "goal_done":
       return { label: "goal", text: `COMPLETED`, cls: "text-green-400 font-semibold" };
     case "tool_call":

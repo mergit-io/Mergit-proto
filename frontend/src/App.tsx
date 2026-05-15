@@ -5,6 +5,7 @@ import { GoalDetail } from "./pages/GoalDetail";
 import { Models } from "./pages/Models";
 import { Login } from "./pages/Login";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { Webhooks } from "./pages/Webhooks";
 import "./index.css";
 
 export default function App() {
@@ -34,6 +35,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <Models />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/webhooks"
+          element={
+            <ProtectedRoute>
+              <Webhooks />
             </ProtectedRoute>
           }
         />

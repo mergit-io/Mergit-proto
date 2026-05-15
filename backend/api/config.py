@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 import model_config
+import model_health
 
 router = APIRouter(prefix="/api/config", tags=["config"])
 
@@ -26,3 +27,9 @@ async def update_model_config(body: ModelConfigUpdate):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"models": updated, "ok": True}
+
+
+@router.get("/model-health")
+async def get_model_health():
+    status = model_health.get_status()
+    return {"unhealthy": status, "all_healthy": len(status) == 0}

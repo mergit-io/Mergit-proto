@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 import db
 import worker
-from api import auth, config, goals, health, keys, stream, tasks, webhooks
+from api import auth, config, context as ctx_api, github_webhook, goals, health, keys, stream, tasks, webhooks
 from config import settings
 from tracing import init_tracing
 
@@ -103,9 +103,11 @@ async def request_logging_middleware(request: Request, call_next):
 app.include_router(auth.router)
 app.include_router(config.router)
 app.include_router(keys.router)
+app.include_router(ctx_api.router)
 app.include_router(goals.router)
 app.include_router(tasks.router)
 app.include_router(stream.router)
+app.include_router(github_webhook.router)  # specific route before generic /{token}
 app.include_router(webhooks.router)
 app.include_router(health.router)
 
@@ -124,8 +126,8 @@ if __name__ == "__main__":
         "main:app",
         host=settings.host,
         port=settings.port,
-        reload=True,
-        reload_includes=["*.py"],
-        reload_excludes=["*/__pycache__/*", "*.pyc", "*.db", "*.db-wal", "*.db-shm"],
+        reload=settings.debug,
+        reload_includes=["*.py"] if settings.debug else [],
+        reload_excludes=["*/__pycache__/*", "*.pyc", "*.db", "*.db-wal", "*.db-shm"] if settings.debug else [],
         log_level="warning",
     )

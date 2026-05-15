@@ -7,6 +7,10 @@ class Settings(BaseSettings):
     # LLM
     anthropic_api_key: str = ""
     groq_api_key: str = ""
+    openai_api_key: str = ""
+    gemini_api_key: str = ""   # GEMINI_API_KEY — used by LiteLLM for gemini/ models
+    google_api_key: str = ""   # GOOGLE_API_KEY — accepted alias, bridged at startup
+    mistral_api_key: str = ""
 
     # Tools
     tavily_api_key: str = ""
@@ -37,7 +41,7 @@ class Settings(BaseSettings):
 
     # Worker
     max_concurrent_tasks: int = 5
-    lease_seconds: int = 120
+    lease_seconds: int = 300
     poll_interval_seconds: float = 1.0
 
     # Dev
