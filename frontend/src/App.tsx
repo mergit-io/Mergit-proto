@@ -3,6 +3,8 @@ import { Landing } from "./pages/Landing";
 import { Dashboard } from "./pages/Dashboard";
 import { GoalDetail } from "./pages/GoalDetail";
 import { Models } from "./pages/Models";
+import { Login } from "./pages/Login";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 import "./index.css";
 
 export default function App() {
@@ -10,9 +12,31 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Landing />} />
-        <Route path="/app" element={<Dashboard />} />
-        <Route path="/app/goals/:id" element={<GoalDetail />} />
-        <Route path="/app/models" element={<Models />} />
+        <Route path="/login" element={<Login />} />
+        <Route
+          path="/app"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/goals/:id"
+          element={
+            <ProtectedRoute>
+              <GoalDetail />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/models"
+          element={
+            <ProtectedRoute>
+              <Models />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </BrowserRouter>
   );
