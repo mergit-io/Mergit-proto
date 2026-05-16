@@ -3,6 +3,8 @@ from typing import Any, Callable
 
 from tools.code_exec import code_exec
 from tools.code_exec import SCHEMA as CODE_EXEC_SCHEMA
+from tools.spawn_goal import spawn_goal
+from tools.spawn_goal import SCHEMA as SPAWN_GOAL_SCHEMA
 from tools.file_ops import file_ops
 from tools.file_ops import SCHEMA as FILE_OPS_SCHEMA
 from tools.github_ops import (
@@ -46,6 +48,7 @@ TOOL_REGISTRY: dict[str, ToolEntry] = {
     "github_list_workflows":       ToolEntry(fn=github_list_workflows, schema=GITHUB_LIST_WORKFLOWS_SCHEMA),
     "github_get_branch_protection": ToolEntry(fn=github_get_branch_protection, schema=GITHUB_GET_BRANCH_PROTECTION_SCHEMA),
     "github_set_branch_protection": ToolEntry(fn=github_set_branch_protection, schema=GITHUB_SET_BRANCH_PROTECTION_SCHEMA),
+    "spawn_goal":          ToolEntry(fn=spawn_goal, schema=SPAWN_GOAL_SCHEMA),
     "code_exec":           ToolEntry(fn=code_exec, schema=CODE_EXEC_SCHEMA),
     "wait_webhook":        ToolEntry(fn=wait_webhook, schema=WAIT_WEBHOOK_SCHEMA),
 }
