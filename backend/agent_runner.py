@@ -155,8 +155,11 @@ async def run(
     for iteration in range(max_iter):
         logger.debug("[task=%s] Iteration %d/%d — calling %s", task.id, iteration + 1, max_iter, model)
 
+        _kwargs: dict = {"tools": tools}
+        if not any(m in model for m in ("claude-opus-4", "claude-sonnet-4", "claude-haiku-4-5")):
+            _kwargs["temperature"] = 0.1
         try:
-            response = await acompletion(model=model, messages=messages, tools=tools, temperature=0.1)
+            response = await acompletion(model=model, messages=messages, **_kwargs)
         except Exception as exc:
             err_str = str(exc)
             # Rate limits are handled by the task worker so this coroutine does
@@ -270,6 +273,7 @@ async def run(
             break
 
         tool_results = []
+        _submit_rejected = False
         for tc in msg.tool_calls:
             tool_name = tc.function.name
             args_str = tc.function.arguments
@@ -288,12 +292,15 @@ async def run(
                         f"You MUST include ALL of: {schema_required}. "
                         "Call submit_result again with the correct keys."
                     )
-                    logger.warning("[task=%s agent=%s] submit_result missing keys %s — rejecting and retrying",
+                    logger.warning("[task=%s agent=%s] submit_result missing keys %s — rejecting",
                                    task.id, task.agent_name, missing)
-                    tool_results.append({"role": "tool", "tool_call_id": tc_id, "content": feedback})
-                    messages = messages + tool_results
-                    tool_results = []
-                    continue
+                    # Anthropic: assistant msg (with tool_use) must come before tool_result
+                    messages.append({"role": "assistant", "content": assistant_content or "", "tool_calls": [
+                        {"id": tc_id, "type": "function", "function": {"name": tool_name, "arguments": args_str}}
+                    ]})
+                    messages.append({"role": "tool", "tool_call_id": tc_id, "content": feedback})
+                    _submit_rejected = True
+                    break  # skip remaining tool calls; lines 373-377 must also be skipped
                 logger.info("[task=%s agent=%s] submit_result called — task done ✓", task.id, task.agent_name)
                 return result
 
@@ -368,11 +375,12 @@ async def run(
             tool_results.append({"role": "tool", "tool_call_id": tc_id, "content": result_str})
             await db.save_message(task.id, "tool", result_str, sequence=len(messages) + iteration + 1, tool_call_id=tc_id)
 
-        messages.append({"role": "assistant", "content": assistant_content, "tool_calls": [
-            {"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
-            for tc in msg.tool_calls
-        ]})
-        messages.extend(tool_results)
+        if not _submit_rejected:
+            messages.append({"role": "assistant", "content": assistant_content, "tool_calls": [
+                {"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
+                for tc in msg.tool_calls
+            ]})
+            messages.extend(tool_results)
 
         # ── Force submit when tools keep failing ────────────────────────────
         if consecutive_errors >= 3:
@@ -414,13 +422,10 @@ async def run(
         ),
     })
     try:
-        final = await acompletion(
-            model=model,
-            messages=messages,
-            tools=[SUBMIT_RESULT_TOOL],
-            tool_choice={"type": "function", "function": {"name": "submit_result"}},
-            temperature=0.1,
-        )
+        _fkw: dict = {"tools": [SUBMIT_RESULT_TOOL], "tool_choice": {"type": "function", "function": {"name": "submit_result"}}}
+        if not any(m in model for m in ("claude-opus-4", "claude-sonnet-4", "claude-haiku-4-5")):
+            _fkw["temperature"] = 0.1
+        final = await acompletion(model=model, messages=messages, **_fkw)
         fmsg = final.choices[0].message
         if fmsg.tool_calls:
             fargs = json.loads(fmsg.tool_calls[0].function.arguments)

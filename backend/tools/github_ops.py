@@ -35,13 +35,14 @@ async def github_read_file(args: dict) -> dict:
         return _TOKEN_MISSING
     repo_name = args["repo"]
     path = args["path"]
-    ref = args.get("ref", "main")
+    ref = args.get("ref")
     try:
         g = _client()
         repo = g.get_repo(repo_name)
-        # Try the given ref first, fall back to default branch
+        # Use specified ref, or repo default branch, falling back to no ref
+        effective_ref = ref or repo.default_branch
         try:
-            contents = repo.get_contents(path, ref=ref)
+            contents = repo.get_contents(path, ref=effective_ref)
         except Exception:
             contents = repo.get_contents(path)
         if isinstance(contents, list):
