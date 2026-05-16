@@ -1126,3 +1126,37 @@ LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
 2026-05-16 08:47:30 INFO     main                     omniBox ready ✓
 2026-05-16 08:47:41 INFO     omium                    Auto-registered workflow 'omniBox' in Omium dashboard
 2026-05-16 08:47:41 INFO     omium                    Auto-registered workflow 'omniBox' in Omium dashboard
+2026-05-16 09:49:15 INFO     __main__                 Serving frontend from /home/viscous/Viscous/omniBox/frontend/dist
+2026-05-16 09:49:15 INFO     main                     Serving frontend from /home/viscous/Viscous/omniBox/frontend/dist
+2026-05-16 09:49:15 INFO     main                     Serving frontend from /home/viscous/Viscous/omniBox/frontend/dist
+2026-05-16 09:49:15 INFO     main                     Starting omniBox (host=0.0.0.0 port=8000 debug=False)
+2026-05-16 09:49:15 INFO     main                     Starting omniBox (host=0.0.0.0 port=8000 debug=False)
+2026-05-16 09:49:15 INFO     main                     DB initialised at ./omnibox.db
+2026-05-16 09:49:15 INFO     main                     DB initialised at ./omnibox.db
+2026-05-16 09:49:15 INFO     omium                    Omium initialized: project=omniBox, auto_trace=False, frameworks=[]
+2026-05-16 09:49:15 INFO     omium                    Omium initialized: project=omniBox, auto_trace=False, frameworks=[]
+2026-05-16 09:49:15 INFO     tracing                  Omium tracing initialised (project=omniBox)
+2026-05-16 09:49:15 INFO     tracing                  Omium tracing initialised (project=omniBox)
+2026-05-16 09:49:15 INFO     worker                   Worker started (id=37eb868d-56c2-4209-b0f8-6c1f12ffabda)
+2026-05-16 09:49:15 INFO     worker                   Worker started (id=37eb868d-56c2-4209-b0f8-6c1f12ffabda)
+2026-05-16 09:49:15 INFO     main                     omniBox ready ✓
+2026-05-16 09:49:15 INFO     main                     omniBox ready ✓
+2026-05-16 09:49:26 INFO     omium                    Auto-registered workflow 'omniBox' in Omium dashboard
+2026-05-16 09:49:26 INFO     omium                    Auto-registered workflow 'omniBox' in Omium dashboard
+2026-05-16 14:53:40 INFO     __main__                 Serving frontend from /home/viscous/Viscous/omniBox/frontend/dist
+2026-05-16 14:53:40 INFO     main                     Serving frontend from /home/viscous/Viscous/omniBox/frontend/dist
+2026-05-16 14:53:40 INFO     main                     Serving frontend from /home/viscous/Viscous/omniBox/frontend/dist
+2026-05-16 14:53:40 INFO     main                     Starting omniBox (host=0.0.0.0 port=8000 debug=False)
+2026-05-16 14:53:40 INFO     main                     Starting omniBox (host=0.0.0.0 port=8000 debug=False)
+2026-05-16 14:53:40 INFO     main                     DB initialised at ./omnibox.db
+2026-05-16 14:53:40 INFO     main                     DB initialised at ./omnibox.db
+2026-05-16 14:53:40 INFO     omium                    Omium initialized: project=omniBox, auto_trace=False, frameworks=[]
+2026-05-16 14:53:40 INFO     omium                    Omium initialized: project=omniBox, auto_trace=False, frameworks=[]
+2026-05-16 14:53:40 INFO     tracing                  Omium tracing initialised (project=omniBox)
+2026-05-16 14:53:40 INFO     tracing                  Omium tracing initialised (project=omniBox)
+2026-05-16 14:53:40 INFO     worker                   Worker started (id=e0608562-ef85-4a5d-9c14-bc9876b5c2f5)
+2026-05-16 14:53:40 INFO     worker                   Worker started (id=e0608562-ef85-4a5d-9c14-bc9876b5c2f5)
+2026-05-16 14:53:40 INFO     main                     omniBox ready ✓
+2026-05-16 14:53:40 INFO     main                     omniBox ready ✓
+2026-05-16 14:53:52 INFO     omium                    Auto-registered workflow 'omniBox' in Omium dashboard
+2026-05-16 14:53:52 INFO     omium                    Auto-registered workflow 'omniBox' in Omium dashboard
