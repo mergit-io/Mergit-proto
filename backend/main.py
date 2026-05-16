@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 import db
 import worker
 from api import auth, config, context as ctx_api, github_webhook, goals, health, keys, stream, tasks, webhooks
-from config import settings
+from config import cors_origin_list, settings
 from tracing import init_tracing
 
 # ── Logging setup ────────────────────────────────────────────────────────────────
@@ -66,7 +66,8 @@ app = FastAPI(title="omniBox", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origin_list(),
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )

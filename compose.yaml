@@ -1,0 +1,39 @@
+services:
+  omnibox:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - ${ENV_FILE:-.env.production}
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8000
+      DB_PATH: /data/omnibox.db
+      WORKSPACE_DIR: /data/workspace
+      RUNTIME_CONFIG_DIR: /data/config
+      DEBUG: "false"
+      COOKIE_SECURE: "true"
+      CORS_ORIGINS: "https://${DOMAIN}"
+    volumes:
+      - omnibox_data:/data
+    expose:
+      - "8000"
+
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    depends_on:
+      - omnibox
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  omnibox_data:
+  caddy_data:
+  caddy_config:

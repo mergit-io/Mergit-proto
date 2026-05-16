@@ -63,7 +63,7 @@ function EmptyState() {
       </p>
       <div className="mt-6 flex items-center gap-2 text-xs text-text-muted">
         <Sparkles className="w-3.5 h-3.5 text-accent" />
-        <span>Try: "Research top LLM frameworks and post a summary to Slack"</span>
+        <span>Try: "Fix the bug in MaskedBug601/Nothing issue #1 and open a pull request"</span>
       </div>
     </motion.div>
   );

@@ -19,13 +19,6 @@ def _setenv(var: str, val: str) -> None:
 
 _setenv("ANTHROPIC_API_KEY", settings.anthropic_api_key)
 _setenv("GROQ_API_KEY", settings.groq_api_key)
-_setenv("OPENAI_API_KEY", settings.openai_api_key)
-_setenv("MISTRAL_API_KEY", settings.mistral_api_key)
-# LiteLLM uses GEMINI_API_KEY for gemini/ models; accept either env var name
-_gemini_key = settings.gemini_api_key or settings.google_api_key
-if _gemini_key:
-    _setenv("GEMINI_API_KEY", _gemini_key)
-    _setenv("GOOGLE_API_KEY", _gemini_key)
 
 litellm.drop_params = True  # ignore unsupported params per provider
 
@@ -43,29 +36,13 @@ _FALLBACKS: dict[str, list[str]] = {
     ],
     # Groq Llama 3.x
     "groq/llama-3.3-70b-versatile": [
-        "groq/llama-3.1-8b-instant",
         "anthropic/claude-haiku-4-5-20251001",
-        "gemini/gemini-2.0-flash",
-    ],
-    "groq/llama-3.1-70b-versatile": [
-        "groq/llama-3.3-70b-versatile",
-        "groq/llama-3.1-8b-instant",
-        "anthropic/claude-haiku-4-5-20251001",
-    ],
-    "groq/llama-3.1-8b-instant": [
-        "anthropic/claude-haiku-4-5-20251001",
-        "gemini/gemini-2.0-flash",
     ],
     "groq/llama-3.2-90b-vision-preview": [
         "groq/llama-3.3-70b-versatile",
-        "groq/llama-3.1-8b-instant",
     ],
     "groq/llama-3.2-11b-vision-preview": [
         "groq/llama-3.2-90b-vision-preview",
-        "groq/llama-3.3-70b-versatile",
-    ],
-    "groq/llama-3.2-3b-preview": [
-        "groq/llama-3.1-8b-instant",
         "groq/llama-3.3-70b-versatile",
     ],
     # Groq specialised
@@ -76,123 +53,28 @@ _FALLBACKS: dict[str, list[str]] = {
     "groq/qwen-qwq-32b": [
         "groq/llama-3.3-70b-versatile",
     ],
-    "groq/mixtral-8x7b-32768": [
-        "groq/llama-3.3-70b-versatile",
-    ],
     "groq/gemma2-9b-it": [
-        "groq/llama-3.1-8b-instant",
         "groq/llama-3.3-70b-versatile",
     ],
     # Anthropic
     "anthropic/claude-opus-4-7": [
         "anthropic/claude-sonnet-4-6",
         "anthropic/claude-haiku-4-5-20251001",
-        "groq/llama-3.3-70b-versatile",
     ],
     "anthropic/claude-sonnet-4-6": [
         "anthropic/claude-haiku-4-5-20251001",
         "groq/llama-3.3-70b-versatile",
     ],
     "anthropic/claude-haiku-4-5-20251001": [
-        "groq/llama-3.1-8b-instant",
         "groq/llama-3.3-70b-versatile",
-        "gemini/gemini-2.0-flash",
     ],
     "anthropic/claude-3-5-sonnet-20241022": [
         "anthropic/claude-sonnet-4-6",
         "anthropic/claude-haiku-4-5-20251001",
-        "groq/llama-3.3-70b-versatile",
     ],
     "anthropic/claude-3-5-haiku-20241022": [
         "anthropic/claude-haiku-4-5-20251001",
         "groq/llama-3.3-70b-versatile",
-    ],
-    "anthropic/claude-3-opus-20240229": [
-        "anthropic/claude-opus-4-7",
-        "anthropic/claude-sonnet-4-6",
-        "groq/llama-3.3-70b-versatile",
-    ],
-    # OpenAI
-    "openai/gpt-4o": [
-        "openai/gpt-4o-mini",
-        "anthropic/claude-sonnet-4-6",
-        "groq/llama-3.3-70b-versatile",
-    ],
-    "openai/gpt-4o-mini": [
-        "groq/llama-3.3-70b-versatile",
-        "anthropic/claude-haiku-4-5-20251001",
-    ],
-    "openai/gpt-4-turbo": [
-        "openai/gpt-4o",
-        "openai/gpt-4o-mini",
-        "groq/llama-3.3-70b-versatile",
-    ],
-    "openai/gpt-3.5-turbo": [
-        "groq/llama-3.3-70b-versatile",
-        "groq/llama-3.1-8b-instant",
-    ],
-    "openai/o3": [
-        "openai/o4-mini",
-        "openai/gpt-4o",
-        "anthropic/claude-sonnet-4-6",
-    ],
-    "openai/o4-mini": [
-        "openai/gpt-4o-mini",
-        "groq/llama-3.3-70b-versatile",
-    ],
-    "openai/o3-mini": [
-        "openai/o4-mini",
-        "openai/gpt-4o-mini",
-        "groq/llama-3.3-70b-versatile",
-    ],
-    "openai/o1": [
-        "openai/gpt-4o",
-        "anthropic/claude-sonnet-4-6",
-    ],
-    # Google Gemini — paid / quota=0 on free tier
-    "gemini/gemini-2.5-pro": [
-        "gemini/gemini-2.5-flash",          # free tier, works
-        "gemini/gemini-2.0-flash",
-        "anthropic/claude-haiku-4-5-20251001",
-    ],
-    # Google Gemini — free tier (2.x series, 1.5 series deprecated by Google)
-    "gemini/gemini-2.5-flash": [
-        "gemini/gemini-2.0-flash",
-        "anthropic/claude-haiku-4-5-20251001",
-        "groq/llama-3.3-70b-versatile",
-    ],
-    "gemini/gemini-2.0-flash": [
-        "gemini/gemini-2.5-flash",
-        "anthropic/claude-haiku-4-5-20251001",
-        "groq/llama-3.3-70b-versatile",
-    ],
-    "gemini/gemini-2.0-flash-lite": [
-        "gemini/gemini-2.5-flash",
-        "gemini/gemini-2.0-flash",
-        "anthropic/claude-haiku-4-5-20251001",
-    ],
-    # Mistral
-    "mistral/mistral-large-latest": [
-        "mistral/mistral-medium-3",
-        "groq/llama-3.3-70b-versatile",
-        "anthropic/claude-haiku-4-5-20251001",
-    ],
-    "mistral/pixtral-large-latest": [
-        "mistral/mistral-large-latest",
-        "mistral/mistral-medium-3",
-        "groq/llama-3.3-70b-versatile",
-    ],
-    "mistral/mistral-medium-3": [
-        "mistral/mistral-small-3",
-        "groq/llama-3.3-70b-versatile",
-    ],
-    "mistral/mistral-small-3": [
-        "groq/llama-3.3-70b-versatile",
-        "groq/llama-3.1-8b-instant",
-    ],
-    "mistral/codestral-latest": [
-        "groq/llama-3.3-70b-versatile",
-        "anthropic/claude-haiku-4-5-20251001",
     ],
 }
 

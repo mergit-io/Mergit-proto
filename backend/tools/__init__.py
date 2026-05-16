@@ -17,8 +17,6 @@ from tools.github_pr import github_pr
 from tools.github_pr import SCHEMA as GITHUB_PR_SCHEMA
 from tools.http_request import http_request
 from tools.http_request import SCHEMA as HTTP_REQUEST_SCHEMA
-from tools.slack_notify import slack_notify
-from tools.slack_notify import SCHEMA as SLACK_NOTIFY_SCHEMA
 from tools.wait_webhook import wait_webhook
 from tools.wait_webhook import SCHEMA as WAIT_WEBHOOK_SCHEMA
 from tools.web_search import web_search
@@ -34,7 +32,6 @@ class ToolEntry:
 TOOL_REGISTRY: dict[str, ToolEntry] = {
     "web_search":          ToolEntry(fn=web_search, schema=WEB_SEARCH_SCHEMA),
     "http_request":        ToolEntry(fn=http_request, schema=HTTP_REQUEST_SCHEMA),
-    "slack_notify":        ToolEntry(fn=slack_notify, schema=SLACK_NOTIFY_SCHEMA),
     "file_ops":            ToolEntry(fn=file_ops, schema=FILE_OPS_SCHEMA),
     "github_pr":           ToolEntry(fn=github_pr, schema=GITHUB_PR_SCHEMA),
     "github_read_file":    ToolEntry(fn=github_read_file, schema=GITHUB_READ_FILE_SCHEMA),

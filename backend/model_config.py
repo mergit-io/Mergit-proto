@@ -1,14 +1,16 @@
 """
 Per-role model configuration. Defaults everything to Groq.
-Persisted to model_config.json next to main.py.
+Persisted to model_config.json in the runtime config directory.
 """
 import json
 import logging
 from pathlib import Path
 
+from config import settings
+
 logger = logging.getLogger(__name__)
 
-_CONFIG_FILE = Path(__file__).parent / "model_config.json"
+_CONFIG_FILE = Path(settings.runtime_config_dir) / "model_config.json"
 
 AVAILABLE_MODELS = [
     # Groq — Meta Llama 4
@@ -16,15 +18,11 @@ AVAILABLE_MODELS = [
     {"id": "groq/meta-llama/llama-4-scout-17b-16e-instruct",     "label": "Llama 4 Scout 17B",    "provider": "Groq", "tier": "instant"},
     # Groq — Meta Llama 3.x
     {"id": "groq/llama-3.3-70b-versatile",                       "label": "Llama 3.3 70B",        "provider": "Groq", "tier": "fast"},
-    # llama-3.1-70b-versatile and llama-3.1-8b-instant are decommissioned by Groq — removed
     {"id": "groq/llama-3.2-90b-vision-preview",                  "label": "Llama 3.2 90B Vision", "provider": "Groq", "tier": "fast"},
     {"id": "groq/llama-3.2-11b-vision-preview",                  "label": "Llama 3.2 11B Vision", "provider": "Groq", "tier": "instant"},
-    {"id": "groq/llama-3.2-3b-preview",                          "label": "Llama 3.2 3B",         "provider": "Groq", "tier": "instant"},
     # Groq — DeepSeek / Qwen
     {"id": "groq/deepseek-r1-distill-llama-70b",                 "label": "DeepSeek R1 70B",      "provider": "Groq", "tier": "fast"},
     {"id": "groq/qwen-qwq-32b",                                  "label": "Qwen QwQ 32B",         "provider": "Groq", "tier": "fast"},
-    # Groq — Mixtral / Gemma
-    {"id": "groq/mixtral-8x7b-32768",                            "label": "Mixtral 8x7B",         "provider": "Groq", "tier": "fast"},
     {"id": "groq/gemma2-9b-it",                                  "label": "Gemma 2 9B",           "provider": "Groq", "tier": "instant"},
     # Anthropic — Claude 4
     {"id": "anthropic/claude-opus-4-7",                          "label": "Claude Opus 4.7",      "provider": "Anthropic", "tier": "powerful"},
@@ -33,31 +31,6 @@ AVAILABLE_MODELS = [
     # Anthropic — Claude 3.5
     {"id": "anthropic/claude-3-5-sonnet-20241022",               "label": "Claude 3.5 Sonnet",    "provider": "Anthropic", "tier": "powerful"},
     {"id": "anthropic/claude-3-5-haiku-20241022",                "label": "Claude 3.5 Haiku",     "provider": "Anthropic", "tier": "fast"},
-    # Anthropic — Claude 3
-    {"id": "anthropic/claude-3-opus-20240229",                   "label": "Claude 3 Opus",        "provider": "Anthropic", "tier": "powerful"},
-    # OpenAI — GPT-4o
-    {"id": "openai/gpt-4o",                                      "label": "GPT-4o",               "provider": "OpenAI", "tier": "powerful"},
-    {"id": "openai/gpt-4o-mini",                                 "label": "GPT-4o Mini",          "provider": "OpenAI", "tier": "fast"},
-    # OpenAI — o-series reasoning
-    {"id": "openai/o3",                                          "label": "o3",                   "provider": "OpenAI", "tier": "powerful"},
-    {"id": "openai/o4-mini",                                     "label": "o4 Mini",              "provider": "OpenAI", "tier": "fast"},
-    {"id": "openai/o3-mini",                                     "label": "o3 Mini",              "provider": "OpenAI", "tier": "fast"},
-    {"id": "openai/o1",                                          "label": "o1",                   "provider": "OpenAI", "tier": "powerful"},
-    # OpenAI — GPT-4 / GPT-3.5
-    {"id": "openai/gpt-4-turbo",                                 "label": "GPT-4 Turbo",          "provider": "OpenAI", "tier": "powerful"},
-    {"id": "openai/gpt-3.5-turbo",                               "label": "GPT-3.5 Turbo",        "provider": "OpenAI", "tier": "instant"},
-    # Google — Gemini 2.5
-    {"id": "gemini/gemini-2.5-pro",                              "label": "Gemini 2.5 Pro",       "provider": "Google", "tier": "powerful"},
-    {"id": "gemini/gemini-2.5-flash",                            "label": "Gemini 2.5 Flash",     "provider": "Google", "tier": "fast"},
-    # Google — Gemini 2.0
-    {"id": "gemini/gemini-2.0-flash",                            "label": "Gemini 2.0 Flash",     "provider": "Google", "tier": "fast"},
-    {"id": "gemini/gemini-2.0-flash-lite",                       "label": "Gemini 2.0 Flash Lite","provider": "Google", "tier": "instant"},
-    # Mistral
-    {"id": "mistral/mistral-large-latest",                       "label": "Mistral Large",        "provider": "Mistral", "tier": "powerful"},
-    {"id": "mistral/mistral-medium-3",                           "label": "Mistral Medium 3",     "provider": "Mistral", "tier": "fast"},
-    {"id": "mistral/mistral-small-3",                            "label": "Mistral Small 3",      "provider": "Mistral", "tier": "fast"},
-    {"id": "mistral/codestral-latest",                           "label": "Codestral",            "provider": "Mistral", "tier": "fast"},
-    {"id": "mistral/pixtral-large-latest",                       "label": "Pixtral Large",        "provider": "Mistral", "tier": "powerful"},
 ]
 
 DEFAULTS: dict[str, str] = {
@@ -92,6 +65,7 @@ def _save(config: dict[str, str]) -> None:
     global _cache
     _cache = config
     try:
+        _CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
         _CONFIG_FILE.write_text(json.dumps(config, indent=2))
     except Exception as e:
         logger.warning("Could not persist model config: %s", e)

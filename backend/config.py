@@ -1,4 +1,13 @@
+import os
+from pathlib import Path
+
+from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+_runtime_config_dir = os.environ.get("RUNTIME_CONFIG_DIR")
+if _runtime_config_dir:
+    load_dotenv(Path(_runtime_config_dir) / ".env", override=False)
 
 
 class Settings(BaseSettings):
@@ -7,14 +16,9 @@ class Settings(BaseSettings):
     # LLM
     anthropic_api_key: str = ""
     groq_api_key: str = ""
-    openai_api_key: str = ""
-    gemini_api_key: str = ""   # GEMINI_API_KEY — used by LiteLLM for gemini/ models
-    google_api_key: str = ""   # GOOGLE_API_KEY — accepted alias, bridged at startup
-    mistral_api_key: str = ""
 
     # Tools
     tavily_api_key: str = ""
-    slack_webhook_url: str = ""
     github_token: str = ""
     github_default_repo: str = ""
 
@@ -28,7 +32,10 @@ class Settings(BaseSettings):
     port: int = 8000
     db_path: str = "./omnibox.db"
     workspace_dir: str = "./workspace"
+    runtime_config_dir: str = "."
     frontend_url: str = "http://localhost:3000"
+    cors_origins: str = "http://localhost:3000,http://localhost:8000"
+    cookie_secure: bool = False
 
     # OAuth
     oauth_google_client_id: str = ""
@@ -49,3 +56,7 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def cors_origin_list() -> list[str]:
+    return [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]

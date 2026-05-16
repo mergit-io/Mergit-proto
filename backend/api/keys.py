@@ -7,20 +7,18 @@ from pydantic import BaseModel
 
 import db
 import events as event_bus
+from config import settings
 
 router = APIRouter(prefix="/api/config", tags=["config"])
 
-_ENV_FILE = Path(__file__).parent.parent / ".env"
+_ENV_FILE = Path(settings.runtime_config_dir) / ".env"
 
 PROVIDER_KEYS: dict[str, str] = {
     "groq":      "GROQ_API_KEY",
     "anthropic": "ANTHROPIC_API_KEY",
-    "openai":    "OPENAI_API_KEY",
-    "google":    "GOOGLE_API_KEY",
-    "mistral":   "MISTRAL_API_KEY",
     "tavily":    "TAVILY_API_KEY",
     "github":    "GITHUB_TOKEN",
-    "slack":     "SLACK_WEBHOOK_URL",
+    "omium":     "OMIUM_API_KEY",
 }
 
 
@@ -62,15 +60,17 @@ async def update_key(body: KeyBody):
 
     env_var = PROVIDER_KEYS[provider]
 
+    _ENV_FILE.parent.mkdir(parents=True, exist_ok=True)
     if not _ENV_FILE.exists():
         _ENV_FILE.touch()
     set_key(str(_ENV_FILE), env_var, key_value)
     os.environ[env_var] = key_value
 
-    # LiteLLM uses GEMINI_API_KEY for gemini/ models — bridge from GOOGLE_API_KEY
-    if provider == "google":
-        set_key(str(_ENV_FILE), "GEMINI_API_KEY", key_value)
-        os.environ["GEMINI_API_KEY"] = key_value
+    # Reinitialise Omium tracing live when key is updated
+    if provider == "omium":
+        import tracing as _tracing
+        from config import settings as _settings
+        _tracing.init_tracing(key_value, _settings.omium_project)
 
     # Resume any tasks that were waiting for this credential
     resumed = await db.resume_credential_tasks(env_var)

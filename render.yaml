@@ -1,0 +1,59 @@
+services:
+  - type: web
+    name: omnibox
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    disk:
+      name: omnibox-data
+      mountPath: /data
+      sizeGB: 10
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: DB_PATH
+        value: /data/omnibox.db
+      - key: WORKSPACE_DIR
+        value: /data/workspace
+      - key: RUNTIME_CONFIG_DIR
+        value: /data/config
+      - key: DEBUG
+        value: "false"
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: FRONTEND_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: AUTH_SECRET_KEY
+        generateValue: true
+      - key: GROQ_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: SLACK_WEBHOOK_URL
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: GITHUB_DEFAULT_REPO
+        sync: false
+      - key: OMIUM_API_KEY
+        sync: false
+      - key: OMIUM_PROJECT
+        value: omnibox
+      - key: OMIUM_SKIP_WORKFLOW_REGISTER
+        value: "true"
+      - key: OAUTH_GOOGLE_CLIENT_ID
+        sync: false
+      - key: OAUTH_GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: OAUTH_GOOGLE_REDIRECT_URI
+        sync: false
+      - key: OAUTH_GITHUB_CLIENT_ID
+        sync: false
+      - key: OAUTH_GITHUB_CLIENT_SECRET
+        sync: false
+      - key: OAUTH_GITHUB_REDIRECT_URI
+        sync: false

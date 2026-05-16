@@ -1,7 +1,9 @@
 import json
 from pathlib import Path
 
-CONTEXT_FILE = Path(__file__).parent / "context.json"
+from config import settings
+
+CONTEXT_FILE = Path(settings.runtime_config_dir) / "context.json"
 
 DEFAULT: dict = {
     "github_repo": "",
@@ -22,6 +24,7 @@ def load() -> dict:
 
 def save(ctx: dict) -> dict:
     merged = {**DEFAULT, **{k: v for k, v in ctx.items() if k in DEFAULT}}
+    CONTEXT_FILE.parent.mkdir(parents=True, exist_ok=True)
     CONTEXT_FILE.write_text(json.dumps(merged, indent=2))
     return merged
 

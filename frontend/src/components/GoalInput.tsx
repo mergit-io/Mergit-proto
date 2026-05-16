@@ -3,10 +3,10 @@ import { ArrowRight, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 const PLACEHOLDERS = [
-  "Research top AI agent frameworks and summarize findings in Slack…",
+  "Research the GitHub repo owner/repo, find the bug in issue #1, open a PR…",
   "Write and run a Python script to scrape Hacker News top stories…",
-  "Wait for a webhook, classify it as bug/feature/spam, post to Slack…",
-  "Find competitors for my SaaS and write a comparison report…",
+  "Find the top 5 open-source LLM frameworks and write a comparison report…",
+  "Build a Python CLI tool called jsonstats and ship it as a new GitHub repo…",
   "Search recent LLM reasoning papers and create a structured report…",
 ];
 
