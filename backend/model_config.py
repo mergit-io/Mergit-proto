@@ -37,7 +37,6 @@ DEFAULTS: dict[str, str] = {
     "orchestrator": "groq/llama-3.3-70b-versatile",
     "researcher":   "groq/llama-3.3-70b-versatile",
     "writer":       "groq/llama-3.3-70b-versatile",
-    "notifier":     "groq/llama-3.3-70b-versatile",
     "coder":        "groq/llama-3.3-70b-versatile",
     "integrator":   "groq/llama-3.3-70b-versatile",
 }

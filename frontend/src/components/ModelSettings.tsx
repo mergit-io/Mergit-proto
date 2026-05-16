@@ -8,7 +8,6 @@ const ROLE_META: Record<string, { label: string; description: string; Icon: Reac
   orchestrator: { label: "Orchestrator", description: "Plans the task DAG from your goal", Icon: Settings2 },
   researcher:   { label: "Researcher",   description: "Searches the web and gathers facts", Icon: FlaskConical },
   writer:       { label: "Writer",       description: "Synthesises research into documents", Icon: PenLine },
-  notifier:     { label: "Notifier",     description: "Sends HTTP notifications to endpoints", Icon: Bell },
   coder:        { label: "Coder",        description: "Writes and executes Python code", Icon: Code2 },
   integrator:   { label: "Integrator",   description: "Calls APIs and handles webhooks", Icon: Plug },
 };

@@ -13,14 +13,13 @@ import type { ModelConfig, ModelOption, ProviderKeyStatus, ProjectContext } from
 
 // -- Role metadata
 
-const ROLES = ["orchestrator", "researcher", "writer", "notifier", "coder", "integrator"] as const;
+const ROLES = ["orchestrator", "researcher", "writer", "coder", "integrator"] as const;
 type Role = (typeof ROLES)[number];
 
 const ROLE_META: Record<Role, { label: string; desc: string; Icon: React.ComponentType<{ className?: string }> }> = {
   orchestrator: { label: "Orchestrator", desc: "Plans the task DAG from your goal",         Icon: Settings2    },
   researcher:   { label: "Researcher",   desc: "Searches the web and gathers facts",         Icon: FlaskConical },
   writer:       { label: "Writer",       desc: "Synthesises research into documents",         Icon: PenLine      },
-  notifier:     { label: "Notifier",     desc: "Sends HTTP notifications to endpoints",       Icon: Bell         },
   coder:        { label: "Coder",        desc: "Writes and executes Python code",             Icon: Code2        },
   integrator:   { label: "Integrator",   desc: "Calls APIs and handles webhooks",             Icon: Plug         },
 };
