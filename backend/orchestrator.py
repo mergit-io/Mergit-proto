@@ -33,12 +33,14 @@ Available agents (choose from these only):
   Output: {{"code": str, "output": str, "success": bool}}
   Use for: writing code fixes, running scripts, generating patches.
 
-- integrator: Creates NEW GitHub repos (ships a freshly-built project), creates GitHub PRs, posts comments, interacts with external APIs, waits for webhooks.
-  Tools: github_pr, github_post_comment, github_read_file, github_create_repo, http_request, wait_webhook
+- integrator: Creates NEW GitHub repos (ships a freshly-built project), creates GitHub PRs, posts comments, manages GitHub Actions workflows and branch protection rulesets, interacts with external APIs, waits for webhooks.
+  Tools: github_pr, github_post_comment, github_read_file, github_create_repo, github_list_workflows, github_get_branch_protection, github_set_branch_protection, http_request, wait_webhook
   Output: {{"action": str, "result": any, "url": str|null}}
   NOTE: outputs raw API data — NOT a human-readable report on its own.
-  Use for: shipping a new project as its own repo (github_create_repo), creating PRs, posting comments, API actions with side effects.
+  Use for: shipping a new project as its own repo (github_create_repo), creating PRs, posting comments, adding/updating CI workflows, setting branch protection rules.
   For "build X and ship it as a new repo" goals use the pattern: coder writes+tests the app -> integrator calls github_create_repo with all files.
+  For "add a CI workflow" goals: researcher reads existing workflows -> coder writes the YAML -> integrator creates PR with the new .github/workflows/file.yml.
+  For "set branch protection" goals: integrator calls github_set_branch_protection directly (no coder needed).
 """
 
 SYSTEM_PROMPT = f"""You are the omniBox orchestrator. Given a user goal, decompose it into the minimum set of tasks that achieves the goal, expressed as a directed acyclic graph (DAG).

@@ -4,7 +4,7 @@ import {
   Check, RotateCcw, Save, Cpu, FlaskConical, PenLine,
   Bell, Code2, Plug, Settings2, ChevronDown, AlertCircle,
   Layers, FileJson, Plus, X, Key, Eye, EyeOff, CheckCircle,
-  FolderGit2, Thermometer,
+  FolderGit2,
 } from "lucide-react";
 import { AppNav } from "../components/AppNav";
 import { AppBackground } from "../components/AppBackground";
@@ -30,11 +30,6 @@ function detectProvider(modelId: string): { name: string; color: string; bg: str
   const id = modelId.toLowerCase();
   if (id.startsWith("groq/"))      return { name: "Groq",      color: "text-emerald-400", bg: "bg-emerald-400/10 border-emerald-400/20" };
   if (id.startsWith("anthropic/")) return { name: "Anthropic", color: "text-violet-400",  bg: "bg-violet-400/10 border-violet-400/20"  };
-  if (id.startsWith("openai/"))    return { name: "OpenAI",    color: "text-blue-400",    bg: "bg-blue-400/10 border-blue-400/20"      };
-  if (id.startsWith("cohere/"))    return { name: "Cohere",    color: "text-orange-400",  bg: "bg-orange-400/10 border-orange-400/20"  };
-  if (id.startsWith("mistral/"))   return { name: "Mistral",   color: "text-amber-400",   bg: "bg-amber-400/10 border-amber-400/20"    };
-  if (id.startsWith("gemini/") || id.startsWith("google/"))
-                                   return { name: "Google",    color: "text-sky-400",      bg: "bg-sky-400/10 border-sky-400/20"        };
   return                                   { name: "Custom",   color: "text-white",        bg: "bg-white/6 border-white/10"             };
 }
 
@@ -304,11 +299,6 @@ function ProjectContextSection() {
   );
 }
 
-function fmtCooldown(secs: number): string {
-  if (secs >= 3600) return `${Math.ceil(secs / 3600)}h`;
-  if (secs >= 60)   return `${Math.ceil(secs / 60)}m`;
-  return `${Math.ceil(secs)}s`;
-}
 
 export function Models() {
   const [config, setConfig]   = useState<ModelConfig | null>(null);
@@ -320,8 +310,6 @@ export function Models() {
   const [saved, setSaved]     = useState(false);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [saveErr, setSaveErr] = useState<string | null>(null);
-  const [modelHealthStatus, setModelHealthStatus] = useState<Record<string, number>>({});
-
   // Sync draft → jsonText when switching to JSON tab or draft changes
   useEffect(() => {
     if (tab === "json") {
@@ -343,21 +331,6 @@ export function Models() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Poll model health — every 5s while any model is cooling down, else every 30s
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
-    const poll = async () => {
-      try {
-        const h = await api.getModelHealth();
-        setModelHealthStatus(h.unhealthy);
-        timer = setTimeout(poll, Object.keys(h.unhealthy).length > 0 ? 5000 : 30000);
-      } catch {
-        timer = setTimeout(poll, 30000);
-      }
-    };
-    poll();
-    return () => clearTimeout(timer);
-  }, []);
 
   const handleJsonChange = (val: string) => {
     setJsonText(val);
@@ -435,32 +408,6 @@ export function Models() {
           </div>
         )}
 
-        <AnimatePresence>
-          {Object.keys(modelHealthStatus).length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: -6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3"
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <Thermometer className="w-4 h-4 text-amber-400 shrink-0" />
-                <p className="text-sm font-semibold text-amber-300">Auto-switch active</p>
-              </div>
-              <p className="text-xs text-amber-300/70 mb-2">
-                These models hit rate limits and are cooling down. Agents are automatically using their fallbacks.
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {Object.entries(modelHealthStatus).map(([model, secs]) => (
-                  <span key={model} className="flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/25 text-[11px] font-mono text-amber-300">
-                    {model.split("/").slice(-1)[0]}
-                    <span className="text-amber-400/60">· {fmtCooldown(secs)}</span>
-                  </span>
-                ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         {/* Main card */}
         <motion.div
@@ -504,35 +451,19 @@ export function Models() {
                   ROLES.map((role, i) => {
                     const { label, desc, Icon } = ROLE_META[role];
                     const value = draft[role] ?? config.defaults[role];
-                    const cooldownSecs = modelHealthStatus[value];
-                    const isCooling = cooldownSecs !== undefined && cooldownSecs > 0;
                     return (
                       <motion.div
                         key={role}
                         initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.04 }}
-                        className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${
-                          isCooling
-                            ? "bg-amber-500/5 border-amber-500/25"
-                            : "bg-white/3 border-white/6 hover:border-white/10"
-                        }`}
+                        className="flex items-center gap-4 p-4 rounded-xl border bg-white/3 border-white/6 hover:border-white/10 transition-all"
                       >
-                        <div className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${
-                          isCooling ? "bg-amber-500/10 border-amber-500/25" : "bg-white/6 border-white/8"
-                        }`}>
-                          <Icon className={`w-4 h-4 ${isCooling ? "text-amber-400" : "text-text-muted"}`} />
+                        <div className="w-9 h-9 rounded-xl border bg-white/6 border-white/8 flex items-center justify-center shrink-0">
+                          <Icon className="w-4 h-4 text-text-muted" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm font-medium text-white">{label}</p>
-                            {isCooling && (
-                              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/10 border border-amber-500/25 text-amber-400">
-                                <Thermometer className="w-2.5 h-2.5" />
-                                cooling {fmtCooldown(cooldownSecs)}
-                              </span>
-                            )}
-                          </div>
+                          <p className="text-sm font-medium text-white">{label}</p>
                           <p className="text-[11px] text-text-muted truncate">{desc}</p>
                         </div>
                         <ModelPicker
@@ -557,8 +488,8 @@ export function Models() {
                 <div className="mb-3 flex items-center justify-between">
                   <p className="text-xs text-text-muted">
                     Edit the role→model mapping directly. Use any LiteLLM-compatible model ID (e.g.{" "}
-                    <code className="text-accent/80 bg-accent/5 px-1 rounded">openai/gpt-4o</code>,{" "}
-                    <code className="text-accent/80 bg-accent/5 px-1 rounded">mistral/mistral-large-latest</code>).
+                    <code className="text-accent/80 bg-accent/5 px-1 rounded">groq/llama-3.3-70b-versatile</code>,{" "}
+                    <code className="text-accent/80 bg-accent/5 px-1 rounded">anthropic/claude-sonnet-4-6</code>).
                   </p>
                 </div>
 

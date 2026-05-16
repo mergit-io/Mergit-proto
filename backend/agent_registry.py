@@ -33,7 +33,8 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
             "Call submit_result when done. Even partial knowledge is better than no answer."
         ),
         "allowed_tools": ["web_search", "http_request", "github_read_file", "github_list_dir",
-                          "github_get_issue", "github_search_code"],
+                          "github_get_issue", "github_search_code", "github_list_workflows",
+                          "github_get_branch_protection"],
         "output_schema": {
             "type": "object",
             "properties": {
@@ -133,7 +134,9 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
             "action (str — what was done), result (any — the outcome), url (str — the PR URL, or null). "
             "Call submit_result only after the PR is actually created (result.ok == true)."
         ),
-        "allowed_tools": ["github_pr", "github_post_comment", "github_read_file", "github_create_repo", "http_request", "wait_webhook"],
+        "allowed_tools": ["github_pr", "github_post_comment", "github_read_file", "github_create_repo",
+                          "github_list_workflows", "github_get_branch_protection", "github_set_branch_protection",
+                          "http_request", "wait_webhook"],
         "output_schema": {
             "type": "object",
             "properties": {

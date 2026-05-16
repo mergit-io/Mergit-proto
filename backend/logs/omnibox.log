@@ -473,3 +473,265 @@ LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
 2026-05-16 06:33:45 INFO     main                     Shutting down omniBox…
 2026-05-16 06:33:45 INFO     main                     omniBox stopped
 2026-05-16 06:33:45 INFO     main                     omniBox stopped
+2026-05-16 07:03:15 INFO     __main__                 Serving frontend from /home/viscous/Viscous/omniBox/frontend/dist
+2026-05-16 07:03:15 INFO     main                     Serving frontend from /home/viscous/Viscous/omniBox/frontend/dist
+2026-05-16 07:03:15 INFO     main                     Serving frontend from /home/viscous/Viscous/omniBox/frontend/dist
+2026-05-16 07:03:15 INFO     main                     Starting omniBox (host=0.0.0.0 port=8000 debug=False)
+2026-05-16 07:03:15 INFO     main                     Starting omniBox (host=0.0.0.0 port=8000 debug=False)
+2026-05-16 07:03:15 INFO     main                     DB initialised at ./omnibox.db
+2026-05-16 07:03:15 INFO     main                     DB initialised at ./omnibox.db
+2026-05-16 07:03:15 INFO     omium                    Omium initialized: project=omniBox, auto_trace=False, frameworks=[]
+2026-05-16 07:03:15 INFO     omium                    Omium initialized: project=omniBox, auto_trace=False, frameworks=[]
+2026-05-16 07:03:15 INFO     tracing                  Omium tracing initialised (project=omniBox)
+2026-05-16 07:03:15 INFO     tracing                  Omium tracing initialised (project=omniBox)
+2026-05-16 07:03:15 INFO     worker                   Worker started (id=87f8e7f7-735e-4f0b-9469-87a4925d36b5)
+2026-05-16 07:03:15 INFO     worker                   Worker started (id=87f8e7f7-735e-4f0b-9469-87a4925d36b5)
+2026-05-16 07:03:15 INFO     main                     omniBox ready ✓
+2026-05-16 07:03:15 INFO     main                     omniBox ready ✓
+2026-05-16 07:03:27 INFO     omium                    Auto-registered workflow 'omniBox' in Omium dashboard
+2026-05-16 07:03:27 INFO     omium                    Auto-registered workflow 'omniBox' in Omium dashboard
+2026-05-16 07:04:10 INFO     orchestrator             Orchestrator using model: anthropic/claude-sonnet-4-6
+2026-05-16 07:04:10 INFO     orchestrator             Orchestrator using model: anthropic/claude-sonnet-4-6
+2026-05-16 07:04:10 INFO     LiteLLM                  
+LiteLLM completion() model= claude-sonnet-4-6; provider = anthropic
+2026-05-16 07:04:10 INFO     LiteLLM                  
+LiteLLM completion() model= claude-sonnet-4-6; provider = anthropic
+2026-05-16 07:04:11 WARNING  llm                      Hard rate limit on anthropic/claude-sonnet-4-6 (cooldown 300s): litellm.RateLimitError: AnthropicException - {"type":"error","error":{"type":"rate_limit_error","message":"Error"},"requ; trying next model
+2026-05-16 07:04:11 WARNING  llm                      Hard rate limit on anthropic/claude-sonnet-4-6 (cooldown 300s): litellm.RateLimitError: AnthropicException - {"type":"error","error":{"type":"rate_limit_error","message":"Error"},"requ; trying next model
+2026-05-16 07:04:11 WARNING  llm                      Falling back from anthropic/claude-sonnet-4-6 → anthropic/claude-haiku-4-5-20251001 (rate limit / quota)
+2026-05-16 07:04:11 WARNING  llm                      Falling back from anthropic/claude-sonnet-4-6 → anthropic/claude-haiku-4-5-20251001 (rate limit / quota)
+2026-05-16 07:04:11 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:04:11 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:04:18 INFO     orchestrator             Orchestrator produced plan for goal=3af3f96f-9f9b-4c08-806e-e12168327ce3: 2 tasks (model=anthropic/claude-sonnet-4-6)
+2026-05-16 07:04:18 INFO     orchestrator             Orchestrator produced plan for goal=3af3f96f-9f9b-4c08-806e-e12168327ce3: 2 tasks (model=anthropic/claude-sonnet-4-6)
+2026-05-16 07:04:18 INFO     worker                   Goal 3af3f96f-9f9b-4c08-806e-e12168327ce3 planned successfully
+2026-05-16 07:04:18 INFO     worker                   Goal 3af3f96f-9f9b-4c08-806e-e12168327ce3 planned successfully
+2026-05-16 07:04:18 INFO     agent_runner             [task=3af3f96f_t1 agent=coder] Starting agent loop (model=anthropic/claude-haiku-4-5-20251001 max_iter=10)
+2026-05-16 07:04:18 INFO     agent_runner             [task=3af3f96f_t1 agent=coder] Starting agent loop (model=anthropic/claude-haiku-4-5-20251001 max_iter=10)
+2026-05-16 07:04:18 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:04:18 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:04:28 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:04:28 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:05:08 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:05:08 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:05:13 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:05:13 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:05:15 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:05:15 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:05:26 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:05:26 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:05:42 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:05:42 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:05:44 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:05:44 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:05:52 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:05:52 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:05:54 WARNING  agent_runner             [task=3af3f96f_t1] Tool file_ops returned error: File not found: jsonstats.py
+2026-05-16 07:05:54 WARNING  agent_runner             [task=3af3f96f_t1] Tool file_ops returned error: File not found: jsonstats.py
+2026-05-16 07:05:54 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:05:54 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:05:57 WARNING  agent_runner             [task=3af3f96f_t1] Hit iteration cap without submit — forcing final submit_result
+2026-05-16 07:05:57 WARNING  agent_runner             [task=3af3f96f_t1] Hit iteration cap without submit — forcing final submit_result
+2026-05-16 07:05:57 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:05:57 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:06:10 INFO     agent_runner             [task=3af3f96f_t1 agent=coder] forced final submit_result succeeded
+2026-05-16 07:06:10 INFO     agent_runner             [task=3af3f96f_t1 agent=coder] forced final submit_result succeeded
+2026-05-16 07:06:10 INFO     worker                   Task 3af3f96f_t1 DONE (goal=3af3f96f-9f9b-4c08-806e-e12168327ce3)
+2026-05-16 07:06:10 INFO     worker                   Task 3af3f96f_t1 DONE (goal=3af3f96f-9f9b-4c08-806e-e12168327ce3)
+2026-05-16 07:06:11 INFO     agent_runner             [task=3af3f96f_t2 agent=integrator] Starting agent loop (model=groq/qwen-qwq-32b max_iter=5)
+2026-05-16 07:06:11 INFO     agent_runner             [task=3af3f96f_t2 agent=integrator] Starting agent loop (model=groq/qwen-qwq-32b max_iter=5)
+2026-05-16 07:06:11 INFO     LiteLLM                  
+LiteLLM completion() model= qwen-qwq-32b; provider = groq
+2026-05-16 07:06:11 INFO     LiteLLM                  
+LiteLLM completion() model= qwen-qwq-32b; provider = groq
+2026-05-16 07:06:11 ERROR    agent_runner             [task=3af3f96f_t2] LLM call failed on iteration 1: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:06:11 ERROR    agent_runner             [task=3af3f96f_t2] LLM call failed on iteration 1: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:06:11 ERROR    worker                   Task 3af3f96f_t2 FAILED: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:06:11 ERROR    worker                   Task 3af3f96f_t2 FAILED: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:06:12 INFO     agent_runner             [task=3af3f96f_t2 agent=integrator] Starting agent loop (model=groq/qwen-qwq-32b max_iter=5)
+2026-05-16 07:06:12 INFO     agent_runner             [task=3af3f96f_t2 agent=integrator] Starting agent loop (model=groq/qwen-qwq-32b max_iter=5)
+2026-05-16 07:06:12 INFO     LiteLLM                  
+LiteLLM completion() model= qwen-qwq-32b; provider = groq
+2026-05-16 07:06:12 INFO     LiteLLM                  
+LiteLLM completion() model= qwen-qwq-32b; provider = groq
+2026-05-16 07:06:12 ERROR    agent_runner             [task=3af3f96f_t2] LLM call failed on iteration 1: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:06:12 ERROR    agent_runner             [task=3af3f96f_t2] LLM call failed on iteration 1: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:06:12 ERROR    worker                   Task 3af3f96f_t2 FAILED: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:06:12 ERROR    worker                   Task 3af3f96f_t2 FAILED: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:06:13 INFO     agent_runner             [task=3af3f96f_t2 agent=integrator] Starting agent loop (model=groq/qwen-qwq-32b max_iter=5)
+2026-05-16 07:06:13 INFO     agent_runner             [task=3af3f96f_t2 agent=integrator] Starting agent loop (model=groq/qwen-qwq-32b max_iter=5)
+2026-05-16 07:06:13 INFO     LiteLLM                  
+LiteLLM completion() model= qwen-qwq-32b; provider = groq
+2026-05-16 07:06:13 INFO     LiteLLM                  
+LiteLLM completion() model= qwen-qwq-32b; provider = groq
+2026-05-16 07:06:13 ERROR    agent_runner             [task=3af3f96f_t2] LLM call failed on iteration 1: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:06:13 ERROR    agent_runner             [task=3af3f96f_t2] LLM call failed on iteration 1: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:06:13 ERROR    worker                   Task 3af3f96f_t2 FAILED: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:06:13 ERROR    worker                   Task 3af3f96f_t2 FAILED: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:07:27 WARNING  main                     [f06616a5] ← 400 PUT /api/config/models (1ms)
+2026-05-16 07:07:27 WARNING  main                     [f06616a5] ← 400 PUT /api/config/models (1ms)
+2026-05-16 07:08:39 INFO     main                     Serving frontend from /home/viscous/Viscous/omniBox/frontend/dist
+2026-05-16 07:14:37 INFO     orchestrator             Orchestrator using model: anthropic/claude-haiku-4-5-20251001
+2026-05-16 07:14:37 INFO     orchestrator             Orchestrator using model: anthropic/claude-haiku-4-5-20251001
+2026-05-16 07:14:37 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:14:37 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:14:43 INFO     orchestrator             Orchestrator produced plan for goal=37559c98-9c93-42be-aaa7-415367cc33bb: 3 tasks (model=anthropic/claude-haiku-4-5-20251001)
+2026-05-16 07:14:43 INFO     orchestrator             Orchestrator produced plan for goal=37559c98-9c93-42be-aaa7-415367cc33bb: 3 tasks (model=anthropic/claude-haiku-4-5-20251001)
+2026-05-16 07:14:43 INFO     worker                   Goal 37559c98-9c93-42be-aaa7-415367cc33bb planned successfully
+2026-05-16 07:14:43 INFO     worker                   Goal 37559c98-9c93-42be-aaa7-415367cc33bb planned successfully
+2026-05-16 07:14:43 INFO     agent_runner             [task=37559c98_t1 agent=researcher] Starting agent loop (model=groq/meta-llama/llama-4-maverick-17b-128e-instruct max_iter=15)
+2026-05-16 07:14:43 INFO     agent_runner             [task=37559c98_t1 agent=researcher] Starting agent loop (model=groq/meta-llama/llama-4-maverick-17b-128e-instruct max_iter=15)
+2026-05-16 07:14:43 INFO     LiteLLM                  
+LiteLLM completion() model= meta-llama/llama-4-maverick-17b-128e-instruct; provider = groq
+2026-05-16 07:14:43 INFO     LiteLLM                  
+LiteLLM completion() model= meta-llama/llama-4-maverick-17b-128e-instruct; provider = groq
+2026-05-16 07:14:44 WARNING  llm                      Hard rate limit on groq/meta-llama/llama-4-maverick-17b-128e-instruct (cooldown 300s): litellm.NotFoundError: GroqException - {"error":{"message":"The model `meta-llama/llama-4-maverick-17b-128e-instruct` do; trying next model
+2026-05-16 07:14:44 WARNING  llm                      Hard rate limit on groq/meta-llama/llama-4-maverick-17b-128e-instruct (cooldown 300s): litellm.NotFoundError: GroqException - {"error":{"message":"The model `meta-llama/llama-4-maverick-17b-128e-instruct` do; trying next model
+2026-05-16 07:14:44 WARNING  llm                      Falling back from groq/meta-llama/llama-4-maverick-17b-128e-instruct → groq/llama-3.3-70b-versatile (rate limit / quota)
+2026-05-16 07:14:44 WARNING  llm                      Falling back from groq/meta-llama/llama-4-maverick-17b-128e-instruct → groq/llama-3.3-70b-versatile (rate limit / quota)
+2026-05-16 07:14:44 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:14:44 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:14:46 WARNING  llm                      Auto-switching: groq/meta-llama/llama-4-maverick-17b-128e-instruct is cooling down — starting with groq/llama-3.3-70b-versatile instead
+2026-05-16 07:14:46 WARNING  llm                      Auto-switching: groq/meta-llama/llama-4-maverick-17b-128e-instruct is cooling down — starting with groq/llama-3.3-70b-versatile instead
+2026-05-16 07:14:46 WARNING  llm                      Falling back from groq/meta-llama/llama-4-maverick-17b-128e-instruct → groq/llama-3.3-70b-versatile (rate limit / quota)
+2026-05-16 07:14:46 WARNING  llm                      Falling back from groq/meta-llama/llama-4-maverick-17b-128e-instruct → groq/llama-3.3-70b-versatile (rate limit / quota)
+2026-05-16 07:14:46 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:14:46 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:14:48 WARNING  agent_runner             [task=37559c98_t1] Tool github_list_dir returned error: 404 {"message": "Not Found", "documentation_url": "https://docs.github.com/rest/repos/contents#get-repository-content", "status": "404"}
+2026-05-16 07:14:48 WARNING  agent_runner             [task=37559c98_t1] Tool github_list_dir returned error: 404 {"message": "Not Found", "documentation_url": "https://docs.github.com/rest/repos/contents#get-repository-content", "status": "404"}
+2026-05-16 07:14:48 WARNING  llm                      Auto-switching: groq/meta-llama/llama-4-maverick-17b-128e-instruct is cooling down — starting with groq/llama-3.3-70b-versatile instead
+2026-05-16 07:14:48 WARNING  llm                      Auto-switching: groq/meta-llama/llama-4-maverick-17b-128e-instruct is cooling down — starting with groq/llama-3.3-70b-versatile instead
+2026-05-16 07:14:48 WARNING  llm                      Falling back from groq/meta-llama/llama-4-maverick-17b-128e-instruct → groq/llama-3.3-70b-versatile (rate limit / quota)
+2026-05-16 07:14:48 WARNING  llm                      Falling back from groq/meta-llama/llama-4-maverick-17b-128e-instruct → groq/llama-3.3-70b-versatile (rate limit / quota)
+2026-05-16 07:14:48 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:14:48 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:14:49 WARNING  llm                      Soft rate limit on groq/llama-3.3-70b-versatile; retrying in 16.66s (attempt 1/3)
+2026-05-16 07:14:49 WARNING  llm                      Soft rate limit on groq/llama-3.3-70b-versatile; retrying in 16.66s (attempt 1/3)
+2026-05-16 07:15:05 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:15:05 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:15:07 WARNING  llm                      Auto-switching: groq/meta-llama/llama-4-maverick-17b-128e-instruct is cooling down — starting with groq/llama-3.3-70b-versatile instead
+2026-05-16 07:15:07 WARNING  llm                      Auto-switching: groq/meta-llama/llama-4-maverick-17b-128e-instruct is cooling down — starting with groq/llama-3.3-70b-versatile instead
+2026-05-16 07:15:07 WARNING  llm                      Falling back from groq/meta-llama/llama-4-maverick-17b-128e-instruct → groq/llama-3.3-70b-versatile (rate limit / quota)
+2026-05-16 07:15:07 WARNING  llm                      Falling back from groq/meta-llama/llama-4-maverick-17b-128e-instruct → groq/llama-3.3-70b-versatile (rate limit / quota)
+2026-05-16 07:15:07 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:15:07 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:15:08 INFO     agent_runner             [task=37559c98_t1 agent=researcher] submit_result called — task done ✓
+2026-05-16 07:15:08 INFO     agent_runner             [task=37559c98_t1 agent=researcher] submit_result called — task done ✓
+2026-05-16 07:15:08 INFO     worker                   Task 37559c98_t1 DONE (goal=37559c98-9c93-42be-aaa7-415367cc33bb)
+2026-05-16 07:15:08 INFO     worker                   Task 37559c98_t1 DONE (goal=37559c98-9c93-42be-aaa7-415367cc33bb)
+2026-05-16 07:15:09 INFO     agent_runner             [task=37559c98_t2 agent=coder] Starting agent loop (model=anthropic/claude-haiku-4-5-20251001 max_iter=10)
+2026-05-16 07:15:09 INFO     agent_runner             [task=37559c98_t2 agent=coder] Starting agent loop (model=anthropic/claude-haiku-4-5-20251001 max_iter=10)
+2026-05-16 07:15:09 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:15:09 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:15:16 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:15:16 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:15:19 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:15:19 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:15:20 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:15:20 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:15:25 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:15:25 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:15:29 INFO     agent_runner             [task=37559c98_t2 agent=coder] submit_result called — task done ✓
+2026-05-16 07:15:29 INFO     agent_runner             [task=37559c98_t2 agent=coder] submit_result called — task done ✓
+2026-05-16 07:15:29 INFO     worker                   Task 37559c98_t2 DONE (goal=37559c98-9c93-42be-aaa7-415367cc33bb)
+2026-05-16 07:15:29 INFO     worker                   Task 37559c98_t2 DONE (goal=37559c98-9c93-42be-aaa7-415367cc33bb)
+2026-05-16 07:15:29 INFO     agent_runner             [task=37559c98_t3 agent=integrator] Starting agent loop (model=groq/qwen-qwq-32b max_iter=5)
+2026-05-16 07:15:29 INFO     agent_runner             [task=37559c98_t3 agent=integrator] Starting agent loop (model=groq/qwen-qwq-32b max_iter=5)
+2026-05-16 07:15:29 INFO     LiteLLM                  
+LiteLLM completion() model= qwen-qwq-32b; provider = groq
+2026-05-16 07:15:29 INFO     LiteLLM                  
+LiteLLM completion() model= qwen-qwq-32b; provider = groq
+2026-05-16 07:15:29 ERROR    agent_runner             [task=37559c98_t3] LLM call failed on iteration 1: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:15:29 ERROR    agent_runner             [task=37559c98_t3] LLM call failed on iteration 1: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:15:29 ERROR    worker                   Task 37559c98_t3 FAILED: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:15:29 ERROR    worker                   Task 37559c98_t3 FAILED: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:15:30 INFO     agent_runner             [task=37559c98_t3 agent=integrator] Starting agent loop (model=groq/qwen-qwq-32b max_iter=5)
+2026-05-16 07:15:30 INFO     agent_runner             [task=37559c98_t3 agent=integrator] Starting agent loop (model=groq/qwen-qwq-32b max_iter=5)
+2026-05-16 07:15:30 INFO     LiteLLM                  
+LiteLLM completion() model= qwen-qwq-32b; provider = groq
+2026-05-16 07:15:30 INFO     LiteLLM                  
+LiteLLM completion() model= qwen-qwq-32b; provider = groq
+2026-05-16 07:15:30 ERROR    agent_runner             [task=37559c98_t3] LLM call failed on iteration 1: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:15:30 ERROR    agent_runner             [task=37559c98_t3] LLM call failed on iteration 1: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:15:30 ERROR    worker                   Task 37559c98_t3 FAILED: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:15:30 ERROR    worker                   Task 37559c98_t3 FAILED: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:15:31 INFO     agent_runner             [task=37559c98_t3 agent=integrator] Starting agent loop (model=groq/qwen-qwq-32b max_iter=5)
+2026-05-16 07:15:31 INFO     agent_runner             [task=37559c98_t3 agent=integrator] Starting agent loop (model=groq/qwen-qwq-32b max_iter=5)
+2026-05-16 07:15:31 INFO     LiteLLM                  
+LiteLLM completion() model= qwen-qwq-32b; provider = groq
+2026-05-16 07:15:31 INFO     LiteLLM                  
+LiteLLM completion() model= qwen-qwq-32b; provider = groq
+2026-05-16 07:15:31 ERROR    agent_runner             [task=37559c98_t3] LLM call failed on iteration 1: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:15:31 ERROR    agent_runner             [task=37559c98_t3] LLM call failed on iteration 1: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:15:31 ERROR    worker                   Task 37559c98_t3 FAILED: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:15:31 ERROR    worker                   Task 37559c98_t3 FAILED: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+

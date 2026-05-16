@@ -1,4 +1,4 @@
-import { LayoutDashboard, ExternalLink, Cpu, GitBranch, Zap } from "lucide-react";
+import { LayoutDashboard, ExternalLink, Cpu, GitBranch, Zap, Workflow } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 
 export function AppNav() {
@@ -52,6 +52,7 @@ export function AppNav() {
           {navBtn("/app", "Dashboard", LayoutDashboard)}
           {navBtn("/app/models", "Models", Cpu)}
           {navBtn("/app/webhooks", "Automate", Zap)}
+          {navBtn("/app/actions", "Actions", Workflow)}
           <a
             href="/api/docs"
             target="_blank"

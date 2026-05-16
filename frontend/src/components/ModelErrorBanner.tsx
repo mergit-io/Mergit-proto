@@ -9,9 +9,7 @@ function classifyError(error: string): { type: "invalid_key" | "quota" | "rate_l
   const provider =
     e.includes("groq")      ? "groq" :
     e.includes("anthropic") ? "anthropic" :
-    e.includes("openai")    ? "openai" :
-    e.includes("google") || e.includes("gemini") ? "google" :
-    e.includes("mistral")   ? "mistral" : null;
+    null;
 
   if (/invalid.api.key|invalid_api_key|authentication|unauthorized/.test(e))
     return { type: "invalid_key", provider };

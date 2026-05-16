@@ -7,7 +7,6 @@ from typing import Any
 import litellm
 from litellm import acompletion as _acompletion
 
-import model_health
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -171,26 +170,13 @@ async def acompletion(
     temperature: float = 0.2,
     max_tokens: int = 4096,
 ) -> Any:
-    all_candidates = [model] + _FALLBACKS.get(model, [])
-
-    # Skip models currently cooling down from a hard rate limit.
-    # Always keep at least one candidate (the least-cold if all are cooling).
-    healthy = [m for m in all_candidates if model_health.is_healthy(m)]
-    models_to_try = healthy if healthy else [model_health.get_least_cold(all_candidates)]
-
-    if models_to_try[0] != model:
-        logger.warning(
-            "Auto-switching: %s is cooling down — starting with %s instead",
-            model, models_to_try[0],
-        )
-
+    models_to_try = [model] + _FALLBACKS.get(model, [])
     last_err: Exception | None = None
 
     for attempt_model in models_to_try:
         if attempt_model != model:
-            logger.warning("Falling back from %s → %s (rate limit / quota)", model, attempt_model)
+            logger.warning("Falling back from %s → %s", model, attempt_model)
 
-        # Claude 4 extended-thinking models don't accept `temperature`
         _no_temp = attempt_model in {
             "anthropic/claude-opus-4-7",
             "anthropic/claude-sonnet-4-6",
@@ -213,42 +199,21 @@ async def acompletion(
                 if not getattr(resp, "choices", None):
                     last_err = ValueError(f"{attempt_model} returned empty response (no choices)")
                     logger.warning("Empty choices from %s; trying next model", attempt_model)
-                    model_health.mark_unhealthy(attempt_model, 120)
-                    break  # try next fallback model
+                    break
                 return resp
             except Exception as exc:
                 if _is_hard_rate_limit(exc):
-                    cooldown = _hard_limit_cooldown(exc)
-                    model_health.mark_unhealthy(attempt_model, cooldown)
-                    logger.warning(
-                        "Hard rate limit on %s (cooldown %.0fs): %s; trying next model",
-                        attempt_model, cooldown, str(exc)[:120],
-                    )
+                    logger.warning("Hard rate limit on %s: %s; trying next model", attempt_model, str(exc)[:120])
                     last_err = exc
                     break
                 if _is_soft_rate_limit(exc) and retry_attempt < 2:
                     delay = _rate_limit_delay(exc, retry_attempt)
-                    # Threshold: if retry-after > 20s, skip to next fallback model instead of sleeping.
-                    # This prevents a single model's rate limit from blocking for > 20s per call.
-                    if delay > 20:
-                        model_health.mark_unhealthy(attempt_model, delay)
-                        logger.warning(
-                            "Soft rate limit wait is %.2fs for %s — cooling down; trying next model",
-                            delay, attempt_model,
-                        )
-                        last_err = exc
-                        break
-                    logger.warning(
-                        "Soft rate limit on %s; retrying in %.2fs (attempt %d/3)",
-                        attempt_model, delay, retry_attempt + 1,
-                    )
+                    logger.warning("Soft rate limit on %s; retrying in %.2fs (attempt %d/3)", attempt_model, delay, retry_attempt + 1)
                     await asyncio.sleep(delay)
                     continue
-                # Model not found / deprecated — mark unhealthy and try next fallback
                 err_lower = str(exc).lower()
                 if "not_found_error" in err_lower or "notfounderror" in err_lower or "model not found" in err_lower:
-                    model_health.mark_unhealthy(attempt_model, 3600)
-                    logger.warning("Model %s not found — marking unhealthy; trying next fallback", attempt_model)
+                    logger.warning("Model %s not found — trying next fallback", attempt_model)
                     last_err = exc
                     break
                 raise

@@ -6,6 +6,7 @@ import { Models } from "./pages/Models";
 import { Login } from "./pages/Login";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Webhooks } from "./pages/Webhooks";
+import { Actions } from "./pages/Actions";
 import "./index.css";
 
 export default function App() {
@@ -43,6 +44,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <Webhooks />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/actions"
+          element={
+            <ProtectedRoute>
+              <Actions />
             </ProtectedRoute>
           }
         />
