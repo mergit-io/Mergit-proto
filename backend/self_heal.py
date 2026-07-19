@@ -1,7 +1,7 @@
 """
 Self-healing: when a developer-side error is detected, automatically:
-  1. File a GitHub issue on the omniBox repo with full context
-  2. Spawn a new omniBox goal to research + fix + PR the bug
+  1. File a GitHub issue on the Mergit repo with full context
+  2. Spawn a new Mergit goal to research + fix + PR the bug
 """
 import logging
 import os
@@ -13,14 +13,14 @@ logger = logging.getLogger(__name__)
 
 
 async def _create_github_issue(title: str, body: str) -> dict | None:
-    """Open an issue on the omniBox repo. Returns {number, url} or None on failure."""
+    """Open an issue on the Mergit repo. Returns {number, url} or None on failure."""
     token = os.environ.get("GITHUB_TOKEN", "") or settings.github_token
     if not token:
         logger.warning("self_heal: no GITHUB_TOKEN — cannot file issue")
         return None
-    repo = settings.omnibox_repo
+    repo = settings.mergit_repo
     if not repo:
-        logger.warning("self_heal: OMNIBOX_REPO not set — cannot file issue")
+        logger.warning("self_heal: MERGIT_REPO not set — cannot file issue")
         return None
     try:
         from github import Github
@@ -55,11 +55,11 @@ async def trigger(goal_id: str, goal_title: str, failed_task_agent: str,
     Called when a developer-side error is detected.
     Files a GitHub issue and spawns a self-fix goal.
     """
-    repo = settings.omnibox_repo
+    repo = settings.mergit_repo
 
     issue_title = f"[auto] Bug in {failed_task_agent} agent: {error_summary[:80]}"
 
-    issue_body = f"""## Auto-detected bug in omniBox
+    issue_body = f"""## Auto-detected bug in Mergit
 
 **Detected by**: self-heal system
 **Affected goal**: `{goal_id}` — _{goal_title}_
@@ -72,7 +72,7 @@ async def trigger(goal_id: str, goal_title: str, failed_task_agent: str,
 
 ### Context
 This issue was automatically filed because the error matches patterns of a developer-side bug
-(stack trace in omniBox source files or unexpected Python exception) rather than an external
+(stack trace in Mergit source files or unexpected Python exception) rather than an external
 failure (rate limits, bad credentials, user input).
 
 ### Expected fix
@@ -87,13 +87,13 @@ failure (rate limits, bad credentials, user input).
 
     # Spawn a self-fix goal using the existing researcher→coder→integrator pipeline
     fix_goal_text = (
-        f"Fix bug in the omniBox repository ({repo}).\n\n"
+        f"Fix bug in the Mergit repository ({repo}).\n\n"
         f"Issue #{issue['number']}: {issue_title}\n"
         f"Issue URL: {issue['url']}\n\n"
         f"Error that occurred:\n{error[:1000]}\n\n"
         f"The error happened in the '{failed_task_agent}' agent during goal execution.\n\n"
         "Steps:\n"
-        "1. Read the omniBox repository structure to understand the codebase\n"
+        "1. Read the Mergit repository structure to understand the codebase\n"
         "2. Read the specific file(s) mentioned in the error traceback\n"
         "3. Identify the root cause of the bug\n"
         "4. Write a minimal, targeted fix — do not refactor unrelated code\n"

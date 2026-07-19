@@ -13,7 +13,7 @@ from config import settings
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
-SESSION_COOKIE = "omnibox_session"
+SESSION_COOKIE = "mergit_session"
 SESSION_MAX_AGE = 60 * 60 * 24 * 7
 
 

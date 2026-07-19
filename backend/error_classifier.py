@@ -48,7 +48,7 @@ _BUG_EXCEPTIONS = re.compile(
 
 
 def is_developer_error(error: str) -> bool:
-    """Return True if the error looks like a bug in omniBox code."""
+    """Return True if the error looks like a bug in Mergit code."""
     if not error:
         return False
     # Anything that's clearly external → not our bug

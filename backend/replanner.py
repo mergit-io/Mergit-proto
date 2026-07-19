@@ -67,7 +67,7 @@ async def attempt_replan(goal_id: str, failed_task_id: str, failure_error: str) 
     orchestrator_model = model_config.get_model("orchestrator")
     messages = [
         {"role": "system", "content": (
-            "You are the omniBox orchestrator. A task in the current plan has failed. "
+            "You are the Mergit orchestrator. A task in the current plan has failed. "
             "Replan the remaining work to complete the goal. "
             "Output ONLY through the submit_plan function."
         )},

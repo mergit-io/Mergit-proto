@@ -1,5 +1,5 @@
 services:
-  omnibox:
+  mergit:
     build: .
     restart: unless-stopped
     env_file:
@@ -7,14 +7,14 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 8000
-      DB_PATH: /data/omnibox.db
+      DB_PATH: /data/mergit.db
       WORKSPACE_DIR: /data/workspace
       RUNTIME_CONFIG_DIR: /data/config
       DEBUG: "false"
       COOKIE_SECURE: "true"
       CORS_ORIGINS: "https://${DOMAIN}"
     volumes:
-      - omnibox_data:/data
+      - mergit_data:/data
     expose:
       - "8000"
 
@@ -22,7 +22,7 @@ services:
     image: caddy:2.8-alpine
     restart: unless-stopped
     depends_on:
-      - omnibox
+      - mergit
     ports:
       - "80:80"
       - "443:443"
@@ -34,6 +34,6 @@ services:
       - caddy_config:/config
 
 volumes:
-  omnibox_data:
+  mergit_data:
   caddy_data:
   caddy_config:

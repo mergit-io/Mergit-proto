@@ -1,4 +1,4 @@
-# omniBox — Architecture
+# Mergit — Architecture
 
 ## System Overview
 
@@ -61,7 +61,7 @@ flowchart TD
         WaitWebhook["wait_webhook\nsuspends to WAITING_WEBHOOK"]
     end
 
-    subgraph DB ["SQLite WAL — omnibox.db"]
+    subgraph DB ["SQLite WAL — mergit.db"]
         Goals[("goals\nid · status · plan_json\nterminal_task_id · trace_id")]
         Tasks[("tasks\nid · agent_name · inputs\ndepends_on · status\nattempt_count · lease_expires_at")]
         Messages[("messages\nrole · content · sequence")]
@@ -297,7 +297,7 @@ flowchart TD
 
     ErrClass{"error_classifier\ndev bug?"}
     Replan["replanner.attempt_replan()\nOrchestrator called with\nfailed context + completed tasks\n→ new task sub-graph inserted"]
-    SelfHeal["self_heal.trigger()\n1. File GitHub issue on omniBox repo\n2. Spawn fix goal:\n   researcher→coder→integrator"]
+    SelfHeal["self_heal.trigger()\n1. File GitHub issue on Mergit repo\n2. Spawn fix goal:\n   researcher→coder→integrator"]
 
     ReplanOK{"Replan\nsucceeded?"}
     GoalFail["Goal FAILED"]
@@ -322,7 +322,7 @@ flowchart TD
 ## File Structure
 
 ```
-omniBox/
+Mergit/
 ├── backend/
 │   ├── main.py                  # FastAPI app, lifespan, router registration
 │   ├── config.py                # pydantic-settings, .env loading

@@ -21,17 +21,17 @@ class Settings(BaseSettings):
     tavily_api_key: str = ""
     github_token: str = ""
     github_default_repo: str = ""
-    omnibox_repo: str = "viscous106/omniBox"  # repo where self-heal issues/PRs are filed
+    mergit_repo: str = "mergit-io/Mergit-proto"  # repo where self-heal issues/PRs are filed
 
     # Tracing
     omium_api_key: str = ""
-    omium_project: str = "omnibox"
+    omium_project: str = "mergit"
     omium_skip_workflow_register: bool = False
 
     # Server
     host: str = "0.0.0.0"
     port: int = 8000
-    db_path: str = "./omnibox.db"
+    db_path: str = "./mergit.db"
     workspace_dir: str = "./workspace"
     runtime_config_dir: str = "."
     frontend_url: str = "http://localhost:3000"

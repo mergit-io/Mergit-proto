@@ -27,5 +27,5 @@ build:
 	cd frontend && npm run build
 
 reset-db:
-	rm -f backend/omnibox.db
+	rm -f backend/mergit.db
 	@echo "Database reset."

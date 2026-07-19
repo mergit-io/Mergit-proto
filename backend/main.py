@@ -29,7 +29,7 @@ import os
 from logging.handlers import RotatingFileHandler as _RFH
 _log_dir = os.path.join(os.path.dirname(__file__), "logs")
 os.makedirs(_log_dir, exist_ok=True)
-_fh = _RFH(os.path.join(_log_dir, "omnibox.log"), maxBytes=5_000_000, backupCount=3)
+_fh = _RFH(os.path.join(_log_dir, "mergit.log"), maxBytes=5_000_000, backupCount=3)
 _fh.setFormatter(logging.Formatter(_log_fmt, datefmt="%Y-%m-%d %H:%M:%S"))
 _fh.setLevel(logging.DEBUG)
 logging.getLogger().addHandler(_fh)
@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Starting omniBox (host=%s port=%s debug=%s)", settings.host, settings.port, settings.debug)
+    logger.info("Starting Mergit (host=%s port=%s debug=%s)", settings.host, settings.port, settings.debug)
     await db.init_db()
     import economy
     await economy.seed_passports()
@@ -57,16 +57,16 @@ async def lifespan(app: FastAPI):
     logger.info("DB initialised at %s", settings.db_path)
     init_tracing(settings.omium_api_key, settings.omium_project)
     await worker.start()
-    logger.info("omniBox ready ✓")
+    logger.info("Mergit ready ✓")
     yield
-    logger.info("Shutting down omniBox…")
+    logger.info("Shutting down Mergit…")
     await worker.stop()
-    logger.info("omniBox stopped")
+    logger.info("Mergit stopped")
 
 
 # ── App ───────────────────────────────────────────────────────────────────────────
 
-app = FastAPI(title="omniBox", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Mergit", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

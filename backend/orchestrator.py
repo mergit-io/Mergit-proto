@@ -45,7 +45,7 @@ Available agents (choose from these only):
   work beyond their current task scope.
 """
 
-SYSTEM_PROMPT = f"""You are the omniBox orchestrator. Given a user goal, decompose it into the minimum set of tasks that achieves the goal, expressed as a directed acyclic graph (DAG).
+SYSTEM_PROMPT = f"""You are the Mergit orchestrator. Given a user goal, decompose it into the minimum set of tasks that achieves the goal, expressed as a directed acyclic graph (DAG).
 
 CRITICAL: You MUST always call submit_plan with a valid tasks list and terminal field. Even if the goal is a long document or problem statement, extract the core actionable intent and build a plan around it. Never return reasoning only — always produce tasks + terminal.
 

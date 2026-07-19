@@ -13,13 +13,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     HOST=0.0.0.0 \
     PORT=8000 \
-    DB_PATH=/data/omnibox.db \
+    DB_PATH=/data/mergit.db \
     WORKSPACE_DIR=/data/workspace \
     RUNTIME_CONFIG_DIR=/data/config
 
 WORKDIR /app
 
-RUN addgroup --system omnibox && adduser --system --ingroup omnibox omnibox
+RUN addgroup --system mergit && adduser --system --ingroup mergit mergit
 
 COPY backend/requirements.txt /app/backend/requirements.txt
 RUN pip install --no-cache-dir --upgrade pip \
@@ -29,9 +29,9 @@ COPY backend/ /app/backend/
 COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
 
 RUN mkdir -p /data/workspace /data/config /app/backend/logs \
-    && chown -R omnibox:omnibox /data /app/backend/logs
+    && chown -R mergit:mergit /data /app/backend/logs
 
-USER omnibox
+USER mergit
 WORKDIR /app/backend
 
 EXPOSE 8000

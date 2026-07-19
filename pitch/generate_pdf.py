@@ -1,7 +1,7 @@
 """
-Generate the omniBox hackathon submission PDF.
+Generate the Mergit hackathon submission PDF.
 Run: python generate_pdf.py
-Output: omniBox_submission.pdf
+Output: Mergit_submission.pdf
 """
 
 from reportlab.lib.pagesizes import A4
@@ -34,7 +34,7 @@ W, H = A4  # 210 x 297 mm
 
 # ── Doc setup ──────────────────────────────────────────────────────
 doc = SimpleDocTemplate(
-    "omniBox_submission.pdf",
+    "Mergit_submission.pdf",
     pagesize=A4,
     leftMargin=18*mm, rightMargin=18*mm,
     topMargin=14*mm,  bottomMargin=14*mm,
@@ -113,7 +113,7 @@ def dark_page(canvas, doc):
     # footer
     canvas.setFillColor(TEXT_MUTED)
     canvas.setFont(BODY, 7.5)
-    canvas.drawCentredString(W/2, 8*mm, "omniBox  ·  Multi-Agent Autonomy System  ·  Anvil MMXXVI Hackathon")
+    canvas.drawCentredString(W/2, 8*mm, "Mergit  ·  Multi-Agent Autonomy System  ·  Anvil MMXXVI Hackathon")
     canvas.setFillColor(BLUE)
     canvas.drawRightString(W - 18*mm, 8*mm, f"page {doc.page}")
     canvas.restoreState()
@@ -179,7 +179,7 @@ story.append(hr())
 
 story.append(Paragraph(
     "Software teams lose <b>hours every day</b> routing bug reports, writing fix branches, opening PRs, "
-    "updating CI pipelines, and chasing code reviews. omniBox eliminates that toil entirely.",
+    "updating CI pipelines, and chasing code reviews. Mergit eliminates that toil entirely.",
     sBody
 ))
 story.append(Spacer(1, 2*mm))
@@ -187,8 +187,8 @@ story.append(Spacer(1, 2*mm))
 # Use case table
 uc_data = [
     [Paragraph("<b>Scenario</b>", S("TH", fontName=DISPLAY, fontSize=9, textColor=TEXT_MAIN)),
-     Paragraph("<b>Without omniBox</b>", S("TH", fontName=DISPLAY, fontSize=9, textColor=DANGER)),
-     Paragraph("<b>With omniBox</b>",    S("TH", fontName=DISPLAY, fontSize=9, textColor=SUCCESS))],
+     Paragraph("<b>Without Mergit</b>", S("TH", fontName=DISPLAY, fontSize=9, textColor=DANGER)),
+     Paragraph("<b>With Mergit</b>",    S("TH", fontName=DISPLAY, fontSize=9, textColor=SUCCESS))],
     [Paragraph("GitHub issue filed",    sBody),
      Paragraph("Dev reads, reproduces, fixes, opens PR — 2–4 h", sBody),
      Paragraph("Agents fix & PR in < 5 min, zero human input", sBody)],
@@ -235,7 +235,7 @@ for c in customers:
 story.append(Spacer(1, 3*mm))
 story.append(Paragraph("Value Proposition", sH2))
 story.append(Paragraph(
-    "omniBox is <b>provider-agnostic</b> (40 models across Groq, Anthropic, OpenAI, Google, Mistral), "
+    "Mergit is <b>provider-agnostic</b> (40 models across Groq, Anthropic, OpenAI, Google, Mistral), "
     "<b>restart-resumable</b> (SQLite WAL + lease reclaim), <b>self-healing</b> (auto-files issues and "
     "spawns fix goals on developer errors), and <b>fully observable</b> (Omium SDK tracing, live SSE dashboard). "
     "No proprietary lock-in. Deploy anywhere.",
@@ -251,7 +251,7 @@ story.append(Spacer(1, 2*mm))
 story.append(Paragraph("Agent Architecture", sH1))
 story.append(hr(BLUE, 1))
 story.append(Paragraph(
-    "omniBox is built on a <b>generic multi-agent execution engine</b>. The orchestrator (Claude) plans any goal "
+    "Mergit is built on a <b>generic multi-agent execution engine</b>. The orchestrator (Claude) plans any goal "
     "as a directed acyclic graph (DAG) of tasks. Each task is assigned to a specialist agent that runs a "
     "tool-call loop until it calls <font face='Courier' size='8'>submit_result</font>.",
     sBody
@@ -313,7 +313,7 @@ auto_feats = [
     ("<b>Dynamic Replanning</b>", "When a task hits max retries, the orchestrator is called again with context of completed tasks + failure reason. It devises an alternative sub-plan and inserts new tasks — the goal continues instead of dying."),
     ("<b>spawn_goal tool</b>", "Any agent can call spawn_goal mid-execution to autonomously create a new goal. Used when the researcher discovers a complex fix that requires the full researcher → coder → integrator pipeline."),
     ("<b>Retry with failure context</b>", "Each retry injects the previous error into the agent's user message, forcing a different approach. Consecutive-error counter nudges the agent to submit with partial results after 3 consecutive failures."),
-    ("<b>Self-heal loop</b>", "error_classifier.py detects developer-side bugs vs. external errors. On a developer bug: auto-files a GitHub issue on the omniBox repo, then spawns a fix goal (researcher → coder → integrator) to patch and PR the root cause."),
+    ("<b>Self-heal loop</b>", "error_classifier.py detects developer-side bugs vs. external errors. On a developer bug: auto-files a GitHub issue on the Mergit repo, then spawns a fix goal (researcher → coder → integrator) to patch and PR the root cause."),
     ("<b>Tool idempotency</b>", "Every tool call is hashed (task_id + tool + args). Re-runs return the stored result — no duplicate Slack posts, no double PRs, crash-safe."),
     ("<b>Lease reclaim</b>", "Worker reclaims RUNNING tasks with expired leases every 30 s. Restart-resumable from any failure point."),
 ]
@@ -341,7 +341,7 @@ story.append(Paragraph("Overall Workflow", sH1))
 story.append(hr(BLUE, 1))
 
 story.append(Paragraph(
-    "omniBox follows a <b>plan → execute → observe</b> loop backed by SQLite WAL for full restart-resumability. "
+    "Mergit follows a <b>plan → execute → observe</b> loop backed by SQLite WAL for full restart-resumability. "
     "Three asyncio workers run concurrently inside the FastAPI process — no separate queue or Redis needed.",
     sBody
 ))
@@ -436,11 +436,11 @@ for row in stack_data:
 story.append(Spacer(1, 4*mm))
 story.append(hr(BLUE, 0.8))
 story.append(Paragraph(
-    "GitHub: <font color=\"#0095ff\">https://github.com/viscous106/omniBox</font>  ·  "
+    "GitHub: <font color=\"#0095ff\">https://github.com/mergit-io/Mergit-proto</font>  ·  "
     "Built for Anvil MMXXVI — Multi-Agent Autonomy Track",
     S("Footer", fontName=BODY, fontSize=8.5, textColor=TEXT_MUTED, alignment=TA_CENTER, leading=14)
 ))
 
 # ── Build ─────────────────────────────────────────────────────────
 doc.build(story, onFirstPage=dark_page, onLaterPages=dark_page)
-print("✓  omniBox_submission.pdf  written successfully")
+print("✓  Mergit_submission.pdf  written successfully")
