@@ -50,3 +50,40 @@ export function useSSE(goalId: string | undefined, active: boolean) {
 
   return events;
 }
+
+const ECONOMY_EVENT_HISTORY_LIMIT = 20;
+
+/**
+ * `count` increments on every message (safe as a "something changed" effect
+ * dependency); `events` is capped to the most recent messages so a
+ * long-lived economy page doesn't accumulate an unbounded history.
+ */
+export function useEconomySSE() {
+  const [events, setEvents] = useState<SSEEvent[]>([]);
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    const es = new EventSource("/api/economy/stream");
+
+    const handler = (name: string) => (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data);
+        setEvents((prev) => [...prev, { event: name, data }].slice(-ECONOMY_EVENT_HISTORY_LIMIT));
+        setCount((prev) => prev + 1);
+      } catch {
+        /* ignore malformed */
+      }
+    };
+
+    ["reputation_update", "proof_recorded"].forEach((name) =>
+      es.addEventListener(name, handler(name))
+    );
+    es.onerror = () => {
+      es.close();
+    };
+
+    return () => es.close();
+  }, []);
+
+  return { events, count };
+}
