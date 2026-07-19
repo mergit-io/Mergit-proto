@@ -76,6 +76,45 @@ export interface ModelConfig {
   defaults: Record<string, string>;
 }
 
+export interface AgentPassport {
+  agent_name: string;
+  address: string;
+  level: number;
+  reputation: number;
+  tasks_completed: number;
+  tasks_failed: number;
+  first_seen: number;
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  agent_name: string;
+  address: string;
+  reputation: number;
+  tasks_completed: number;
+}
+
+export interface ProofRecord {
+  proof_id: string;
+  agent_name: string;
+  task_id: string;
+  goal_id: string;
+  tx_hash: string;
+  block_number: number;
+  reputation_delta: number;
+  timestamp: number;
+}
+
+export interface AgentDetail extends AgentPassport {
+  proofs: ProofRecord[];
+}
+
+export interface ChainInfo {
+  network: string;
+  block_number: number;
+  total_proofs: number;
+}
+
 export const api = {
   submitGoal: (goal: string) =>
     request<{ goal_id: string; status: string; created_at: number }>("/goals", {
@@ -123,4 +162,14 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(ctx),
     }),
+
+  getPassports: () => request<{ passports: AgentPassport[] }>("/economy/passports"),
+
+  getLeaderboard: () => request<{ leaderboard: LeaderboardEntry[] }>("/economy/leaderboard"),
+
+  getProofs: (limit = 50) => request<{ proofs: ProofRecord[] }>(`/economy/proofs?limit=${limit}`),
+
+  getAgentDetail: (agentName: string) => request<AgentDetail>(`/economy/agents/${agentName}`),
+
+  getChain: () => request<ChainInfo>("/economy/chain"),
 };

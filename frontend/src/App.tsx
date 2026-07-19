@@ -7,6 +7,8 @@ import { Login } from "./pages/Login";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Webhooks } from "./pages/Webhooks";
 import { Actions } from "./pages/Actions";
+import { Economy } from "./pages/Economy";
+import { AgentDetail } from "./pages/AgentDetail";
 import "./index.css";
 
 export default function App() {
@@ -52,6 +54,22 @@ export default function App() {
           element={
             <ProtectedRoute>
               <Actions />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/economy"
+          element={
+            <ProtectedRoute>
+              <Economy />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/economy/agents/:agentName"
+          element={
+            <ProtectedRoute>
+              <AgentDetail />
             </ProtectedRoute>
           }
         />
