@@ -47,7 +47,7 @@ export function GoalInput({ onSubmit, loading }: Props) {
       <div
         className={`relative rounded-2xl border transition-all duration-300 ${
           focused
-            ? "border-accent/50 shadow-[0_0_0_3px_rgba(0,149,255,0.08),0_0_30px_rgba(0,149,255,0.06)]"
+            ? "border-accent/50 shadow-[0_0_0_3px_rgba(109,74,255,0.08),0_0_30px_rgba(109,74,255,0.06)]"
             : "border-white/8 hover:border-white/15"
         }`}
         style={{ background: "rgba(255,255,255,0.025)" }}

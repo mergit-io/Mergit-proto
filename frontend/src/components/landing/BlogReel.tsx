@@ -4,7 +4,7 @@ import { ArrowRight } from "lucide-react";
 const POSTS = [
   {
     tag: "Launch",
-    title: "Introducing omniBox: Autonomous Multi-Agent AI",
+    title: "Introducing Mergit: The AI Agent Economy",
     desc: "We built an open-ended goal delegation system from the ground up. Here's the architecture behind the orchestrator, agent runner, and tool layer.",
     date: "May 2026",
     gradient: "from-accent/20 via-purple/10 to-transparent",

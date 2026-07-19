@@ -1,5 +1,7 @@
-# omniBox
-Assign any goal to an AI. It decomposes the task, spins up specialized agents, uses your tools, and delivers results. No workflows to   define. No steps to configure. Just delegate.
+# Mergit — The AI Agent Economy
+Assign any goal to an AI. It decomposes the task, spins up specialized agents, uses your tools, and delivers results. Every completed task mints a proof and bumps its agent's reputation on a simulated Monad agent economy. No workflows to define. No steps to configure. Just delegate.
+
+> Internal service/DB names (`omnibox`, `omnibox.db`) are unchanged pre-existing infra identifiers — see [render.yaml](render.yaml) / [compose.yaml](compose.yaml) — not part of this rebrand.
 
 ## Setup
 

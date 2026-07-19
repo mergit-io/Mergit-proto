@@ -142,7 +142,7 @@ export function Webhooks() {
               <span className="text-gradient-blue">zero intervention</span>
             </h1>
             <p className="text-text-dim text-sm max-w-xl leading-relaxed">
-              Connect omniBox to GitHub. When an issue is opened, agents read the code, write a fix, and open a PR — fully autonomously.
+              Connect Mergit to GitHub. When an issue is opened, agents read the code, write a fix, and open a PR — fully autonomously.
             </p>
           </motion.div>
 
@@ -195,7 +195,7 @@ export function Webhooks() {
                 <h2 className="text-sm font-semibold text-white">Setup Guide</h2>
               </div>
               <div className="space-y-6">
-                <Step n={1} title="Expose omniBox via ngrok (local dev)">
+                <Step n={1} title="Expose Mergit via ngrok (local dev)">
                   <p className="mb-1">Install ngrok and run:</p>
                   <CodeBlock code="ngrok http 8000" />
                   <p className="mt-2">Copy the <span className="text-white font-mono">https://xxxx.ngrok-free.app</span> URL — use it as the base for the webhook URL above.</p>
@@ -221,7 +221,7 @@ export function Webhooks() {
                   </p>
                   <div className="mt-2 p-3 rounded-xl bg-warning/8 border border-warning/20 flex items-start gap-2">
                     <AlertCircle className="w-3.5 h-3.5 text-warning mt-0.5 flex-shrink-0" />
-                    <span className="text-warning/90">Without a token, omniBox can plan tasks but can't create PRs or post comments.</span>
+                    <span className="text-warning/90">Without a token, Mergit can plan tasks but can't create PRs or post comments.</span>
                   </div>
                 </Step>
 
