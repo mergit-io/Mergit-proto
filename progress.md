@@ -1,4 +1,4 @@
-# omniBox — Progress Log
+# Mergit — Progress Log
 
 Track of every significant piece of work completed. Update this after each session.
 
@@ -524,3 +524,26 @@ Local testing: `ngrok http 8000` → paste URL into GitHub repo webhook settings
 - Webhook endpoint creates goal correctly (200 OK, goal_id returned)
 - 3-agent DAG planned and executing: researcher DONE → coder RUNNING → integrator PENDING
 - Frontend builds clean (0 TypeScript errors)
+
+---
+
+## Session: 2026-07-19 — Rebrand: omniBox → Mergit (Issue #5)
+
+Full visual identity pass for the Mergit showcase prototype (agent economy on a simulated Monad chain).
+
+- Replaced all "omniBox" display strings across `frontend/src` and `frontend/index.html` (title, nav wordmark, landing copy, footer, webhooks page, login page) with "Mergit"
+- New palette: deep indigo/violet base (`bg: #07060f`), electric indigo/violet accents (`accent: #6d4aff`, `purple: #a855f7`), electric cyan (`cyan: #22d3ee`), new `proof-green` (`#2eff9e`) token for on-chain proof/reputation accents — `frontend/tailwind.config.js`, `frontend/src/index.css`
+- Added JetBrains Mono (`@fontsource/jetbrains-mono`) for hashes/scores/blocks per the on-chain identity brief
+- Redesigned the logo mark from a generic 4-square grid to a literal "merge" glyph — two nodes converging into one proof node — in `AppNav.tsx`, `Navbar.tsx`, `LandingFooter.tsx`
+- Rewrote hero narrative to pitch the agent economy; added a "Watch proofs mint live" teaser linking to `/app/economy` (ships in #2)
+- Rebranded `README.md`, `CLAUDE.md`, this file's title, and `pitch/DEMO_VIDEO_SCRIPT.md`
+
+**Deliberately left unchanged** (real infra identifiers, not brand text):
+- `frontend/src/lib/firebase.ts` — `omnibox-8f73e` Firebase project ID/authDomain (renaming breaks the actual auth backend)
+- `omnibox` / `omnibox-data` service and disk names in `render.yaml`, `compose.yaml`, and the `/data/omnibox.db` path (out of scope for a frontend/docs rebrand; renaming would touch live deploy config)
+
+### Verified
+- `npx tsc -b`: same 2 pre-existing unrelated errors as `main` (confirmed via `git stash` diff), no new errors
+- `npx vite build`: succeeds
+- `grep -ri omnibox frontend/src frontend/index.html`: clean except the Firebase config noted above
+- Manual browser check: `/app` and `/` (landing) render the new palette/wordmark correctly

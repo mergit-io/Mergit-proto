@@ -30,7 +30,7 @@ export function Navbar() {
         className="w-full max-w-6xl flex items-center justify-between px-6 py-3 rounded-2xl transition-all duration-500"
         style={{
           background: scrolled
-            ? "rgba(0,0,0,0.75)"
+            ? "rgba(7,6,15,0.8)"
             : "rgba(255,255,255,0.02)",
           borderTop: "1px solid rgba(255,255,255,0.08)",
           borderLeft: "1px solid rgba(255,255,255,0.04)",
@@ -45,20 +45,25 @@ export function Navbar() {
           <div className="relative w-8 h-8">
             <svg viewBox="0 0 32 32" fill="none" className="w-full h-full">
               <defs>
-                <linearGradient id="logo-g" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-                  <stop stopColor="#0095ff" />
-                  <stop offset="1" stopColor="#673ae4" />
+                <linearGradient id="logo-g" x1="4" y1="10" x2="28" y2="10" gradientUnits="userSpaceOnUse">
+                  <stop stopColor="#6d4aff" />
+                  <stop offset="1" stopColor="#22d3ee" />
                 </linearGradient>
               </defs>
-              <rect x="3" y="3" width="11" height="11" rx="2.5" fill="url(#logo-g)" opacity="0.9" />
-              <rect x="18" y="3" width="11" height="11" rx="2.5" fill="url(#logo-g)" opacity="0.5" />
-              <rect x="3" y="18" width="11" height="11" rx="2.5" fill="url(#logo-g)" opacity="0.5" />
-              <rect x="18" y="18" width="11" height="11" rx="2.5" fill="url(#logo-g)" opacity="0.9" />
+              <circle cx="8" cy="8" r="4" fill="#6d4aff" />
+              <circle cx="24" cy="8" r="4" fill="#22d3ee" />
+              <path
+                d="M8 12 C8 18, 16 16, 16 22 M24 12 C24 18, 16 16, 16 22"
+                stroke="url(#logo-g)"
+                strokeWidth="1.75"
+                strokeLinecap="round"
+              />
+              <circle cx="16" cy="24.5" r="4.5" fill="#2eff9e" />
             </svg>
             <div className="absolute inset-0 rounded-lg bg-accent/20 blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
           </div>
           <span className="font-display font-bold text-lg tracking-tight text-white">
-            omni<span className="text-gradient-blue">Box</span>
+            Merg<span className="text-gradient-blue">it</span>
           </span>
         </a>
 

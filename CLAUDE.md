@@ -36,7 +36,7 @@ The backend venv is at `backend/.venv/`. Always use `.venv/bin/python` for backe
 
 ## Architecture
 
-omniBox is a generic multi-agent autonomy system: a user submits any natural language goal, the orchestrator decomposes it into a task DAG, and specialized worker agents execute each task using tools, with full persistence for restart-resumability.
+Mergit (formerly omniBox) is a generic multi-agent autonomy system: a user submits any natural language goal, the orchestrator decomposes it into a task DAG, and specialized worker agents execute each task using tools, with full persistence for restart-resumability. Layered on top is a simulated agent economy — every completed task mints a proof and bumps its agent's reputation on a visually-simulated Monad chain.
 
 ### Backend (`backend/`)
 
