@@ -28,10 +28,10 @@ const ECONOMY_KEYS = [
 export function Economy() {
   const [tab, setTab] = useState<Tab>("leaderboard");
 
-  const { data: leaderboardData } = useSWR(ECONOMY_KEYS[0], () => api.getLeaderboard(), { refreshInterval: 5000 });
-  const { data: passportsData } = useSWR(ECONOMY_KEYS[1], () => api.getPassports(), { refreshInterval: 5000 });
-  const { data: proofsData } = useSWR(ECONOMY_KEYS[2], () => api.getProofs(50), { refreshInterval: 5000 });
-  const { data: chainData } = useSWR(ECONOMY_KEYS[3], () => api.getChain(), { refreshInterval: 5000 });
+  const { data: leaderboard } = useSWR(ECONOMY_KEYS[0], () => api.getLeaderboard(), { refreshInterval: 5000 });
+  const { data: passports } = useSWR(ECONOMY_KEYS[1], () => api.getPassports(), { refreshInterval: 5000 });
+  const { data: proofs } = useSWR(ECONOMY_KEYS[2], () => api.getProofs(50), { refreshInterval: 5000 });
+  const { data: chain } = useSWR(ECONOMY_KEYS[3], () => api.getChain(), { refreshInterval: 5000 });
 
   const { count: economyEventCount } = useEconomySSE();
 
@@ -39,6 +39,8 @@ export function Economy() {
     if (economyEventCount === 0) return;
     ECONOMY_KEYS.forEach((key) => mutate(key));
   }, [economyEventCount]);
+
+  const topBlock = proofs && proofs.length > 0 ? proofs[0].block_number : 0;
 
   return (
     <div className="relative min-h-screen" style={{ background: "#000" }}>
@@ -58,13 +60,13 @@ export function Economy() {
             <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-accent/25 bg-accent/8">
                 <span className="w-1.5 h-1.5 rounded-full bg-proof-green animate-pulse-ring" />
-                <span className="text-xs font-medium text-accent">
-                  {chainData?.network ?? "Monad Testnet (simulated)"}
+                <span className="text-xs font-medium text-accent-2">
+                  {chain?.network ?? "Monad Testnet"} · chainId {chain?.chainId ?? 10143}
                 </span>
               </div>
-              {chainData && (
+              {topBlock > 0 && (
                 <span className="text-xs font-mono text-text-muted">
-                  block #{chainData.block_number.toLocaleString()} · {chainData.total_proofs.toLocaleString()} proofs minted
+                  block #{topBlock.toLocaleString()} · {proofs?.length ?? 0} recent proofs
                 </span>
               )}
             </div>
@@ -72,7 +74,7 @@ export function Economy() {
               The Agent <span className="text-gradient-blue">Economy</span>
             </h1>
             <p className="text-text-dim text-sm max-w-xl leading-relaxed">
-              Every completed task mints a proof and bumps its agent's reputation, live.
+              Every completed task mints a proof-of-work and bumps its agent's on-chain reputation, live.
             </p>
           </motion.div>
 
@@ -95,14 +97,14 @@ export function Economy() {
           </div>
 
           {/* Tab content */}
-          {tab === "leaderboard" && <Leaderboard entries={leaderboardData?.leaderboard ?? []} />}
+          {tab === "leaderboard" && <Leaderboard entries={leaderboard ?? []} />}
 
           {tab === "passports" && (
             <div className="grid sm:grid-cols-2 gap-4">
-              {(passportsData?.passports ?? []).map((p, i) => (
-                <PassportCard key={p.agent_name} passport={p} index={i} />
+              {(passports ?? []).map((p, i) => (
+                <PassportCard key={p.role} passport={p} index={i} />
               ))}
-              {(passportsData?.passports ?? []).length === 0 && (
+              {(passports ?? []).length === 0 && (
                 <div className="card px-6 py-10 text-center text-text-muted text-sm sm:col-span-2">
                   No agent passports minted yet.
                 </div>
@@ -110,7 +112,7 @@ export function Economy() {
             </div>
           )}
 
-          {tab === "ledger" && <ProofLedger proofs={proofsData?.proofs ?? []} />}
+          {tab === "ledger" && <ProofLedger proofs={proofs ?? []} />}
         </main>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Check, ChevronDown, FlaskConical, PenLine, Bell, Code2, Plug, Settings2 } from "lucide-react";
+import { X, Check, ChevronDown, FlaskConical, PenLine, Code2, Plug, Settings2 } from "lucide-react";
 import { api } from "../lib/api";
 import type { ModelConfig } from "../lib/api";
 

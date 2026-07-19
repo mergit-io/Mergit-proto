@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Check, RotateCcw, Save, Cpu, FlaskConical, PenLine,
-  Bell, Code2, Plug, Settings2, ChevronDown, AlertCircle,
+  Code2, Plug, Settings2, ChevronDown, AlertCircle,
   Layers, FileJson, Plus, X, Key, Eye, EyeOff, CheckCircle,
   FolderGit2,
 } from "lucide-react";

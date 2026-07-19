@@ -1,12 +1,19 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import type { LeaderboardEntry } from "../../lib/api";
+import type { RepEntry } from "../../lib/api";
 
-function truncate(address: string): string {
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+export function badgeStyle(badge: string): string {
+  switch (badge) {
+    case "Gold":
+      return "bg-[#f5c54215] text-[#f5c542] border-[#f5c54235]";
+    case "Silver":
+      return "bg-[#c8d0dc15] text-[#c8d0dc] border-[#c8d0dc35]";
+    default:
+      return "bg-[#c67b4615] text-[#d89b6e] border-[#c67b4635]";
+  }
 }
 
-export function Leaderboard({ entries }: { entries: LeaderboardEntry[] }) {
+export function Leaderboard({ entries }: { entries: RepEntry[] }) {
   const nav = useNavigate();
 
   if (entries.length === 0) {
@@ -22,31 +29,47 @@ export function Leaderboard({ entries }: { entries: LeaderboardEntry[] }) {
       <AnimatePresence initial={false}>
         {entries.map((entry) => (
           <motion.div
-            key={entry.agent_name}
+            key={entry.role}
             layout
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-            onClick={() => nav(`/app/economy/agents/${entry.agent_name}`)}
-            className="flex items-center justify-between px-5 py-3.5 cursor-pointer hover:bg-white/[0.03] transition-colors"
+            onClick={() => nav(`/app/economy/agents/${entry.role}`)}
+            className="px-5 py-3.5 cursor-pointer hover:bg-white/[0.03] transition-colors"
           >
-            <div className="flex items-center gap-4 min-w-0">
-              <span className="w-6 text-sm font-mono text-text-muted shrink-0">
-                #{entry.rank}
-              </span>
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-white capitalize">{entry.agent_name}</p>
-                <p className="text-xs font-mono text-text-muted">{truncate(entry.address)}</p>
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-4 min-w-0">
+                <span className="w-6 text-sm font-mono text-text-muted shrink-0">
+                  #{entry.rank}
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-white capitalize">{entry.role}</p>
+                  <p className="text-[11px] font-mono text-text-muted">
+                    {(entry.success_rate * 100).toFixed(0)}% success · {(entry.speed * 100).toFixed(0)}% speed
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 shrink-0">
+                <span
+                  className={`text-[10px] font-semibold uppercase tracking-widest px-2 py-1 rounded-full border ${badgeStyle(entry.badge)}`}
+                >
+                  {entry.badge}
+                </span>
+                <span className="font-mono text-sm font-semibold text-cyan w-14 text-right">
+                  {entry.composite}
+                </span>
               </div>
             </div>
-            <div className="flex items-center gap-6 shrink-0">
-              <span className="text-xs text-text-muted hidden sm:inline">
-                {entry.tasks_completed} tasks
-              </span>
-              <span className="font-mono text-sm font-semibold text-cyan">
-                {entry.reputation.toLocaleString()} REP
-              </span>
+            {/* score bar */}
+            <div className="mt-2.5 h-1 rounded-full bg-white/6 overflow-hidden">
+              <motion.div
+                layout
+                className="h-full rounded-full bg-gradient-to-r from-accent to-cyan"
+                initial={false}
+                animate={{ width: `${(entry.composite / 1000) * 100}%` }}
+                transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+              />
             </div>
           </motion.div>
         ))}
