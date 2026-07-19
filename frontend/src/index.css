@@ -6,6 +6,9 @@
 @import "@fontsource/dm-sans/500.css";
 @import "@fontsource/dm-sans/600.css";
 @import "@fontsource/dm-sans/700.css";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+@import "@fontsource/jetbrains-mono/700.css";
 
 @tailwind base;
 @tailwind components;
@@ -16,7 +19,7 @@
 html { scroll-behavior: smooth; }
 
 html, body, #root {
-  background-color: #000;
+  background-color: #07060f;
   color: #f9fafb;
   font-family: "Inter", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -24,8 +27,8 @@ html, body, #root {
 }
 
 ::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-track { background: #000; }
-::-webkit-scrollbar-thumb { background: #1f1f2e; border-radius: 2px; }
+::-webkit-scrollbar-track { background: #07060f; }
+::-webkit-scrollbar-thumb { background: #241f3d; border-radius: 2px; }
 
 /* ── Keyframes ───────────────────────────────────────── */
 @keyframes marquee {
@@ -64,7 +67,7 @@ html, body, #root {
   background-clip: text;
 }
 .text-gradient-blue {
-  background: linear-gradient(135deg, #3badff 0%, #0095ff 50%, #673ae4 100%);
+  background: linear-gradient(135deg, #9c8bff 0%, #6d4aff 50%, #a855f7 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -112,7 +115,7 @@ html, body, #root {
   transition: opacity 0.4s;
   background: radial-gradient(
     600px circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
-    rgba(0,149,255,0.08), transparent 40%
+    rgba(109,74,255,0.1), transparent 40%
   );
   pointer-events: none;
   z-index: 1;
@@ -140,12 +143,12 @@ html, body, #root {
 
 /* ── Buttons ─────────────────────────────────────────── */
 .btn-neon {
-  background: linear-gradient(135deg, #0095ff, #673ae4);
-  box-shadow: 0 0 20px rgba(0,149,255,0.35), 0 0 60px rgba(0,149,255,0.1);
+  background: linear-gradient(135deg, #6d4aff, #a855f7);
+  box-shadow: 0 0 20px rgba(109,74,255,0.35), 0 0 60px rgba(109,74,255,0.1);
   transition: box-shadow 0.3s, transform 0.2s;
 }
 .btn-neon:hover {
-  box-shadow: 0 0 32px rgba(0,149,255,0.6), 0 0 90px rgba(0,149,255,0.2);
+  box-shadow: 0 0 32px rgba(109,74,255,0.6), 0 0 90px rgba(109,74,255,0.2);
   transform: translateY(-2px);
 }
 .btn-glass {
@@ -167,7 +170,7 @@ html, body, #root {
   position: absolute;
   bottom: -3px; left: 0;
   width: 0; height: 1px;
-  background: linear-gradient(90deg, #0095ff, #673ae4);
+  background: linear-gradient(90deg, #6d4aff, #a855f7);
   transition: width 0.3s;
 }
 .nav-link:hover::after { width: 100%; }
@@ -183,9 +186,9 @@ html, body, #root {
   user-select: none;
   transition: -webkit-text-stroke-color 0.3s;
 }
-.glow-card:hover .step-number { -webkit-text-stroke-color: rgba(0,149,255,0.45); }
+.glow-card:hover .step-number { -webkit-text-stroke-color: rgba(109,74,255,0.45); }
 
 /* ── React Flow (dashboard) ──────────────────────────── */
 .react-flow__node { border-radius: 8px; }
-.react-flow__background { background-color: #0a0a0a; }
-.react-flow__edge-path { stroke: #3a3a3a; stroke-width: 1.5; }
+.react-flow__background { background-color: #0b0917; }
+.react-flow__edge-path { stroke: #3a3550; stroke-width: 1.5; }

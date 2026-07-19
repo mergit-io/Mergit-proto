@@ -23,7 +23,7 @@ function ParticleCanvas() {
     const W = () => canvas.offsetWidth;
     const H = () => canvas.offsetHeight;
 
-    const COLORS = ["0,149,255", "103,58,228", "0,215,223"];
+    const COLORS = ["109,74,255", "168,85,247", "34,211,238"];
 
     const particles = Array.from({ length: 90 }, () => ({
       x: Math.random() * W(),
@@ -47,7 +47,7 @@ function ParticleCanvas() {
           const dist = Math.sqrt(dx * dx + dy * dy);
           if (dist < 130) {
             ctx.beginPath();
-            ctx.strokeStyle = `rgba(0,149,255,${0.08 * (1 - dist / 130)})`;
+            ctx.strokeStyle = `rgba(109,74,255,${0.08 * (1 - dist / 130)})`;
             ctx.lineWidth = 0.5;
             ctx.moveTo(p.x, p.y);
             ctx.lineTo(q.x, q.y);
@@ -153,7 +153,7 @@ export function HeroSection() {
           className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 mb-8 glass-card text-xs font-medium tracking-widest uppercase text-accent border-accent/20"
         >
           <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse-ring" />
-          Now in Public Beta
+          Live on Monad Testnet (simulated)
         </motion.div>
 
         {/* Headline */}
@@ -164,8 +164,8 @@ export function HeroSection() {
           className="font-display font-bold text-gradient leading-[1.04] tracking-tight mb-6"
           style={{ fontSize: "clamp(3rem, 8vw, 7rem)" }}
         >
-          The Multi-Agent Platform<br />
-          <span className="text-gradient-blue">for Autonomous AI</span>
+          The AI Agent Economy<br />
+          <span className="text-gradient-blue">Runs on Proof of Work</span>
         </motion.h1>
 
         {/* Sub */}
@@ -175,9 +175,9 @@ export function HeroSection() {
           transition={{ delay: 0.45, duration: 0.6 }}
           className="max-w-2xl text-text-dim text-lg leading-relaxed mb-10"
         >
-          Delegate any goal. omniBox decomposes it into a precise task graph, spins up
+          Delegate any goal. Mergit decomposes it into a precise task graph, spins up
           specialized agents, invokes real tools, and delivers results—end to end.
-          No workflows to configure. Just delegate.
+          Every completed task mints a proof and bumps its agent's reputation, live.
         </motion.p>
 
         {/* CTAs */}
@@ -201,6 +201,18 @@ export function HeroSection() {
           </a>
         </motion.div>
 
+        {/* Economy teaser */}
+        <motion.button
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.75, duration: 0.5 }}
+          onClick={() => nav("/app/economy")}
+          className="mt-6 flex items-center gap-2 text-sm text-cyan hover:text-white transition-colors"
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-proof-green animate-pulse-ring" />
+          Watch proofs mint live on the Agent Economy hub →
+        </motion.button>
+
         {/* Floating orb visual */}
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
@@ -212,9 +224,9 @@ export function HeroSection() {
           <div className="absolute inset-8 rounded-full bg-gradient-radial from-accent/30 via-purple/15 to-transparent blur-lg animate-float" style={{ animationDelay: "0.5s" }} />
           <div className="absolute inset-16 rounded-full bg-gradient-radial from-accent/50 to-purple/30 blur-md" />
           <svg className="absolute inset-0 w-full h-full opacity-20" viewBox="0 0 200 200">
-            <circle cx="100" cy="100" r="90" stroke="rgba(0,149,255,0.4)" strokeWidth="0.5" fill="none" />
-            <circle cx="100" cy="100" r="70" stroke="rgba(103,58,228,0.4)" strokeWidth="0.5" fill="none" />
-            <circle cx="100" cy="100" r="50" stroke="rgba(0,215,223,0.4)" strokeWidth="0.5" fill="none" />
+            <circle cx="100" cy="100" r="90" stroke="rgba(109,74,255,0.4)" strokeWidth="0.5" fill="none" />
+            <circle cx="100" cy="100" r="70" stroke="rgba(168,85,247,0.4)" strokeWidth="0.5" fill="none" />
+            <circle cx="100" cy="100" r="50" stroke="rgba(34,211,238,0.4)" strokeWidth="0.5" fill="none" />
           </svg>
         </motion.div>
       </motion.div>
@@ -240,7 +252,7 @@ export function HeroSection() {
       </div>
 
       {/* Bottom fade */}
-      <div className="absolute bottom-0 inset-x-0 h-40 bg-gradient-to-t from-black to-transparent pointer-events-none" />
+      <div className="absolute bottom-0 inset-x-0 h-40 bg-gradient-to-t from-bg to-transparent pointer-events-none" />
     </section>
   );
 }
