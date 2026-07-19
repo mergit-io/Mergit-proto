@@ -59,9 +59,11 @@ Mergit (formerly omniBox) is a generic multi-agent autonomy system: a user submi
 
 **Tools** (`tools/`): `web_search` (Tavily → DuckDuckGo fallback → training-knowledge note), `http_request` (httpx), `slack_notify`, `file_ops` (workspace-scoped, path traversal protected), `github_pr` (create PR with file commits), `github_read_file` / `github_list_dir` / `github_get_issue` / `github_post_comment` / `github_search_code` (GitHub API operations in `tools/github_ops.py`), `code_exec` (subprocess, 30s timeout), `wait_webhook` (suspends task to `WAITING_WEBHOOK` state).
 
-**Persistence** (`db.py`): SQLite WAL mode, `aiosqlite`. Tables: `goals`, `tasks`, `messages`, `tool_calls`. Task claim is atomic via `UPDATE ... WHERE id=(SELECT ... LIMIT 1) RETURNING *`.
+**Persistence** (`db.py`): SQLite WAL mode, `aiosqlite`. Tables: `goals`, `tasks`, `messages`, `tool_calls`, plus economy tables `agent_passports`, `agent_reputation`, `proofs`. Task claim is atomic via `UPDATE ... WHERE id=(SELECT ... LIMIT 1) RETURNING *`.
 
-**SSE** (`api/stream.py` + `events.py`): In-process `asyncio.Queue` per goal. Worker calls `events.emit()`, stream endpoint drains the queue via Server-Sent Events.
+**Economy** (`economy.py` + `api/economy.py`): Simulated Monad agent-economy computed from real task history — deterministic, no RNG. `economy.py` provides canonical hashing (`result_hash`/`tx_hash`/`owner_address`), reputation math (`compute_scores`→composite 0..1000, `badge_for` Gold≥800/Silver≥600/Bronze, `apply_delta_cap` ±20%), and orchestration (`seed_passports` — 6 passports + neutral reputation per role; `recompute_role`; `record_proof` — mints a proof + refreshes reputation, **never raises into the worker**, emits `proof_recorded`/`reputation_update` on the `economy` SSE channel; `backfill`). `worker._after_task_done` calls `economy.record_proof(task, output)`. Seed+backfill run in `main.py` lifespan. `deployments/10143.json` holds mock Monad testnet contract addresses. Tests: `test_economy{,_db,_flow,_api}.py`. `scripts/replay_demo.py` mints 3 proofs offline (no LLM keys) for a live demo.
+
+**SSE** (`api/stream.py` + `events.py`): In-process `asyncio.Queue` per goal (and a global `economy` channel). Worker calls `events.emit()`, stream endpoint drains the queue via Server-Sent Events.
 
 **Interpolation** (`interpolation.py`): Resolves `{{task_id.output.field}}` templates in task inputs before execution. Supports array index access (`{{id.output.key_points[0]}}`) and nested paths (`{{id.output.field[0].subfield}}`). `_resolve_path()` splits on `.` and `[N]` segments.
 
@@ -78,6 +80,8 @@ Vite + React + TypeScript + Tailwind CSS + Framer Motion + React Flow + SWR.
 - `pages/GoalDetail.tsx` — split-pane: task DAG (React Flow) + expandable task panels + live SSE log
 - `components/AppNav.tsx` — sticky nav with Dashboard / Models / API Docs links; active-route highlighting
 - `pages/Models.tsx` — full-page model config at `/app/models`; Visual tab (per-role cards + custom model input) and JSON tab (raw editor + live validation); API Keys section (all 6 providers, inline key input, saves to `.env` live)
+- `pages/Economy.tsx` — Agent Economy hub at `/app/economy`; tabbed Leaderboard / Passports / Proof Ledger, live via `/api/economy/stream`. `pages/AgentDetail.tsx` at `/app/economy/agents/:role` — NFT-style passport + score breakdown + proof history. Components in `components/economy/{Leaderboard,PassportCard,ProofLedger}.tsx`; economy fetchers/types in `lib/api.ts` mirror the backend responses exactly (bare arrays)
+- `components/WalletConnect.tsx` — mock Monad "Connect Wallet" button (deterministic fake 0x address, localStorage-persisted); mounted in `AppNav.tsx`. `ProtectedRoute.tsx` honours `VITE_DEMO_MODE=true` (`frontend/.env`) to bypass Firebase login for demos
 - `components/ModelErrorBanner.tsx` — centered modal that appears on goal failure when error is key/quota related; detects provider from error string; inline key input + "Change model" button
 - `lib/api.ts` — fetch wrappers for all API endpoints including `getModelConfig`, `updateModelConfig`, `getApiKeys`, `updateApiKey`
 - `lib/sse.ts` — `useSSE()` hook — `EventSource` auto-reconnect
@@ -100,6 +104,12 @@ All routes under `/api/`. Key endpoints:
 | PUT | `/api/config/keys` | Save provider API key to `.env` + `os.environ` |
 | POST | `/api/webhooks/{token}` | Resume WAITING_WEBHOOK task |
 | POST | `/api/webhooks/github` | GitHub webhook receiver — auto-creates goals |
+| GET | `/api/economy/passports` | List 6 agent passports |
+| GET | `/api/economy/leaderboard` | Ranked reputation (composite + badge) |
+| GET | `/api/economy/proofs` | Proof-of-work ledger (newest first) |
+| GET | `/api/economy/agents/{role}` | Passport + reputation breakdown + proofs |
+| GET | `/api/economy/chain` | Mock Monad testnet info (chainId 10143) |
+| GET | `/api/economy/stream` | Economy SSE stream (`proof_recorded`/`reputation_update`) |
 | GET | `/api/health` | Health check |
 
 ### Environment
