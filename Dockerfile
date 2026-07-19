@@ -1,6 +1,10 @@
 FROM node:20-bookworm-slim AS frontend-builder
 
 WORKDIR /app/frontend
+# Demo showcase: bypass Firebase/OAuth login. Baked at frontend build time.
+# Override with `--build-arg VITE_DEMO_MODE=false` (or a Render env var) for real auth.
+ARG VITE_DEMO_MODE=true
+ENV VITE_DEMO_MODE=$VITE_DEMO_MODE
 COPY frontend/package*.json ./
 RUN npm ci
 COPY frontend/ ./
