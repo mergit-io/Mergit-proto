@@ -2,6 +2,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-08-12-onchain-proof-layer.md`
 **Started:** 2026-08-12
+**Completed:** 2026-08-12 — all milestones green, 131 backend tests passing
 
 **Goal:** Replace the simulated Monad economy with a real EVM proof pipeline — real Solidity,
 real transactions, real event logs, on-chain idempotency, and a verification endpoint — running
@@ -126,13 +127,13 @@ aiosqlite · React/TS.
 **Modify:** `frontend/src/lib/api.ts`, `components/economy/ProofLedger.tsx`, `pages/AgentDetail.tsx`,
 `components/AppNav.tsx`
 
-- [ ] **Step 1** — Types + fetchers for verify and chain status.
-- [ ] **Step 2** — Proof Ledger: real tx hash linking to the explorer; lifecycle status chip
+- [x] **Step 1** — Types + fetchers for verify and chain status.
+- [x] **Step 2** — Proof Ledger: real tx hash linking to the explorer; lifecycle status chip
       (pending → submitted → confirmed); live updates from the new SSE events.
-- [ ] **Step 3** — Per-proof **Verify** button showing computed vs on-chain hash.
-- [ ] **Step 4** — Nav chain badge: target name, chainId, connected/not-deployed state.
-- [ ] **Step 5** — `npx tsc --noEmit && npm run build` → 0 errors.
-- [ ] **CHECKPOINT M6**
+- [x] **Step 3** — Per-proof **Verify** button showing computed vs on-chain hash.
+- [x] **Step 4** — Nav chain badge: target name, chainId, connected/not-deployed state.
+- [x] **Step 5** — `npx tsc --noEmit && npm run build` → 0 errors.
+- [x] **CHECKPOINT M6**
 
 ## M7 — Self-heal enhancement
 
@@ -143,23 +144,23 @@ aiosqlite · React/TS.
 
 Addresses the 9 gaps from the 2026-08-12 audit (spec §6).
 
-- [ ] **Step 1** — Write `test_error_classifier.py`: a table of real error strings → expected
+- [x] **Step 1** — Write `test_error_classifier.py`: a table of real error strings → expected
       classification, covering every external pattern and every bug-exception branch.
-- [ ] **Step 2** — Write `test_self_heal.py`: identical errors dedupe to one attempt with
+- [x] **Step 2** — Write `test_self_heal.py`: identical errors dedupe to one attempt with
       `recurrence_count` incremented; a `heal_depth>=1` goal never triggers heal (recursion guard);
       with no `GITHUB_TOKEN` a `simulated` attempt is still recorded; outcome settles when the fix
       goal finishes.
-- [ ] **Step 3** — Run both; expect FAIL.
-- [ ] **Step 4** — Add `heal_attempts` table + accessors; add `source`/`heal_depth` to goals.
-- [ ] **Step 5** — Rework `self_heal.trigger`: fingerprint → dedup → recursion guard → record
+- [x] **Step 3** — Run both; expect FAIL.
+- [x] **Step 4** — Add `heal_attempts` table + accessors; add `source`/`heal_depth` to goals.
+- [x] **Step 5** — Rework `self_heal.trigger`: fingerprint → dedup → recursion guard → record
       attempt → file issue (or simulate) → spawn tagged fix goal → emit SSE.
-- [ ] **Step 6** — Guard the `asyncio.create_task` call in `worker.py` with a done-callback that
+- [x] **Step 6** — Guard the `asyncio.create_task` call in `worker.py` with a done-callback that
       logs exceptions instead of swallowing them.
-- [ ] **Step 7** — `api/heal.py`: `GET /api/heal/attempts`, `GET /api/heal/stats`; register in `main.py`.
-- [ ] **Step 8** — `pages/SelfHeal.tsx` at `/app/heal`: timeline of attempts (error, classification,
+- [x] **Step 7** — `api/heal.py`: `GET /api/heal/attempts`, `GET /api/heal/stats`; register in `main.py`.
+- [x] **Step 8** — `pages/SelfHeal.tsx` at `/app/heal`: timeline of attempts (error, classification,
       issue link, fix-goal link, outcome, recurrence count) + stats strip. Nav link.
-- [ ] **Step 9** — Run full suite + frontend build; expect PASS.
-- [ ] **CHECKPOINT M7**
+- [x] **Step 9** — Run full suite + frontend build; expect PASS.
+- [x] **CHECKPOINT M7**
 
 ## M9 — Remove Omium tracing (added 2026-08-12 at user request)
 
@@ -174,29 +175,29 @@ Removing it outright rather than leaving a dead abstraction.
 `backend/.env.example`, `render.yaml`, `.env.production.example`, `README.md`, `CLAUDE.md`,
 `ARCHITECTURE.md`
 
-- [ ] **Step 1** — Remove `goal_trace_context` / `task_span` call sites from `worker.py`,
+- [x] **Step 1** — Remove `goal_trace_context` / `task_span` call sites from `worker.py`,
       preserving the surrounding control flow exactly.
-- [ ] **Step 2** — Remove `tool_span` / `trace` / `set_execution_context` from `agent_runner.py`
+- [x] **Step 2** — Remove `tool_span` / `trace` / `set_execution_context` from `agent_runner.py`
       and `tools/http_request.py`; drop the `tracer` parameter threading.
-- [ ] **Step 3** — Remove `webhook_span` from `api/webhooks.py`; drop the `omium` provider from
+- [x] **Step 3** — Remove `webhook_span` from `api/webhooks.py`; drop the `omium` provider from
       `api/keys.py`.
-- [ ] **Step 4** — Drop `omium_*` settings from `config.py` and `init_tracing` from `main.py`.
-- [ ] **Step 5** — Delete `backend/tracing.py`. Purge `OMIUM_*` from `.env.example`,
+- [x] **Step 4** — Drop `omium_*` settings from `config.py` and `init_tracing` from `main.py`.
+- [x] **Step 5** — Delete `backend/tracing.py`. Purge `OMIUM_*` from `.env.example`,
       `.env.production.example`, `render.yaml`, `README.md`, `CLAUDE.md`, `ARCHITECTURE.md`.
       Drop `tracing.py` from the `error_classifier` "our files" regex.
-- [ ] **Step 6** — Full suite green; `grep -ri omium` returns nothing outside `progress.md`
+- [x] **Step 6** — Full suite green; `grep -ri omium` returns nothing outside `progress.md`
       history. Boot the server and confirm the "omium not installed" warning is gone.
-- [ ] **CHECKPOINT M9**
+- [x] **CHECKPOINT M9**
 
 ## M8 — Docs + full verification
 
-- [ ] **Step 1** — Full backend suite green; report counts.
-- [ ] **Step 2** — Frontend `tsc --noEmit` + `build` clean.
-- [ ] **Step 3** — End-to-end: start backend on local chain, run `replay_demo.py`, confirm proofs
+- [x] **Step 1** — Full backend suite green; report counts.
+- [x] **Step 2** — Frontend `tsc --noEmit` + `build` clean.
+- [x] **Step 3** — End-to-end: start backend on local chain, run `replay_demo.py`, confirm proofs
       reach `confirmed` with real tx hashes and verification passes.
-- [ ] **Step 4** — Update `CLAUDE.md` (chain package, contracts, outbox, endpoints, self-heal).
-- [ ] **Step 5** — Append a dated session block to `progress.md`.
-- [ ] **CHECKPOINT M8** — final summary.
+- [x] **Step 4** — Update `CLAUDE.md` (chain package, contracts, outbox, endpoints, self-heal).
+- [x] **Step 5** — Append a dated session block to `progress.md`.
+- [x] **CHECKPOINT M8** — final summary.
 
 ---
 

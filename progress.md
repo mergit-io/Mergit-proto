@@ -565,3 +565,102 @@ Full visual identity pass for the Mergit showcase prototype (agent economy on a 
 - `npx vite build`: succeeds
 - `grep -ri omnibox frontend/src frontend/index.html`: clean except the Firebase config noted above
 - Manual browser check: `/app` and `/` (landing) render the new palette/wordmark correctly
+
+---
+
+## Session: 2026-08-12 — Real on-chain proof layer + self-heal overhaul + Omium removal
+
+Replaced the simulated Monad economy with a **real EVM proof pipeline**, made self-heal a
+showcaseable feature, and removed the Omium tracing dependency.
+
+Spec: `docs/superpowers/specs/2026-08-12-onchain-proof-layer.md`
+Plan: `docs/superpowers/plans/2026-08-12-onchain-proof-layer.md`
+
+### Decisions
+- **Chain: Monad testnet (10143).** Sepolia was considered but its faucets gate on the same
+  ~0.001 mainnet-ETH check as Monad's, so it bought nothing while costing the Monad narrative.
+- **Contracts live in `mergit-proto`** for now; they lift into `mergit-contracts` (MIT, Foundry)
+  for the production build.
+- **Local in-process EVM is the default runtime** so nothing — development, tests, CI, demos —
+  ever blocks on faucet funding.
+
+### M1 — Contracts (`backend/contracts/src/`)
+Solidity 0.8.24, self-contained (no OpenZeppelin, so `solcx` alone compiles them).
+- `Roles.sol` — minimal AccessControl stand-in
+- `AgentPassport.sol` — soulbound, one per address; transfer/approve paths all revert
+- `ProofOfWork.sol` — **idempotent by revert**: a task is provable exactly once, enforced in bytecode
+- `ReputationRegistry.sol` — 0..10000 scores; the PRD's 20% max-delta rule enforced **on chain**,
+  so a compromised oracle still cannot move a score arbitrarily
+- `AuditTrail.sol` — events only, zero SSTORE
+- `chain/compiler.py` — solcx compilation cached by source hash → `contracts/out/` (gitignored)
+- `test_contracts.py` — 17 tests on a real EVM. Largest contract 4842 bytes (EIP-170 limit 24576).
+
+### M2 — Chain layer (`backend/chain/`)
+- `networks.py` — LOCAL (31337) / MONAD_TESTNET (10143) with explorer URL templates + faucet list
+- `provider.py` — `LocalEvmProvider` (py-evm, in-process) and `RpcProvider` (JSON-RPC, local
+  signing, nonce management, EIP-1559 with legacy fallback, exponential-backoff retry). Both
+  simulate via `.call()` first so a revert surfaces as a clean error instead of a burnt tx.
+- `client.py` — `ChainClient`; every method degrades to `None` rather than raising
+- `deployer.py` / `registry.py` — dependency-ordered deploy + role grants; `deployments/{chainId}.json`
+- `role_address()` duplicates `economy.owner_address` to keep `chain/` free of app imports;
+  `test_chain_client.py` asserts the two never diverge
+
+### M3 — Proof outbox (PRD §5.4)
+`proof_outbox` table + `chain_worker.py`. `economy.record_proof` mints the local proof instantly and
+enqueues; the loop drains `pending→submitting→confirmed` with backoff and dead-lettering at 10
+attempts. Restart-safe. A dead chain queues proofs; it never blocks or fails a goal run.
+
+**Bug caught by test:** re-submitting an already-recorded proof returned `tx_hash: None` (the chain
+stores the result, not the transaction that delivered it), which would have overwritten settled
+history with a null. Now preserves the original.
+
+### M4 — Verification
+`GET /api/economy/verify/{task_id}` + `scripts/verify_proof.py`. Recomputes
+`sha256(canonical_json(output))` and compares against `ProofOfWork.getProof`, returning every
+intermediate so the check is reproducible by hand. **Verified end-to-end that tampering with a
+stored output in SQLite is detected.**
+
+The CLI exposed a real limitation: with `CHAIN_TARGET=local` the EVM is in-process, so a separate
+CLI process sees an empty chain. It now verifies through the running server's API on local, and
+reads the chain directly on a real network.
+
+### M5 — Deploy tooling
+`scripts/deploy_contracts.py --network local|monad-testnet [--dry-run]`. Reports missing RPC/key and
+lists faucets instead of failing opaquely. Local auto-deploys on boot (`main.py::_init_chain`);
+a real network never auto-deploys.
+
+### M6 — Frontend
+`ProofLedger` links tx hashes to the active chain's explorer, shows queue depth, and gives each proof
+a **Verify** button rendering verified / tampered / not-yet-recorded inline. New `/app/heal` page.
+
+### M7 — Self-heal overhaul
+Audit found the mechanism worked but was unobservable and unsafe to leave running: no tests, no
+dedup (N failures → N identical issues), no recursion guard, no persistence, **no API or UI at all**,
+and a silent no-op without `GITHUB_TOKEN`. Fixed all of it:
+- `heal_attempts` table; fingerprint dedup (line numbers/ids/hex/timestamps normalised away)
+- recursion guard via `goals.source`/`heal_depth`, `MAX_HEAL_DEPTH=1`
+- offline `simulated` mode records the issue body it would have filed — demoable with zero creds
+- outcome tracking (`fixed`/`failed`) when the fix goal settles
+- `/api/heal/{attempts,stats,stream}`
+- background tasks now log exceptions instead of swallowing them
+- 24 classifier tests + 13 self-heal tests
+
+Verified live: the same bug fired 3× produced **one** attempt with `seen=3x`, and the "Invalid API
+Key" planning failures correctly did *not* trigger heal (classified external).
+
+### M9 — Omium removal (user request)
+Omium was never load-bearing — `tracing.py` no-opped whenever the SDK was absent, which was every
+environment; every boot logged "omium not installed". Deleted `tracing.py` and all call sites across
+14 modules, config, env vars and four deploy files. Pitch materials repointed at on-chain proof-of-work.
+
+### Also fixed along the way
+- `backend/.env.example` did not exist, so the README's `cp .env.example .env` was broken. Written
+  in full, covering every setting in `config.py`.
+- `conftest.py` gives each test a fresh event loop, so the legacy `get_event_loop()` style and
+  `asyncio.run()` coexist regardless of test order (Python 3.13 raises otherwise).
+
+### Verified
+- **131 backend tests pass** (was 38), all with no RPC URL, no private key and no network
+- `npx tsc --noEmit` clean; `npm run build` succeeds
+- Live run: boot → contracts deploy → `replay_demo.py` → 3 proofs confirmed on chain with real tx
+  hashes → API and CLI verification both pass → tampering detected
