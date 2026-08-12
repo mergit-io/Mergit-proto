@@ -9,6 +9,7 @@ import { Webhooks } from "./pages/Webhooks";
 import { Actions } from "./pages/Actions";
 import { Economy } from "./pages/Economy";
 import { AgentDetail } from "./pages/AgentDetail";
+import { SelfHeal } from "./pages/SelfHeal";
 import "./index.css";
 
 export default function App() {
@@ -70,6 +71,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <AgentDetail />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/heal"
+          element={
+            <ProtectedRoute>
+              <SelfHeal />
             </ProtectedRoute>
           }
         />
