@@ -19,6 +19,18 @@ services:
         value: /data/config
       - key: DEBUG
         value: "false"
+      # Chain. "local" runs an in-process EVM that is wiped on every restart — fine for a
+      # showcase, but proofs are then only verifiable from inside this container. Set
+      # CHAIN_TARGET=monad-testnet plus a funded CHAIN_PRIVATE_KEY to record proofs on the
+      # real network, after deploying with scripts/deploy_contracts.py.
+      - key: CHAIN_ENABLED
+        value: "true"
+      - key: CHAIN_TARGET
+        value: local
+      - key: CHAIN_RPC_URL
+        sync: false
+      - key: CHAIN_PRIVATE_KEY
+        sync: false
       - key: COOKIE_SECURE
         value: "true"
       - key: FRONTEND_URL

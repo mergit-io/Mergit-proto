@@ -1,6 +1,7 @@
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { useChainBadge } from "../../hooks/useChainBadge";
 
 /* ── Particle canvas ─────────────────────────────────────────── */
 function ParticleCanvas() {
@@ -124,6 +125,7 @@ const METRICS = [
 ];
 
 export function HeroSection() {
+  const chainBadge = useChainBadge();
   const nav = useNavigate();
   const { scrollY } = useScroll();
   const y = useTransform(scrollY, [0, 500], [0, 80]);
@@ -153,7 +155,7 @@ export function HeroSection() {
           className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 mb-8 glass-card text-xs font-medium tracking-widest uppercase text-accent border-accent/20"
         >
           <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse-ring" />
-          Live on Monad Testnet (simulated)
+          {chainBadge.label}
         </motion.div>
 
         {/* Headline */}

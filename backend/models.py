@@ -65,3 +65,7 @@ class HealthResponse(BaseModel):
     db: str
     worker: str
     ts: int
+    # Chain state is surfaced here because _init_chain degrades instead of crashing:
+    # without this a container with a broken chain looks identical to a healthy one.
+    chain: str = "unknown"
+    chain_id: int | None = None
