@@ -107,7 +107,7 @@ The differentiator is that this isn't a copilot. It's not autocomplete. It's a s
 
 ## [4:50 – 5:00] Close
 
-"Mergit is open source, runs locally with a single make command, supports 40 LLM models, traces every execution through Omium, and just built and submitted this pitch autonomously.
+"Mergit is open source, runs locally with a single make command, supports 40 LLM models, records every completed task as a verifiable on-chain proof, and just built and submitted this pitch autonomously.
 
 The code is at github.com/mergit-io/Mergit-proto.
 

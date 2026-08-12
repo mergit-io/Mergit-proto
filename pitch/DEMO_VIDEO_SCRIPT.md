@@ -124,7 +124,7 @@ Analyze the architecture of [owner]/[repo] and generate a Mermaid flow diagram o
 **Screen:** Models page (`/app/models`) — show the 40 model choices briefly, then back to landing
 
 **Narration:**
-> "Mergit supports 40 LLMs across Groq, Anthropic, OpenAI, Google, and Mistral — switchable at runtime with no restarts. It's fully traced with Omium SDK, persisted to SQLite for crash recovery, and the entire UI streams live via Server-Sent Events.
+> "Mergit supports 40 LLMs across Groq, Anthropic, OpenAI, Google, and Mistral — switchable at runtime with no restarts. Every completed task is recorded as a real on-chain proof you can independently verify, persisted to SQLite for crash recovery, and the entire UI streams live via Server-Sent Events.
 >
 > Source code is at github.com/mergit-io/Mergit-proto.
 > Mergit — any goal, fully autonomous. Every proof, on the ledger."

@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 
 from config import settings
-from tracing import trace
 
 WORKSPACE = Path(settings.workspace_dir).resolve()
 
@@ -19,7 +18,6 @@ def _safe_path(goal_id: str, rel_path: str) -> Path:
     return resolved
 
 
-@trace("file_ops")
 async def file_ops(args: dict) -> dict:
     operation = args["operation"]
     path = args["path"]

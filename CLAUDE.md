@@ -69,8 +69,6 @@ Mergit is a generic multi-agent autonomy system: a user submits any natural lang
 
 **API Keys** (`api/keys.py`): `GET/PUT /api/config/keys` — reads/writes provider API keys (Groq, Anthropic, OpenAI, Google, Mistral, Tavily) to `backend/.env` via `python-dotenv.set_key()` and updates `os.environ` immediately. Returns masked values. Saving the `google` key also sets `GEMINI_API_KEY` (LiteLLM's expected env var for `gemini/` models).
 
-**Tracing** (`tracing.py`): Omium SDK wrapper — degrades to no-ops if `omium` not installed. Provides `goal_trace_context`, `task_span`, `tool_span`, `webhook_span` context managers. All spans share `execution_id = goal.trace_id` for causal linking in the Omium dashboard.
-
 ### Frontend (`frontend/`)
 
 Vite + React + TypeScript + Tailwind CSS + Framer Motion + React Flow + SWR.
@@ -114,7 +112,7 @@ All routes under `/api/`. Key endpoints:
 
 ### Environment
 
-Copy `backend/.env.example` to `backend/.env` and fill in: `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, `TAVILY_API_KEY`, `SLACK_WEBHOOK_URL`, `GITHUB_TOKEN`, `GITHUB_DEFAULT_REPO`, `OMIUM_API_KEY`, `OMIUM_PROJECT`.
+Copy `backend/.env.example` to `backend/.env` and fill in: `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, `TAVILY_API_KEY`, `SLACK_WEBHOOK_URL`, `GITHUB_TOKEN`, `GITHUB_DEFAULT_REPO`.
 
 Model selection is managed at runtime via `backend/model_config.json` (created automatically on first run, gitignored). Edit through the UI "Models" button or directly via `PUT /api/config/models`.
 

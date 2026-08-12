@@ -1,9 +1,7 @@
 import httpx
 
-from tracing import trace
 
 
-@trace("http_request")
 async def http_request(args: dict) -> dict:
     url = args["url"]
     method = args.get("method", "GET").upper()

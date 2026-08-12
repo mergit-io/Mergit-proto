@@ -5,12 +5,10 @@ beyond its own capability — e.g. a researcher finds a bug and spawns a fix goa
 """
 import logging
 
-from tracing import trace
 
 logger = logging.getLogger(__name__)
 
 
-@trace("spawn_goal")
 async def spawn_goal(args: dict) -> dict:
     import db
     goal_text = args["goal"]

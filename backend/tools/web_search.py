@@ -1,7 +1,6 @@
 import logging
 
 from config import settings
-from tracing import trace
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +53,6 @@ async def _ddg_search(query: str, max_results: int) -> dict:
     }
 
 
-@trace("web_search")
 async def web_search(args: dict) -> dict:
     query = args["query"]
     max_results = args.get("max_results", 5)

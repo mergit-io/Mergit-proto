@@ -23,10 +23,6 @@ class Settings(BaseSettings):
     github_default_repo: str = ""
     mergit_repo: str = "mergit-io/Mergit-proto"  # repo where self-heal issues/PRs are filed
 
-    # Tracing
-    omium_api_key: str = ""
-    omium_project: str = "mergit"
-    omium_skip_workflow_register: bool = False
 
     # Server
     host: str = "0.0.0.0"

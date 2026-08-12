@@ -10,7 +10,6 @@ import db
 import model_config
 from llm import acompletion
 from state import GoalRow
-from tracing import set_execution_context, trace
 
 logger = logging.getLogger(__name__)
 
@@ -114,9 +113,7 @@ PLAN_TOOL = {
 }
 
 
-@trace("orchestrator_plan")
 async def plan(goal: GoalRow) -> PlanSchema:
-    set_execution_context(execution_id=goal.trace_id, agent_id="orchestrator")
 
     orchestrator_model = model_config.get_model("orchestrator")
     logger.info("Orchestrator using model: %s", orchestrator_model)

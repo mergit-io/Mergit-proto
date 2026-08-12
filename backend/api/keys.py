@@ -18,7 +18,6 @@ PROVIDER_KEYS: dict[str, str] = {
     "anthropic": "ANTHROPIC_API_KEY",
     "tavily":    "TAVILY_API_KEY",
     "github":    "GITHUB_TOKEN",
-    "omium":     "OMIUM_API_KEY",
 }
 
 
@@ -65,12 +64,6 @@ async def update_key(body: KeyBody):
         _ENV_FILE.touch()
     set_key(str(_ENV_FILE), env_var, key_value)
     os.environ[env_var] = key_value
-
-    # Reinitialise Omium tracing live when key is updated
-    if provider == "omium":
-        import tracing as _tracing
-        from config import settings as _settings
-        _tracing.init_tracing(key_value, _settings.omium_project)
 
     # Resume any tasks that were waiting for this credential
     resumed = await db.resume_credential_tasks(env_var)
