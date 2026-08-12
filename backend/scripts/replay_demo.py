@@ -12,18 +12,32 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import uuid  # noqa: E402
+
 import db  # noqa: E402
 import economy  # noqa: E402
 from state import GoalStatus, TaskStatus  # noqa: E402
 
-CANNED_TASKS = [
-    {"id": "replay_t1", "agent": "researcher",
-     "description": "Research the Mergit agent economy design"},
-    {"id": "replay_t2", "agent": "coder",
-     "description": "Implement the proof-of-work ledger", "depends_on": ["replay_t1"]},
-    {"id": "replay_t3", "agent": "integrator",
-     "description": "Wire the ledger into the live SSE stream", "depends_on": ["replay_t2"]},
+# Task ids are generated per run — a fixed id set makes the second replay die on
+# "UNIQUE constraint failed: tasks.id", which is exactly when a demo needs it most.
+CANNED_TASK_SPECS = [
+    ("researcher", "Research the Mergit agent economy design"),
+    ("coder", "Implement the proof-of-work ledger"),
+    ("integrator", "Wire the ledger into the live SSE stream"),
 ]
+
+
+def build_tasks(run_id: str) -> list[dict]:
+    tasks = []
+    previous = None
+    for index, (agent, description) in enumerate(CANNED_TASK_SPECS, start=1):
+        task_id = f"replay_{run_id}_t{index}"
+        tasks.append({
+            "id": task_id, "agent": agent, "description": description,
+            "depends_on": [previous] if previous else [],
+        })
+        previous = task_id
+    return tasks
 
 DELAY_SECONDS = 2
 
@@ -41,8 +55,9 @@ async def main() -> None:
     await db.init_db()
     await economy.seed_passports()
 
+    run_id = uuid.uuid4().hex[:8]
     goal = await db.create_goal("Replay demo: ship the Mergit agent economy")
-    tasks = await db.create_tasks(CANNED_TASKS, goal.id, goal.trace_id)
+    tasks = await db.create_tasks(build_tasks(run_id), goal.id, goal.trace_id)
     await db.update_goal_status(goal.id, GoalStatus.RUNNING)
     print(f"Seeded goal {goal.id} with {len(tasks)} tasks — open /app/economy to watch the ledger.")
 

@@ -48,6 +48,19 @@ async def chain_submit_loop() -> None:
     except Exception as e:
         logger.warning("chain_worker: startup reclaim failed: %s", e)
 
+    # The in-process EVM is wiped on restart while the outbox survives, so anything it
+    # previously confirmed would silently stop verifying. Re-submit it to the new chain.
+    try:
+        client = get_client()
+        if client is not None and client.network.is_local:
+            requeued = await db.requeue_proofs_for_chain(client.chain_id)
+            if requeued:
+                logger.info(
+                    "chain_worker: re-submitting %d proof(s) — the local chain is ephemeral "
+                    "and was reset by this restart", requeued)
+    except Exception as e:
+        logger.warning("chain_worker: ephemeral-chain requeue failed: %s", e)
+
     while _running:
         try:
             await submit_batch()

@@ -196,3 +196,49 @@ def test_list_outbox_filters_by_status(db):
         assert [e["task_id"] for e in await db.list_outbox(status="confirmed")] == ["t1"]
         assert [e["task_id"] for e in await db.list_outbox(status="pending")] == ["t2"]
     run(go())
+
+
+# ── Ephemeral chain restart ─────────────────────────────────────────────────────
+
+def test_confirmed_proofs_are_requeued_when_the_chain_is_ephemeral(db):
+    """The local EVM lives inside the backend process, so a restart wipes the chain
+    while the DB keeps saying 'confirmed'. Those proofs would silently stop verifying.
+    Requeue them so the new chain gets them back."""
+    async def go():
+        await db.enqueue_proof("t1", "g1", "coder", "a" * 64)
+        await db.claim_pending_proofs(limit=10)
+        await db.mark_proof_confirmed("t1", "0x" + "f" * 64, 42, 31337)
+
+        requeued = await db.requeue_proofs_for_chain(31337)
+        assert requeued == 1
+
+        entry = await db.get_outbox_entry("t1")
+        assert entry["status"] == "pending"
+        assert entry["attempts"] == 0, "a chain reset is not the proof's fault"
+        assert len(await db.claim_pending_proofs(limit=10)) == 1
+    run(go())
+
+
+def test_requeue_leaves_other_chains_alone(db):
+    """A persistent chain's confirmations must never be thrown away."""
+    async def go():
+        await db.enqueue_proof("t1", "g1", "coder", "a" * 64)
+        await db.enqueue_proof("t2", "g1", "writer", "b" * 64)
+        await db.claim_pending_proofs(limit=10)
+        await db.mark_proof_confirmed("t1", "0x" + "1" * 64, 1, 31337)
+        await db.mark_proof_confirmed("t2", "0x" + "2" * 64, 2, 10143)
+
+        assert await db.requeue_proofs_for_chain(31337) == 1
+        assert (await db.get_outbox_entry("t2"))["status"] == "confirmed"
+    run(go())
+
+
+def test_requeue_does_not_resurrect_dead_letters(db):
+    async def go():
+        await db.enqueue_proof("t1", "g1", "coder", "a" * 64)
+        for _ in range(db.MAX_PROOF_ATTEMPTS):
+            await db.claim_pending_proofs(limit=10, now=2**31)
+            await db.mark_proof_failed("t1", "permanent")
+        assert await db.requeue_proofs_for_chain(31337) == 0
+        assert (await db.get_outbox_entry("t1"))["status"] == "dead_lettered"
+    run(go())
