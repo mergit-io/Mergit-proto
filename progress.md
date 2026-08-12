@@ -664,3 +664,33 @@ environment; every boot logged "omium not installed". Deleted `tracing.py` and a
 - `npx tsc --noEmit` clean; `npm run build` succeeds
 - Live run: boot → contracts deploy → `replay_demo.py` → 3 proofs confirmed on chain with real tx
   hashes → API and CLI verification both pass → tampering detected
+
+### Follow-up (same day): "are the features actually working end to end?"
+
+A fair challenge, and the honest answer was **partly**. The chain work had been verified with
+`replay_demo.py`, which mints proofs from canned data and never runs an agent or calls a model —
+so the *execution path* was untested. There are also no API keys in this environment
+(`backend/.env` does not exist), so a live model run is impossible here.
+
+Closed the gap by driving the real production path with only `llm.acompletion` stubbed:
+
+- **`test_e2e_workflow.py`** (7) — goal → real orchestrator → persisted DAG → agents →
+  interpolation → proofs → chain → verify. Proves `{{t1.output.summary}}` genuinely reaches the
+  next agent, that a researcher cannot open PRs and a writer cannot execute code, and that a
+  second goal reuses the same passports (on-chain `tasksCompleted` reaches 2).
+- **`test_github_automation.py`** (11) — the flagship demo, previously untested. Webhook receipt
+  including bot-PR skipping and HMAC verification, then the full researcher→coder→integrator fix
+  pipeline with a real `github_pr` invocation and exactly one PR write.
+- **`test_replanner.py`** (11) — the "route around failure" claim, previously untested. Includes
+  three failure modes that must not silently consume the single replan a goal is entitled to.
+
+**Two bugs this surfaced, both only on a second run:**
+1. `replay_demo.py` used fixed task ids → `UNIQUE constraint failed: tasks.id` on the second
+   invocation. Now generates ids per run.
+2. Restarting the backend wipes the in-process EVM while `proof_outbox` still says `confirmed`,
+   so every previously proven task silently stopped verifying. `chain_worker` now requeues
+   confirmed proofs on boot when the chain is ephemeral; verification recovers by itself.
+   Verified: a task returning `verified=null` after restart now returns `verified=true`.
+
+**163 tests passing.** Remaining unverified: whether a real LLM produces a *good* plan and *good*
+agent outputs. The wiring is proven; the model's judgement is not.

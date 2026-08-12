@@ -39,6 +39,7 @@ aiosqlite · React/TS.
 | M7 | Self-heal enhancement | Tested, deduped, loop-safe, observable, demoable |
 | M9 | Remove Omium tracing | Third-party tracing dependency fully excised |
 | M8 | Docs + full verification | `CLAUDE.md` + `progress.md`, whole suite green |
+| M10 | Close remaining feature-coverage gaps | Workflow, GitHub automation and replanner proven |
 
 ---
 
@@ -215,3 +216,28 @@ milestone runs keyless (6)→M2 networks + M5 deploy (7)→M3 outbox (8)→M7.
 computes today, so existing proofs and the new on-chain hashes agree. `task_id`→`bytes32` is
 always `keccak(task_id)`. Outbox status vocabulary is fixed at
 `pending|submitting|submitted|confirmed|failed|dead_lettered` across db, worker, API, and UI.
+
+## M10 — Close remaining feature-coverage gaps (added after the "is it actually working?" review)
+
+The chain work had been verified with `replay_demo.py`, which mints proofs from canned data
+without running an agent — so the execution path itself was untested. With no LLM keys available,
+the model is stubbed and everything else runs for real.
+
+- [x] **Step 1** — `test_e2e_workflow.py` (7 tests): goal → real orchestrator → DAG → agents →
+      interpolation → proofs → chain → verify. Also asserts tool isolation per agent and passport
+      reuse across goals.
+- [x] **Step 2** — `test_github_automation.py` (11 tests): the flagship demo. Webhook receipt
+      (issue/PR/bot-skip/ping/HMAC), then researcher→coder→integrator to COMPLETED with a real
+      `github_pr` call, resolved `{{t1.output.code_context}}`, verifiable proofs, and exactly one
+      PR write. Surfaced that `submit_result` enforces each agent's `output_schema.required`.
+- [x] **Step 3** — `test_replanner.py` (11 tests): replan-once guard, prompt carries progress and
+      failure, terminal pointer moves, ids cannot collide, completed work preserved, and three
+      failure modes that must not consume the goal's single replan.
+- [x] **Step 4** — Fixed two bugs this surfaced: `replay_demo.py` crashed on its second run
+      (fixed task ids); confirmed proofs silently stopped verifying after a restart because the
+      in-process EVM is wiped (now requeued on boot).
+- [x] **CHECKPOINT M10** — 163 tests passing.
+
+**Still unverified:** whether a real LLM produces a *good* plan and *good* agent output. The
+wiring is proven; the model's judgement is not. That needs an API key — `backend/.env` does not
+exist and no provider key is configured.
