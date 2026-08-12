@@ -34,6 +34,7 @@ aiosqlite · React/TS.
 | M5 | Deploy tooling | One command deploys to local or Monad testnet |
 | M6 | Frontend on-chain surfaces | Real tx links, chain status, verify button |
 | M7 | Self-heal enhancement | Tested, deduped, loop-safe, observable, demoable |
+| M9 | Remove Omium tracing | Third-party tracing dependency fully excised |
 | M8 | Docs + full verification | `CLAUDE.md` + `progress.md`, whole suite green |
 
 ---
@@ -60,65 +61,65 @@ aiosqlite · React/TS.
 **Create:** `backend/chain/{__init__,networks,provider,client,registry}.py`, `backend/test_chain_client.py`
 **Modify:** `backend/config.py` (chain settings), `backend/requirements.txt`
 
-- [ ] **Step 1** — Write `test_chain_client.py`: client boots on local EVM; `record_proof` returns a
+- [x] **Step 1** — Write `test_chain_client.py`: client boots on local EVM; `record_proof` returns a
       real 66-char tx hash and block number; event decodes; `get_proof` reads back; duplicate is
       benign not fatal; `task_id`→`bytes32` round-trips; no deployment → `not_deployed`, no crash.
-- [ ] **Step 2** — Run; expect FAIL.
-- [ ] **Step 3** — `networks.py` (LOCAL 31337, MONAD_TESTNET 10143 + explorer templates).
-- [ ] **Step 4** — `provider.py` (`LocalEvmProvider`, `RpcProvider` with signing/nonce/retry).
-- [ ] **Step 5** — `registry.py` (read/write `deployments/{chain_id}.json`).
-- [ ] **Step 6** — `client.py` (`ChainClient` + hash conversion + revert classification).
-- [ ] **Step 7** — Add `chain_target`/`chain_rpc_url`/`chain_private_key`/`chain_enabled` to config;
+- [x] **Step 2** — Run; expect FAIL.
+- [x] **Step 3** — `networks.py` (LOCAL 31337, MONAD_TESTNET 10143 + explorer templates).
+- [x] **Step 4** — `provider.py` (`LocalEvmProvider`, `RpcProvider` with signing/nonce/retry).
+- [x] **Step 5** — `registry.py` (read/write `deployments/{chain_id}.json`).
+- [x] **Step 6** — `client.py` (`ChainClient` + hash conversion + revert classification).
+- [x] **Step 7** — Add `chain_target`/`chain_rpc_url`/`chain_private_key`/`chain_enabled` to config;
       pin `web3`, `py-solc-x`, `eth-tester[py-evm]` in requirements.
-- [ ] **Step 8** — Run; expect PASS.
-- [ ] **CHECKPOINT M2**
+- [x] **Step 8** — Run; expect PASS.
+- [x] **CHECKPOINT M2**
 
 ## M3 — Durable proof outbox + worker submission
 
 **Modify:** `backend/db.py` (table + accessors), `backend/economy.py` (enqueue), `backend/worker.py` (loop)
 **Create:** `backend/chain_worker.py`, `backend/test_proof_outbox.py`
 
-- [ ] **Step 1** — Write `test_proof_outbox.py`: enqueue creates `pending`; `claim_pending` is
+- [x] **Step 1** — Write `test_proof_outbox.py`: enqueue creates `pending`; `claim_pending` is
       atomic; success → `confirmed` with tx/block; failure increments `attempts` + backoff;
       10 attempts → `dead_lettered`; enqueue is idempotent per `task_id`; pending rows survive restart.
-- [ ] **Step 2** — Run; expect FAIL.
-- [ ] **Step 3** — Add `proof_outbox` to `SCHEMA` + accessors in `db.py`.
-- [ ] **Step 4** — `economy.record_proof` also enqueues to the outbox (still never raises).
-- [ ] **Step 5** — `chain_worker.chain_submit_loop`: drain → submit → advance status → emit
+- [x] **Step 2** — Run; expect FAIL.
+- [x] **Step 3** — Add `proof_outbox` to `SCHEMA` + accessors in `db.py`.
+- [x] **Step 4** — `economy.record_proof` also enqueues to the outbox (still never raises).
+- [x] **Step 5** — `chain_worker.chain_submit_loop`: drain → submit → advance status → emit
       `proof_pending`/`proof_submitted`/`proof_confirmed`/`proof_failed` on the `economy` channel.
-- [ ] **Step 6** — Start the loop in `worker.start()`, gated on `chain_enabled`.
-- [ ] **Step 7** — Run full suite; expect PASS including the original 38.
-- [ ] **CHECKPOINT M3**
+- [x] **Step 6** — Start the loop in `worker.start()`, gated on `chain_enabled`.
+- [x] **Step 7** — Run full suite; expect PASS including the original 38.
+- [x] **CHECKPOINT M3**
 
 ## M4 — Verification API + CLI
 
 **Modify:** `backend/api/economy.py`
 **Create:** `backend/scripts/verify_proof.py`, `backend/test_verify.py`
 
-- [ ] **Step 1** — Write `test_verify.py`: matching stored output → `verified: true` with all
+- [x] **Step 1** — Write `test_verify.py`: matching stored output → `verified: true` with all
       intermediates; tampered output → `verified: false` and hashes differ; unknown task → 404;
       task with no on-chain proof → `verified: null` + reason, not an error.
-- [ ] **Step 2** — Run; expect FAIL.
-- [ ] **Step 3** — Implement `GET /api/economy/verify/{task_id}` per spec §5.
-- [ ] **Step 4** — Implement `scripts/verify_proof.py <task_id>` printing a human-readable audit.
-- [ ] **Step 5** — Run; expect PASS.
-- [ ] **CHECKPOINT M4**
+- [x] **Step 2** — Run; expect FAIL.
+- [x] **Step 3** — Implement `GET /api/economy/verify/{task_id}` per spec §5.
+- [x] **Step 4** — Implement `scripts/verify_proof.py <task_id>` printing a human-readable audit.
+- [x] **Step 5** — Run; expect PASS.
+- [x] **CHECKPOINT M4**
 
 ## M5 — Deploy tooling
 
 **Create:** `backend/scripts/deploy_contracts.py`
 **Modify:** `backend/main.py` (lifespan auto-deploy on local), `backend/.env.example`
 
-- [ ] **Step 1** — Deploy script: compile → deploy in dependency order (Passport → AuditTrail →
+- [x] **Step 1** — Deploy script: compile → deploy in dependency order (Passport → AuditTrail →
       ProofOfWork → ReputationRegistry) → grant roles → write `deployments/{chain_id}.json` →
       print explorer links. `--network local|monad-testnet`, `--dry-run`.
-- [ ] **Step 2** — On `local`, auto-deploy in the `main.py` lifespan so a dev run is chain-live
+- [x] **Step 2** — On `local`, auto-deploy in the `main.py` lifespan so a dev run is chain-live
       with zero setup. Never auto-deploy to a real network.
-- [ ] **Step 3** — Document `CHAIN_TARGET`, `CHAIN_RPC_URL`, `CHAIN_PRIVATE_KEY` in `.env.example`
+- [x] **Step 3** — Document `CHAIN_TARGET`, `CHAIN_RPC_URL`, `CHAIN_PRIVATE_KEY` in `.env.example`
       with the Monad faucet options.
-- [ ] **Step 4** — Verify: `deploy_contracts.py --network local` writes `deployments/31337.json`;
+- [x] **Step 4** — Verify: `deploy_contracts.py --network local` writes `deployments/31337.json`;
       `--network monad-testnet --dry-run` reports what it would do without a key.
-- [ ] **CHECKPOINT M5**
+- [x] **CHECKPOINT M5**
 
 ## M6 — Frontend on-chain surfaces
 
@@ -159,6 +160,33 @@ Addresses the 9 gaps from the 2026-08-12 audit (spec §6).
       issue link, fix-goal link, outcome, recurrence count) + stats strip. Nav link.
 - [ ] **Step 9** — Run full suite + frontend build; expect PASS.
 - [ ] **CHECKPOINT M7**
+
+## M9 — Remove Omium tracing (added 2026-08-12 at user request)
+
+Omium was never load-bearing: `tracing.py` degraded to no-ops whenever the SDK was absent,
+which is every environment here (`omium not installed — tracing disabled` on every boot).
+It costs a module, config, env vars, deploy wiring and call sites in 7 modules for nothing.
+Removing it outright rather than leaving a dead abstraction.
+
+**Delete:** `backend/tracing.py`
+**Modify:** `backend/worker.py`, `backend/agent_runner.py`, `backend/api/webhooks.py`,
+`backend/api/keys.py`, `backend/tools/http_request.py`, `backend/config.py`, `backend/main.py`,
+`backend/.env.example`, `render.yaml`, `.env.production.example`, `README.md`, `CLAUDE.md`,
+`ARCHITECTURE.md`
+
+- [ ] **Step 1** — Remove `goal_trace_context` / `task_span` call sites from `worker.py`,
+      preserving the surrounding control flow exactly.
+- [ ] **Step 2** — Remove `tool_span` / `trace` / `set_execution_context` from `agent_runner.py`
+      and `tools/http_request.py`; drop the `tracer` parameter threading.
+- [ ] **Step 3** — Remove `webhook_span` from `api/webhooks.py`; drop the `omium` provider from
+      `api/keys.py`.
+- [ ] **Step 4** — Drop `omium_*` settings from `config.py` and `init_tracing` from `main.py`.
+- [ ] **Step 5** — Delete `backend/tracing.py`. Purge `OMIUM_*` from `.env.example`,
+      `.env.production.example`, `render.yaml`, `README.md`, `CLAUDE.md`, `ARCHITECTURE.md`.
+      Drop `tracing.py` from the `error_classifier` "our files" regex.
+- [ ] **Step 6** — Full suite green; `grep -ri omium` returns nothing outside `progress.md`
+      history. Boot the server and confirm the "omium not installed" warning is gone.
+- [ ] **CHECKPOINT M9**
 
 ## M8 — Docs + full verification
 

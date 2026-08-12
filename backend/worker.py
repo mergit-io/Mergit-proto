@@ -10,6 +10,7 @@ import uuid
 from typing import Any
 
 import db
+import chain_worker
 import economy
 import error_classifier
 import events
@@ -43,12 +44,14 @@ async def start() -> None:
     asyncio.create_task(_goal_planner_loop(), name="goal_planner")
     asyncio.create_task(_task_executor_loop(), name="task_executor")
     asyncio.create_task(_reclaim_loop(), name="reclaim")
+    await chain_worker.start()
     logger.info("Worker started (id=%s)", _worker_id)
 
 
 async def stop() -> None:
     global _running
     _running = False
+    await chain_worker.stop()
 
 
 # ── Planner ─────────────────────────────────────────────────────────────────────
@@ -218,6 +221,11 @@ async def _after_task_done(task: Any, output: dict) -> None:
             "status": GoalStatus.COMPLETED, "goal_id": task.goal_id, "output": output,
         })
         logger.info("Goal %s COMPLETED", task.goal_id)
+        # If this goal was a self-heal fix attempt, mark the original bug as fixed.
+        asyncio.create_task(
+            self_heal.settle_outcome(task.goal_id, GoalStatus.COMPLETED),
+            name=f"heal-settle-{task.goal_id[:8]}",
+        ).add_done_callback(_log_background_failure)
 
 
 async def _handle_goal_failure(goal_id: str, failed_task_id: str, error: str) -> None:
@@ -236,10 +244,25 @@ async def _handle_goal_failure(goal_id: str, failed_task_id: str, error: str) ->
             "self_heal: developer error detected in goal=%s task=%s agent=%s — filing issue",
             goal_id, failed_task_id, agent_name,
         )
-        asyncio.create_task(
-            self_heal.trigger(goal_id, goal_title, agent_name, error, classification["summary"]),
+        heal_task = asyncio.create_task(
+            self_heal.trigger(goal_id, goal_title, agent_name, error,
+                              classification["summary"], task_id=failed_task_id),
             name=f"self-heal-{goal_id[:8]}",
         )
+        # Fire-and-forget still needs a reader, or an exception here vanishes silently.
+        heal_task.add_done_callback(_log_background_failure)
+
+    # If this goal *was* a self-heal fix attempt, close the loop on its outcome.
+    asyncio.create_task(
+        self_heal.settle_outcome(goal_id, GoalStatus.FAILED), name=f"heal-settle-{goal_id[:8]}",
+    ).add_done_callback(_log_background_failure)
+
+
+def _log_background_failure(task: asyncio.Task) -> None:
+    if task.cancelled():
+        return
+    if exc := task.exception():
+        logger.error("Background task %s failed: %s", task.get_name(), exc, exc_info=exc)
 
 
 # ── Reclaim ─────────────────────────────────────────────────────────────────────

@@ -114,6 +114,48 @@ CREATE TABLE IF NOT EXISTS proofs (
 );
 CREATE INDEX IF NOT EXISTS idx_proofs_block ON proofs(block_number DESC);
 CREATE INDEX IF NOT EXISTS idx_proofs_role ON proofs(agent_role);
+
+-- Durable queue for on-chain proof submission (PRD §5.4 outbox pattern).
+-- Chain submission is asynchronous and retryable so it can never block or break a goal run.
+CREATE TABLE IF NOT EXISTS proof_outbox (
+    task_id         TEXT PRIMARY KEY,
+    goal_id         TEXT NOT NULL,
+    agent_role      TEXT NOT NULL,
+    result_hash     TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'pending',
+    attempts        INTEGER NOT NULL DEFAULT 0,
+    chain_id        INTEGER,
+    tx_hash         TEXT,
+    block_number    INTEGER,
+    last_error      TEXT,
+    next_attempt_at INTEGER NOT NULL DEFAULT 0,
+    created_at      INTEGER NOT NULL,
+    updated_at      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_outbox_claim ON proof_outbox(status, next_attempt_at);
+
+-- Self-heal history: every auto-detected developer bug, deduplicated by fingerprint.
+CREATE TABLE IF NOT EXISTS heal_attempts (
+    id               TEXT PRIMARY KEY,
+    fingerprint      TEXT NOT NULL,
+    goal_id          TEXT NOT NULL,
+    task_id          TEXT,
+    agent_name       TEXT NOT NULL,
+    error            TEXT NOT NULL,
+    error_summary    TEXT NOT NULL,
+    classification   TEXT NOT NULL DEFAULT 'bug',
+    status           TEXT NOT NULL,
+    issue_number     INTEGER,
+    issue_url        TEXT,
+    issue_body       TEXT,
+    fix_goal_id      TEXT,
+    outcome          TEXT,
+    recurrence_count INTEGER NOT NULL DEFAULT 1,
+    created_at       INTEGER NOT NULL,
+    updated_at       INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_heal_fingerprint ON heal_attempts(fingerprint);
+CREATE INDEX IF NOT EXISTS idx_heal_fix_goal ON heal_attempts(fix_goal_id);
 """
 
 
@@ -134,6 +176,8 @@ def _row_to_goal(row: aiosqlite.Row) -> GoalRow:
         trace_id=row["trace_id"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
+        source=row["source"] if "source" in row.keys() else "user",
+        heal_depth=row["heal_depth"] if "heal_depth" in row.keys() else 0,
     )
 
 
@@ -199,19 +243,32 @@ async def init_db() -> None:
         except Exception:
             pass  # column already exists
 
+        # Migrate: goal provenance, so a self-heal fix goal can be told apart from a user
+        # goal and never trigger another heal cycle.
+        for ddl in (
+            "ALTER TABLE goals ADD COLUMN source TEXT NOT NULL DEFAULT 'user'",
+            "ALTER TABLE goals ADD COLUMN heal_depth INTEGER NOT NULL DEFAULT 0",
+        ):
+            try:
+                await conn.execute(ddl)
+                await conn.commit()
+            except Exception:
+                pass  # column already exists
+
 
 # ── Goals ──────────────────────────────────────────────────────────────────────
 
-async def create_goal(goal_text: str) -> GoalRow:
+async def create_goal(goal_text: str, source: str = "user", heal_depth: int = 0) -> GoalRow:
     now = _now()
     goal_id = str(uuid.uuid4())
     trace_id = str(uuid.uuid4())
     title = goal_text[:80] + ("…" if len(goal_text) > 80 else "")
     async with get_conn() as conn:
         await conn.execute(
-            """INSERT INTO goals (id, title, goal_text, status, trace_id, created_at, updated_at)
-               VALUES (?, ?, ?, 'NEW', ?, ?, ?)""",
-            (goal_id, title, goal_text, trace_id, now, now),
+            """INSERT INTO goals
+               (id, title, goal_text, status, trace_id, source, heal_depth, created_at, updated_at)
+               VALUES (?, ?, ?, 'NEW', ?, ?, ?, ?, ?)""",
+            (goal_id, title, goal_text, trace_id, source, heal_depth, now, now),
         )
         await conn.commit()
         row = await (await conn.execute("SELECT * FROM goals WHERE id=?", (goal_id,))).fetchone()
@@ -707,3 +764,251 @@ async def list_completed_tasks_by_role():
         durs = a.pop("_durations")
         a["avg_duration_sec"] = (sum(durs) / len(durs)) if durs else 0.0
     return agg
+
+
+# ── Proof outbox (durable on-chain submission queue) ────────────────────────────
+
+MAX_PROOF_ATTEMPTS = 10
+_MAX_BACKOFF_SECONDS = 300
+
+
+def _outbox_row(row) -> dict:
+    return {
+        "task_id": row["task_id"], "goal_id": row["goal_id"],
+        "agent_role": row["agent_role"], "result_hash": row["result_hash"],
+        "status": row["status"], "attempts": row["attempts"],
+        "chain_id": row["chain_id"], "tx_hash": row["tx_hash"],
+        "block_number": row["block_number"], "last_error": row["last_error"],
+        "next_attempt_at": row["next_attempt_at"],
+        "created_at": row["created_at"], "updated_at": row["updated_at"],
+    }
+
+
+async def enqueue_proof(task_id: str, goal_id: str, agent_role: str, result_hash: str) -> bool:
+    """Queue a proof for chain submission. False when this task was already queued."""
+    now = _now()
+    async with get_conn() as conn:
+        try:
+            await conn.execute(
+                """INSERT INTO proof_outbox
+                   (task_id, goal_id, agent_role, result_hash, status, attempts,
+                    next_attempt_at, created_at, updated_at)
+                   VALUES (?,?,?,?, 'pending', 0, 0, ?, ?)""",
+                (task_id, goal_id, agent_role, result_hash, now, now),
+            )
+            await conn.commit()
+            return True
+        except Exception:
+            return False
+
+
+async def claim_pending_proofs(limit: int = 10, now: int | None = None) -> list[dict]:
+    """Atomically claim due entries, moving them to 'submitting'."""
+    ts = _now() if now is None else now
+    async with get_conn() as conn:
+        cur = await conn.execute(
+            """UPDATE proof_outbox SET status='submitting', updated_at=?
+               WHERE task_id IN (
+                   SELECT task_id FROM proof_outbox
+                   WHERE status='pending' AND next_attempt_at <= ?
+                   ORDER BY created_at LIMIT ?
+               )
+               RETURNING *""",
+            (ts, ts, limit),
+        )
+        rows = await cur.fetchall()
+        await conn.commit()
+        return [_outbox_row(r) for r in rows]
+
+
+async def mark_proof_confirmed(task_id: str, tx_hash: str, block_number: int,
+                               chain_id: int) -> None:
+    async with get_conn() as conn:
+        await conn.execute(
+            """UPDATE proof_outbox
+               SET status='confirmed', tx_hash=?, block_number=?, chain_id=?,
+                   last_error=NULL, updated_at=?
+               WHERE task_id=?""",
+            (tx_hash, block_number, chain_id, _now(), task_id),
+        )
+        await conn.commit()
+
+
+async def mark_proof_failed(task_id: str, error: str, now: int | None = None) -> str:
+    """Record a failed attempt with exponential backoff; dead-letter at the attempt cap.
+
+    Returns the resulting status.
+    """
+    ts = _now() if now is None else now
+    async with get_conn() as conn:
+        cur = await conn.execute("SELECT attempts FROM proof_outbox WHERE task_id=?", (task_id,))
+        row = await cur.fetchone()
+        if not row:
+            return "unknown"
+
+        attempts = row["attempts"] + 1
+        if attempts >= MAX_PROOF_ATTEMPTS:
+            status, next_at = "dead_lettered", 0
+        else:
+            status = "pending"
+            next_at = ts + min(2 ** attempts, _MAX_BACKOFF_SECONDS)
+
+        await conn.execute(
+            """UPDATE proof_outbox
+               SET status=?, attempts=?, last_error=?, next_attempt_at=?, updated_at=?
+               WHERE task_id=?""",
+            (status, attempts, (error or "")[:500], next_at, ts, task_id),
+        )
+        await conn.commit()
+        return status
+
+
+async def reclaim_stuck_proofs(older_than_seconds: int = 300) -> int:
+    """Return entries stranded in 'submitting' by a crash back to 'pending'."""
+    cutoff = _now() - older_than_seconds
+    async with get_conn() as conn:
+        cur = await conn.execute(
+            """UPDATE proof_outbox SET status='pending', next_attempt_at=0, updated_at=?
+               WHERE status='submitting' AND updated_at <= ?
+               RETURNING task_id""",
+            (_now(), cutoff),
+        )
+        rows = await cur.fetchall()
+        await conn.commit()
+        return len(rows)
+
+
+async def get_outbox_entry(task_id: str) -> dict | None:
+    async with get_conn() as conn:
+        cur = await conn.execute("SELECT * FROM proof_outbox WHERE task_id=?", (task_id,))
+        row = await cur.fetchone()
+        return _outbox_row(row) if row else None
+
+
+async def list_outbox(status: str | None = None, limit: int = 100) -> list[dict]:
+    async with get_conn() as conn:
+        if status:
+            cur = await conn.execute(
+                "SELECT * FROM proof_outbox WHERE status=? ORDER BY created_at DESC LIMIT ?",
+                (status, limit))
+        else:
+            cur = await conn.execute(
+                "SELECT * FROM proof_outbox ORDER BY created_at DESC LIMIT ?", (limit,))
+        return [_outbox_row(r) for r in await cur.fetchall()]
+
+
+async def outbox_stats() -> dict[str, int]:
+    async with get_conn() as conn:
+        cur = await conn.execute(
+            "SELECT status, COUNT(*) AS n FROM proof_outbox GROUP BY status")
+        return {r["status"]: r["n"] for r in await cur.fetchall()}
+
+
+# ── Self-heal attempts ──────────────────────────────────────────────────────────
+
+def _heal_row(row) -> dict:
+    return {
+        "id": row["id"], "fingerprint": row["fingerprint"], "goal_id": row["goal_id"],
+        "task_id": row["task_id"], "agent_name": row["agent_name"],
+        "error": row["error"], "error_summary": row["error_summary"],
+        "classification": row["classification"], "status": row["status"],
+        "issue_number": row["issue_number"], "issue_url": row["issue_url"],
+        "issue_body": row["issue_body"], "fix_goal_id": row["fix_goal_id"],
+        "outcome": row["outcome"], "recurrence_count": row["recurrence_count"],
+        "created_at": row["created_at"], "updated_at": row["updated_at"],
+    }
+
+
+async def create_heal_attempt(attempt_id: str, fingerprint: str, goal_id: str, task_id: str | None,
+                              agent_name: str, error: str, error_summary: str,
+                              classification: str, status: str, issue_body: str = "") -> dict:
+    now = _now()
+    async with get_conn() as conn:
+        await conn.execute(
+            """INSERT INTO heal_attempts
+               (id, fingerprint, goal_id, task_id, agent_name, error, error_summary,
+                classification, status, issue_body, recurrence_count, created_at, updated_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,1,?,?)""",
+            (attempt_id, fingerprint, goal_id, task_id, agent_name, error[:4000],
+             error_summary[:500], classification, status, issue_body, now, now),
+        )
+        await conn.commit()
+        row = await (await conn.execute(
+            "SELECT * FROM heal_attempts WHERE id=?", (attempt_id,))).fetchone()
+    return _heal_row(row)
+
+
+async def get_heal_attempt(attempt_id: str) -> dict | None:
+    async with get_conn() as conn:
+        row = await (await conn.execute(
+            "SELECT * FROM heal_attempts WHERE id=?", (attempt_id,))).fetchone()
+        return _heal_row(row) if row else None
+
+
+async def find_heal_attempt_by_fingerprint(fingerprint: str) -> dict | None:
+    """Most recent live attempt for this fingerprint — the dedup lookup."""
+    async with get_conn() as conn:
+        row = await (await conn.execute(
+            """SELECT * FROM heal_attempts
+               WHERE fingerprint=? AND status IN ('filed','simulated')
+               ORDER BY created_at DESC LIMIT 1""", (fingerprint,))).fetchone()
+        return _heal_row(row) if row else None
+
+
+async def bump_heal_recurrence(attempt_id: str) -> int:
+    async with get_conn() as conn:
+        cur = await conn.execute(
+            """UPDATE heal_attempts
+               SET recurrence_count = recurrence_count + 1, updated_at = ?
+               WHERE id = ? RETURNING recurrence_count""", (_now(), attempt_id))
+        row = await cur.fetchone()
+        await conn.commit()
+        return row["recurrence_count"] if row else 0
+
+
+async def update_heal_attempt(attempt_id: str, **fields) -> None:
+    allowed = {"status", "issue_number", "issue_url", "issue_body", "fix_goal_id", "outcome"}
+    updates = {k: v for k, v in fields.items() if k in allowed}
+    if not updates:
+        return
+    assignments = ", ".join(f"{k}=?" for k in updates)
+    async with get_conn() as conn:
+        await conn.execute(
+            f"UPDATE heal_attempts SET {assignments}, updated_at=? WHERE id=?",
+            (*updates.values(), _now(), attempt_id))
+        await conn.commit()
+
+
+async def find_heal_attempt_by_fix_goal(fix_goal_id: str) -> dict | None:
+    async with get_conn() as conn:
+        row = await (await conn.execute(
+            "SELECT * FROM heal_attempts WHERE fix_goal_id=? LIMIT 1", (fix_goal_id,))).fetchone()
+        return _heal_row(row) if row else None
+
+
+async def list_heal_attempts(limit: int = 100) -> list[dict]:
+    async with get_conn() as conn:
+        cur = await conn.execute(
+            "SELECT * FROM heal_attempts ORDER BY created_at DESC LIMIT ?", (limit,))
+        return [_heal_row(r) for r in await cur.fetchall()]
+
+
+async def heal_stats() -> dict:
+    async with get_conn() as conn:
+        cur = await conn.execute(
+            """SELECT COUNT(*) AS total,
+                      COALESCE(SUM(recurrence_count), 0) AS recurrences
+               FROM heal_attempts""")
+        totals = await cur.fetchone()
+        by_status = {r["status"]: r["n"] for r in await (await conn.execute(
+            "SELECT status, COUNT(*) AS n FROM heal_attempts GROUP BY status")).fetchall()}
+        by_outcome = {r["outcome"]: r["n"] for r in await (await conn.execute(
+            "SELECT outcome, COUNT(*) AS n FROM heal_attempts "
+            "WHERE outcome IS NOT NULL GROUP BY outcome")).fetchall()}
+    return {
+        "total": totals["total"],
+        "recurrences": totals["recurrences"],
+        "by_status": by_status,
+        "by_outcome": by_outcome,
+        "fixed": by_outcome.get("fixed", 0),
+    }

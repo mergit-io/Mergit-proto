@@ -8,10 +8,84 @@ from sse_starlette.sse import EventSourceResponse
 import db
 import economy
 import events
+from chain.client import get_client
 
 router = APIRouter(prefix="/api/economy", tags=["economy"])
 
 _CHAIN_FILE = Path(__file__).resolve().parent.parent / "deployments" / "10143.json"
+
+
+@router.get("/verify/{task_id}")
+async def verify_proof(task_id: str):
+    """Prove that a stored agent output matches what was recorded on chain.
+
+    Returns every intermediate value so the check can be reproduced by hand:
+    canonical JSON → sha256 → compare against `ProofOfWork.getProof`.
+    """
+    task = await db.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Unknown task")
+
+    output = task.output or {}
+    canonical = economy.canonical_json(output)
+    computed = economy.result_hash(output)
+
+    result = {
+        "task_id": task_id,
+        "goal_id": task.goal_id,
+        "agent_role": task.agent_name,
+        "task_status": task.status,
+        "canonical_output": canonical,
+        "computed_hash": computed,
+        "hash_algorithm": "sha256",
+        "task_key_algorithm": "keccak256",
+        "onchain_hash": None,
+        "tx_hash": None,
+        "block_number": None,
+        "chain_id": None,
+        "explorer_url": None,
+        "verified": None,
+        "reason": None,
+    }
+
+    outbox = await db.get_outbox_entry(task_id)
+    if outbox:
+        result["submission_status"] = outbox["status"]
+        result["tx_hash"] = outbox["tx_hash"]
+        result["block_number"] = outbox["block_number"]
+        result["chain_id"] = outbox["chain_id"]
+
+    client = get_client()
+    if client is None or not client.is_ready:
+        result["reason"] = "chain_unavailable"
+        return result
+
+    onchain = client.get_proof(task_id)
+    if not onchain:
+        result["reason"] = "not_recorded"
+        return result
+
+    result["onchain_hash"] = onchain["result_hash"]
+    result["block_number"] = onchain["block_number"]
+    result["chain_id"] = onchain["chain_id"]
+    result["verified"] = onchain["result_hash"] == computed
+    if not result["verified"]:
+        result["reason"] = "hash_mismatch"
+    if result["tx_hash"]:
+        result["explorer_url"] = client.tx_url(result["tx_hash"])
+    return result
+
+
+@router.get("/chain/status")
+async def chain_status():
+    """Live chain target, deployment state and submission queue depth."""
+    client = get_client()
+    info = client.info() if client else {"status": "disabled"}
+    try:
+        info["outbox"] = await db.outbox_stats()
+    except Exception:
+        info["outbox"] = {}
+    return info
 
 
 @router.get("/passports")

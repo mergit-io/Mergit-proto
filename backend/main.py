@@ -14,6 +14,7 @@ import db
 import worker
 from api import actions, auth, config, context as ctx_api, github_webhook, goals, health, keys, stream, tasks, webhooks
 from api import economy as economy_api
+from api import heal as heal_api
 from config import cors_origin_list, settings
 from tracing import init_tracing
 
@@ -47,6 +48,52 @@ logger = logging.getLogger(__name__)
 
 # ── Lifespan ─────────────────────────────────────────────────────────────────────
 
+def _init_chain() -> None:
+    """Bring the chain layer up.
+
+    On the local in-process EVM the contracts are deployed fresh on every boot, so a
+    developer gets a live chain with no keys, no tokens and no setup. On a real network
+    we only ever *load* an existing deployment — deploying to a live chain is an explicit
+    operator action via scripts/deploy_contracts.py.
+    """
+    if not settings.chain_enabled:
+        logger.info("Chain layer disabled (chain_enabled=false)")
+        return
+    try:
+        from chain import networks
+        from chain.client import ChainClient, set_client
+        from chain.deployer import deploy_all
+        from chain.provider import build_provider
+
+        network = networks.get_network(settings.chain_target)
+        provider = build_provider(
+            settings.chain_target, settings.chain_rpc_url, settings.chain_private_key
+        )
+
+        if network.is_local:
+            addresses = deploy_all(provider, persist=True)
+            logger.info("Chain: deployed contracts to %s", network.name)
+        else:
+            from chain import registry
+            addresses = registry.load_addresses(network.chain_id)
+            if not addresses:
+                logger.warning(
+                    "Chain: no deployment found for %s (chainId %s) — run "
+                    "scripts/deploy_contracts.py --network %s",
+                    network.name, network.chain_id, network.key,
+                )
+
+        client = ChainClient(provider, addresses)
+        set_client(client)
+        logger.info("Chain: %s (chainId %s) status=%s",
+                    network.name, network.chain_id, client.status.value)
+    except Exception as e:
+        # The app must run even with no chain at all.
+        logger.warning("Chain layer unavailable: %s", e)
+        from chain.client import set_client
+        set_client(None)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting Mergit (host=%s port=%s debug=%s)", settings.host, settings.port, settings.debug)
@@ -56,6 +103,7 @@ async def lifespan(app: FastAPI):
     await economy.backfill()
     Path(settings.workspace_dir).mkdir(parents=True, exist_ok=True)
     logger.info("DB initialised at %s", settings.db_path)
+    _init_chain()
     init_tracing(settings.omium_api_key, settings.omium_project)
     await worker.start()
     logger.info("Mergit ready ✓")
@@ -135,6 +183,7 @@ app.include_router(github_webhook.router)  # specific route before generic /{tok
 app.include_router(webhooks.router)
 app.include_router(actions.router)
 app.include_router(economy_api.router)
+app.include_router(heal_api.router)
 app.include_router(health.router)
 
 

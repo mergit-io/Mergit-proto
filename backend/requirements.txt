@@ -11,3 +11,8 @@ PyGithub
 aiosqlite
 python-dotenv
 sse-starlette
+
+# Chain layer — real EVM proof-of-work
+web3>=7.0
+py-solc-x
+eth-tester[py-evm]

@@ -15,6 +15,9 @@ class GoalRow:
     trace_id: str
     created_at: int
     updated_at: int
+    # Provenance — "user" or "self_heal". heal_depth guards against heal loops.
+    source: str = "user"
+    heal_depth: int = 0
 
 
 @dataclass
