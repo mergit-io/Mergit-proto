@@ -184,3 +184,66 @@ def test_a_successful_call_does_not_mark_anything_unhealthy(monkeypatch):
     _call()
 
     assert model_health.get_status() == {}
+
+
+# ── the single-provider deployment ──────────────────────────────────────────────
+# The live instance has GROQ_API_KEY and nothing else. Both filters therefore apply to
+# the only model it can use, and if they can strip it away the deployment stops working
+# entirely rather than degrading.
+
+def test_a_groq_only_deployment_still_calls_groq_after_it_is_marked_unhealthy(monkeypatch):
+    """Every fallback is unconfigured and the primary is cooling down. It must still run."""
+    model_health.mark_unhealthy(GROQ, 3600)
+    rec = Recorder({GROQ: _Resp("recovered")})
+    monkeypatch.setattr(llm, "_acompletion", rec)
+
+    resp = _call()
+
+    assert rec.models == [GROQ], (
+        f"the only usable model was filtered out and nothing was called: {rec.models}"
+    )
+    assert resp.choices[0].message.content == "recovered"
+
+
+def test_a_groq_only_deployment_never_reaches_for_anthropic(monkeypatch):
+    """The failure mode that produced 'Missing Anthropic API Key' in production."""
+    rec = Recorder({GROQ: GROQ_DAILY})
+    monkeypatch.setattr(llm, "_acompletion", rec)
+
+    with pytest.raises(Exception) as exc:
+        _call()
+
+    assert rec.models == [GROQ], rec.models
+    assert "anthropic" not in str(exc.value).lower()
+
+
+def test_candidate_selection_never_returns_nothing(monkeypatch):
+    """A structural guarantee: `raise first_err` assumes at least one attempt happened."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    for cooling in ([], [GROQ], [CLAUDE], [GROQ, CLAUDE]):
+        model_health._cooldowns.clear()
+        for m in cooling:
+            model_health.mark_unhealthy(m, 300)
+        assert llm._candidate_models(GROQ), f"no candidate when cooling={cooling}"
+
+
+def test_a_soft_rate_limit_does_not_sideline_the_model(monkeypatch):
+    """Only hard limits earn a cooldown; a per-minute throttle must not sideline a model
+    for minutes when the right response is to wait a couple of seconds."""
+    soft = Exception("litellm.RateLimitError: rate_limit_exceeded ... please try again in 1.2s")
+    calls = {"n": 0}
+
+    async def flaky(**kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise soft
+        return _Resp("second try")
+
+    monkeypatch.setattr(llm, "_acompletion", flaky)
+
+    resp = _call()
+
+    assert resp.choices[0].message.content == "second try"
+    assert model_health.get_status() == {}, (
+        "a transient per-minute throttle put the model into cooldown"
+    )
