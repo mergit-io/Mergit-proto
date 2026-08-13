@@ -8,6 +8,10 @@ After every piece of work completed in this repo, update **both** files:
 - `CLAUDE.md` — keep architecture section current (models, new files, changed behaviour)
 - `progress.md` — append a new dated session block describing what was built/fixed
 
+`ROADMAP.md` is the issue register: every open item, rated P0–P3, with what unblocks it. Check an
+item off there when you fix it — and verify against the live DB before trusting its status, since
+two entries were already stale when it was written.
+
 ---
 
 ## Commands

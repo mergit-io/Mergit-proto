@@ -744,3 +744,45 @@ SQLite → ✗ MISMATCH → restore ✓.
 network. Every faucet gates on an Ethereum mainnet balance. The cheap way out, if a real chain
 matters more than *Monad specifically*, is an `anvil` node next to the app — real RPC, real tx
 hashes, survives restarts, no faucet.
+
+---
+
+## 2026-08-13 — Capacity measurement and the issue register
+
+No code changed this session. Two questions got answered with evidence instead of estimates.
+
+**Can it carry 10 concurrent users on a free tier?** Yes, with room. `backend/scripts/loadtest.py`
+(new) holds N SSE streams open while polling all six dashboard endpoints at the frontend's real 5s
+SWR interval. Against a container throttled to `--cpus 0.1 --memory 512m`: **348 requests, 0
+errors**, p50 300ms, p95 1.3s, 250 MB of 512 MB. Unthrottled the same run gives p95 265ms. CPU is
+not the ceiling.
+
+Four things that *are*: the worker loops live in the FastAPI lifespan and the EVM is in-process, so
+**one instance is mandatory** — no autoscaling, no `--workers 2`. **Cold start is 70 seconds** (the
+chain deploys during it), which rules out sleep-on-idle tiers unless a cron keeps them warm. Free
+tiers without a persistent disk wipe SQLite *and* the chain on every redeploy. And the real limit on
+goal throughput is Groq's free-tier RPM/TPM, not the host — `MAX_CONCURRENT_TASKS=3` on a free box.
+
+One host blocker worth recording: **Oracle's ARM Always Free tier cannot build this image.**
+`solcx/install.py::_get_os_name()` maps every Linux to one target and downloads `linux-amd64` with
+no CPU-arch check, so ARM64 fetches an x86 ELF that cannot exec — and `contracts/out/` is gitignored,
+so a clean clone has no cached artifact to fall back on. x86 shape, or commit the artifacts.
+
+**What is actually left to do?** Written up as `ROADMAP.md` — seven milestones, every item rated P0–P3
+with the reasoning attached. Three findings from checking the register against the live DB rather
+than trusting the notes:
+
+- Two of the eight open issues in the working list were **already fixed and verified** last session
+  (`deployments/10143.json` deleted; the `eth_getCode` readiness check landed).
+- The PLANNING-stranded-goal bug has a **live victim**: goal `f3e6b093` has sat in PLANNING with zero
+  task rows since before the reboot, invisible to the reclaim loop because
+  `find_orphaned_goals` requires `terminal_task_id IS NOT NULL`.
+- A **second stranding** nobody had listed: goal `b3e2ba89` is RUNNING with its integrator task in
+  `WAITING_CREDENTIAL`, correctly suspended on the missing `GITHUB_TOKEN` — the design working
+  exactly as intended, and completely invisible in the UI. The resume path exists; only the banner
+  telling a human which variable to supply is missing.
+
+The register's blunt conclusion: almost nothing outstanding is *broken*. It's blocked on a
+credential or an account. The GitHub automation pipeline — the flow `CLAUDE.md` calls the main demo
+— has never once run, because there is no token. That single credential is the highest-value item
+in the document.
