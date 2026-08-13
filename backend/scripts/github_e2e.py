@@ -19,11 +19,20 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from tools.github_ops import (  # noqa: E402
     github_add_labels, github_close_issue, github_create_issue, github_get_pr,
     github_get_pr_files, github_list_prs, github_merge_pr, github_post_comment,
-    github_review_pr,
+    github_request_review, github_review_pr, github_update_pr,
 )
 from tools.github_pr import github_pr  # noqa: E402
 
-FIXED_CALC = '''"""Tiny calculator used by the Mergit end-to-end GitHub tests."""
+
+def args_owner(repo: str) -> str:
+    return repo.split("/")[0]
+
+# Both variants are stamped, so a re-run against a repo that already merged a previous
+# run's fix still produces a real diff. Without the stamp the second run opens a PR with
+# zero changed files, and every check downstream of the diff reads as a tool failure when
+# the only broken thing is the fixture.
+def fixed_calc(stamp: str) -> str:
+    return f'''"""Tiny calculator used by the Mergit end-to-end GitHub tests. (run {stamp})"""
 
 
 def average(numbers):
@@ -37,7 +46,9 @@ if __name__ == "__main__":
     print(average([]))
 '''
 
-CONFLICTING_CALC = '''"""Tiny calculator used by the Mergit end-to-end GitHub tests."""
+
+def conflicting_calc(stamp: str) -> str:
+    return f'''"""Tiny calculator used by the Mergit end-to-end GitHub tests. (run {stamp}, rival variant)"""
 
 
 def average(numbers):
@@ -86,7 +97,7 @@ async def main(repo: str) -> int:
         "repo": repo, "head_branch": fix_branch,
         "title": "fix: return 0.0 from average() on an empty list",
         "body": f"## Summary\nGuard the empty case.\n\nCloses #{issue_no}",
-        "files": [{"path": "calc.py", "content": FIXED_CALC}],
+        "files": [{"path": "calc.py", "content": fixed_calc(stamp)}],
     })
     check("github_pr opens a PR", pr.get("ok") is True, pr.get("url") or pr.get("error", ""))
     if not pr.get("ok"):
@@ -98,7 +109,7 @@ async def main(repo: str) -> int:
         "repo": repo, "head_branch": fix_branch,
         "title": "fix: return 0.0 from average() on an empty list",
         "body": "same call, second time",
-        "files": [{"path": "calc.py", "content": FIXED_CALC}],
+        "files": [{"path": "calc.py", "content": fixed_calc(stamp)}],
     })
     check("re-running github_pr returns the existing PR instead of failing",
           again.get("ok") is True and again.get("result") == pr_no,
@@ -109,7 +120,7 @@ async def main(repo: str) -> int:
         "repo": repo, "head_branch": conflict_branch,
         "title": "fix: raise ValueError from average() on an empty list",
         "body": "Deliberately conflicts with the other fix.",
-        "files": [{"path": "calc.py", "content": CONFLICTING_CALC}],
+        "files": [{"path": "calc.py", "content": conflicting_calc(stamp)}],
     })
     check("second PR opened", conflict.get("ok") is True,
           conflict.get("url") or conflict.get("error", ""))
@@ -117,9 +128,10 @@ async def main(repo: str) -> int:
 
     print("\n== 6. read the real diff ==")
     files = await github_get_pr_files({"repo": repo, "pr_number": pr_no})
-    patch = files.get("files", [{}])[0].get("patch", "") if files.get("ok") else ""
+    got = files.get("files") or []
+    patch = got[0].get("patch", "") if (files.get("ok") and got) else ""
     check("github_get_pr_files returns the unified diff",
-          files.get("ok") is True and "return 0.0" in patch,
+          files.get("ok") is True and stamp in patch,
           f"{files.get('total_changed_files')} file(s), patch {len(patch)} chars")
 
     print("\n== 7. read PR state, checks and reviews ==")
@@ -133,6 +145,27 @@ async def main(repo: str) -> int:
                                      "event": "APPROVE"})
     check("github_review_pr submits a review", review.get("ok") is True,
           f"state={review.get('state')} downgraded={review.get('event_downgraded')}")
+
+    print("\n== 8b. edit the PR ==")
+    new_title = "fix: return 0.0 from average() on an empty list (edited)"
+    updated = await github_update_pr({"repo": repo, "pr_number": pr_no,
+                                      "title": new_title,
+                                      "body": f"Edited by github_update_pr.\n\nCloses #{issue_no}"})
+    reread = await github_get_pr({"repo": repo, "pr_number": pr_no})
+    check("github_update_pr edits title and body",
+          updated.get("ok") is True and reread.get("title") == new_title,
+          f"updated={updated.get('updated')} title now {reread.get('title')!r}")
+
+    print("\n== 8c. request a review ==")
+    # GitHub refuses to let an author request review from themselves, and this token
+    # authored the PR. Asserting that exact refusal proves the call reaches GitHub with
+    # correctly shaped arguments. The success path needs a second account with repo
+    # access and is therefore NOT covered here.
+    me = await github_request_review({"repo": repo, "pr_number": pr_no,
+                                      "reviewers": [args_owner(repo)]})
+    check("github_request_review reaches GitHub (self-request correctly refused)",
+          me.get("ok") is False and "error" in me,
+          str(me.get("error"))[:120])
 
     print("\n== 9. label and comment ==")
     labels = await github_add_labels({"repo": repo, "issue_number": pr_no,
