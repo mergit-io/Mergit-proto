@@ -38,12 +38,12 @@ is hard, and all of it is required.
 | 0.3 | `backend/scripts/loadtest.py` untracked | ✅ | Tracked. It's the evidence for the 10-user claim; untracked evidence is an anecdote |
 | 0.4 | Pick a host + deploy | ⬜ | **Decision needed from you** — see *Hosting* below |
 | 0.5 | Seed-on-boot (`SEED_DEMO=true` → run `replay_demo.py` when the ledger is empty) | ⬜ | Free tiers have no persistent disk. Without this, any redeploy shows a visitor an empty dashboard |
-| 0.6 | `frontend/omnibox.db` is tracked — 68 KB, empty schema, pre-rebrand leftover from `e0f6b36` | ⬜ | Scanned clean (no credentials, all tables empty) so no history rewrite needed. `git rm --cached frontend/omnibox.db` — gitignore does not untrack what is already tracked |
+| 0.6 | A stray SQLite db under `frontend/` is tracked — 68 KB, empty schema, pre-rebrand leftover from `e0f6b36` | ⬜ | Scanned clean (no credentials, all tables empty). `git rm --cached` it — gitignore does not untrack what is already tracked |
 
 > **SQLite files must never be tracked.** `.gitignore` previously anchored the rule to
 > `backend/mergit.db`, so any tool run from a different cwd left a stray `mergit.db` that git
-> offered to commit — `sqlite3.connect()` *creates* the file when it is missing. `frontend/omnibox.db`
-> got into the repo exactly that way. The rule is now unanchored (`*.db`, `-wal`, `-shm`, `-journal`).
+> offered to commit — `sqlite3.connect()` *creates* the file when it is missing. The stray db under
+> `frontend/` got into the repo exactly that way. The rule is now unanchored (`*.db`, `-wal`, `-shm`, `-journal`).
 > Committing a live DB would be worse than useless anyway: its proofs reference a chain that died
 > with the process that made them, so every Verify button would return `verified: null`. That is
 > what 0.5 exists for — regenerate the data, don't ship it.

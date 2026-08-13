@@ -5,13 +5,13 @@
 
 ## Purpose
 
-Turn the working `omniBox` multi-agent autonomy engine (this repo, `mergit-proto`) into a
+Turn the working multi-agent autonomy engine (this repo, `mergit-proto`) into a
 **Mergit** showcase prototype that can be put in front of people today to gauge preference for
 the *Mergit vision*: an AI **agent economy** on the Monad blockchain (per `mergit-docs.git/PRD.md`).
 
 The real orchestration engine (orchestrator → task DAG → specialist agents) stays intact and runs
 for real. On top of it we add a **simulated Monad agent-economy layer** — agent passports, live
-reputation, proof-of-work ledger, leaderboard — and a **full rebrand** omniBox → Mergit.
+reputation, proof-of-work ledger, leaderboard — and a **full rebrand** to Mergit.
 
 **This is a preference-gathering demo, not a production build.** Blockchain is visually simulated;
 no real Monad/contract integration. YAGNI applies to anything beyond selling the vision.
@@ -25,7 +25,7 @@ reputation → the ledger and leaderboard update live over SSE. That is the "wow
 ## Success criteria
 
 1. App runs end-to-end locally from a clean checkout after a documented setup (`make` targets).
-2. Landing + app are branded "Mergit" with a distinct on-chain visual identity (no "omniBox" left visible).
+2. Landing + app are branded "Mergit" with a distinct on-chain visual identity (no legacy branding left visible).
 3. Running a real goal produces: live proofs in the ledger, rising reputation, updated leaderboard.
 4. Passports, Leaderboard, and Proof Ledger pages are populated on first load (seeded), not empty.
 5. A scripted **replay mode** can run the full flow as a safety net even if live LLM calls fail.
@@ -117,7 +117,7 @@ In `_after_task_done`, after `settle_task(... DONE)`, call
 
 New identity applied via the `frontend-design` skill during implementation:
 Mergit wordmark; on-chain aesthetic (deep indigo/violet base + electric cyan/green accents; monospace
-numerals for hashes/scores/blocks). Replace all "omniBox" strings and hero copy.
+numerals for hashes/scores/blocks). Replace all legacy brand strings and hero copy.
 
 **Routing (`App.tsx`)** — add:
 - `/app/economy` — economy hub with tabs: **Leaderboard**, **Passports**, **Proof Ledger**
@@ -175,7 +175,7 @@ User submits goal
 - Integration: init seeds passports; backfill populates proofs from existing completed tasks.
 - Manual/e2e: run a real goal, confirm proofs stream into the ledger and a score rises live;
   run replay mode with no keys and confirm the same surfaces update.
-- Frontend builds clean (0 TypeScript errors); no "omniBox" string remains in shipped UI.
+- Frontend builds clean (0 TypeScript errors); no legacy brand string remains in shipped UI.
 
 ## Update protocol (per repo CLAUDE.md)
 
