@@ -37,6 +37,13 @@ def source_hash() -> str:
 
 
 def _ensure_solc() -> None:
+    # solcx does not create SOLCX_BINARY_PATH itself — it fails with FileNotFoundError.
+    # Containers set that variable to a baked-in location, so create it defensively.
+    try:
+        Path(solcx.get_solcx_install_folder()).mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        logger.warning("Could not prepare the solc install folder: %s", e)
+
     installed = {str(v) for v in solcx.get_installed_solc_versions()}
     if SOLC_VERSION not in installed:
         logger.info("Installing solc %s", SOLC_VERSION)
