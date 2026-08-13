@@ -34,6 +34,16 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000,http://localhost:8000"
     cookie_secure: bool = False
 
+    # Shared-secret gate for public deployments. Empty = wide open, which is right on a
+    # laptop and wrong anywhere reachable: the API is unauthenticated, so a public URL
+    # hands out the provider keys and `code_exec` to anyone who finds it. See access_gate.py.
+    access_password: str = ""
+
+    # Demo seeding — mint a canned goal + 3 proofs on boot when the ledger is empty.
+    # For hosts with no persistent disk, where every restart otherwise wipes the DB and
+    # a visitor lands on an empty dashboard.
+    seed_demo: bool = False
+
     # OAuth
     oauth_google_client_id: str = ""
     oauth_google_client_secret: str = ""

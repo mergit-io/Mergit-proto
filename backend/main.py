@@ -12,6 +12,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 import db
 import worker
+from access_gate import add_access_gate
 from api import actions, auth, config, context as ctx_api, github_webhook, goals, health, keys, stream, tasks, webhooks
 from api import economy as economy_api
 from api import heal as heal_api
@@ -103,6 +104,11 @@ async def lifespan(app: FastAPI):
     Path(settings.workspace_dir).mkdir(parents=True, exist_ok=True)
     logger.info("DB initialised at %s", settings.db_path)
     _init_chain()
+    # After the chain is up, so the seeded proofs are minted against the live chain and
+    # actually verify — the whole point of seeding rather than shipping a populated db.
+    if settings.seed_demo:
+        import demo_seed
+        await demo_seed.seed_if_empty()
     await worker.start()
     logger.info("Mergit ready ✓")
     yield
@@ -183,6 +189,12 @@ app.include_router(actions.router)
 app.include_router(economy_api.router)
 app.include_router(heal_api.router)
 app.include_router(health.router)
+
+
+# ── Access gate ───────────────────────────────────────────────────────────────────
+# Added last, so it is the OUTERMOST middleware and rejects unauthorised requests before
+# anything else touches them. No-op unless ACCESS_PASSWORD is set.
+add_access_gate(app, settings.access_password)
 
 
 # ── Frontend static files (production) ────────────────────────────────────────────
