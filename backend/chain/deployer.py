@@ -51,7 +51,14 @@ def deploy_all(provider, persist: bool = False) -> dict[str, str]:
     logger.info("Granted RECORDER_ROLE on AgentPassport to ProofOfWork")
 
     if persist:
-        block = provider.w3.eth.block_number
-        registry.save(provider.chain_id, addresses, deployer=admin, block=block)
+        # The contracts are deployed either way — the record is a note about them, not the
+        # thing itself. A read-only deployments dir (the container hit exactly this, EACCES
+        # under an unprivileged user) must not take the whole chain layer down behind a
+        # health check that stays green.
+        try:
+            block = provider.w3.eth.block_number
+            registry.save(provider.chain_id, addresses, deployer=admin, block=block)
+        except OSError as e:
+            logger.warning("Deployed, but could not write the deployment record: %s", e)
 
     return addresses

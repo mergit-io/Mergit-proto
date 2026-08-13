@@ -1,5 +1,7 @@
 # Mergit — The AI Agent Economy
-Assign any goal to an AI. It decomposes the task, spins up specialized agents, uses your tools, and delivers results. Every completed task mints a proof and bumps its agent's reputation on a simulated Monad agent economy. No workflows to define. No steps to configure. Just delegate.
+Assign any goal to an AI. It decomposes the task, spins up specialized agents, uses your tools, and delivers results. Every completed task mints a proof of work on a real EVM — Solidity contracts, real tx hashes, real receipts — and bumps its agent's reputation. No workflows to define. No steps to configure. Just delegate.
+
+Out of the box the chain runs *inside* the app process (`CHAIN_TARGET=local`), so it needs no keys, no tokens and no network. Point `CHAIN_TARGET` at `monad-testnet` and the same code records the same proofs on a public network.
 
 ## Setup
 
@@ -96,9 +98,31 @@ The Render service mounts a persistent disk at `/data`. The app stores state at 
 
 Run one instance only. The planner/executor worker starts inside the FastAPI lifespan, so multiple app instances would start multiple internal workers.
 
-### Docker Compose
+### One container, no proxy
 
-Use this if you deploy to your own VPS instead of Render.
+The fastest way to see the production image work — useful before you point a domain at anything. Works the same with `docker` in place of `podman`:
+
+```bash
+podman build -t mergit:local -f Dockerfile .
+podman run -d --name mergit -p 8000:8000 \
+  -e GROQ_API_KEY="$GROQ_API_KEY" \
+  -v mergit_data:/data \
+  mergit:local
+
+curl -s localhost:8000/api/health
+```
+
+A healthy response reports the chain the container actually brought up:
+
+```json
+{"status":"ok","db":"ok","worker":"running","chain":"ready","chain_id":31337}
+```
+
+`"chain":"disabled"` there means the contracts did not compile in the image — the app keeps serving, so the health check alone would not tell you.
+
+### Docker / Podman Compose
+
+Use this if you deploy to your own VPS instead of Render. Every `docker compose` command below works as `podman-compose` (or `podman compose`) unchanged.
 
 The production deployment is a Docker Compose stack:
 

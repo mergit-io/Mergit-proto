@@ -1,6 +1,5 @@
 import asyncio
 import json
-from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from sse_starlette.sse import EventSourceResponse
@@ -12,7 +11,6 @@ from chain.client import get_client
 
 router = APIRouter(prefix="/api/economy", tags=["economy"])
 
-_CHAIN_FILE = Path(__file__).resolve().parent.parent / "deployments" / "10143.json"
 
 
 @router.get("/verify/{task_id}")
@@ -122,7 +120,23 @@ async def agent_detail(role: str):
 
 @router.get("/chain")
 async def chain():
-    return json.loads(_CHAIN_FILE.read_text())
+    """The chain the app is actually connected to.
+
+    This used to read deployments/10143.json unconditionally, so it announced Monad
+    Testnet and four addresses that had never been deployed anywhere — whatever chain was
+    really running underneath. It now reports the live client, which is also the only
+    source that can be wrong in a way anyone would notice.
+    """
+    client = get_client()
+    if client is None:
+        return {"chainId": None, "network": "disabled", "explorer": "", "contracts": {}}
+    return {
+        "chainId": client.chain_id,
+        "network": client.network.name,
+        "explorer": client.network.explorer_base or "",
+        "contracts": client.addresses,
+        "status": client.status.value,
+    }
 
 
 @router.get("/stream")

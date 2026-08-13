@@ -694,3 +694,53 @@ Closed the gap by driving the real production path with only `llm.acompletion` s
 
 **163 tests passing.** Remaining unverified: whether a real LLM produces a *good* plan and *good*
 agent outputs. The wiring is proven; the model's judgement is not.
+
+---
+
+## 2026-08-13 — Ship it: the container deploy, and three things that only break in one
+
+Goal for the day was mundane — get the image building and running so the current state can be
+shown to someone. The container turned out to be a better test than the test suite: it runs as an
+unprivileged user against a read-only source tree, which is a configuration nothing local ever
+exercises. Three real bugs fell out of that, all of the same family — *the app reported success
+while a feature was silently off.*
+
+**1. The chain switched itself off inside the container, behind a green health check.**
+First run of the image: `Chain layer unavailable: [Errno 13] Permission denied:
+'/app/backend/deployments/31337.json'`. All four contracts had deployed fine; only the write of
+the *record about them* failed, because the Dockerfile chowned `contracts/` and `/opt/solcx` but
+not `deployments/`. `_init_chain` degrades rather than crashes — by design — so `/api/health`
+answered `{"status":"ok"}` with `"chain":"disabled"` buried in it. Two fixes, because either one
+alone leaves a hole: the Dockerfile now creates and chowns `deployments/`, and `deploy_all`
+treats a failed record write as a warning. The contracts are deployed either way; the JSON is a
+note about them, not the thing itself.
+
+**2. `ChainClient` reported READY for contracts that did not exist.** Readiness was decided by
+"addresses present in the deployment file + ABI binds cleanly" — but binding a contract is pure
+local ABI work that succeeds against any address, deployed or not. `deployments/10143.json` held
+four invented addresses left over from the simulated era, so flipping `CHAIN_TARGET=monad-testnet`
+would have produced a UI announcing *"Live on Monad Testnet"* while every call returned nothing.
+Readiness now requires bytecode at every address (`eth_getCode`). The check immediately earned its
+keep: it fired during a test run against a stale local `31337.json`, exactly the scenario it was
+written for.
+
+**3. `GET /api/economy/chain` hardcoded `deployments/10143.json`.** It reported Monad Testnet and
+those same invented addresses regardless of the chain actually running underneath, and its test
+asserted `chainId == 10143` — passing happily while the app ran on 31337. Endpoint now reports the
+live client; the test asserts it *matches the running chain* rather than a constant. Deleted the
+fabricated deployment record.
+
+Also: `solcx` reads `SOLCX_BINARY_PATH` but never creates it, so a baked-in container path died
+with `FileNotFoundError` (fixed defensively); `deploy/backup-sqlite.sh` autodetects the container
+engine instead of hardcoding `docker`; `.env.production.example` gained the four `CHAIN_*` vars;
+README no longer calls the economy "simulated".
+
+**Verified in the production container, not just locally:** `/api/health` →
+`{"chain":"ready","chain_id":31337}`, `replay_demo.py` minted 3 proofs, the outbox drained all 3 to
+`confirmed`, and `demo_tamper.py` ran the whole arc — verify ✓ → rewrite the output directly in
+SQLite → ✗ MISMATCH → restore ✓.
+
+**170 tests passing.** Still blocked: no MON, so nothing has ever been deployed to a public
+network. Every faucet gates on an Ethereum mainnet balance. The cheap way out, if a real chain
+matters more than *Monad specifically*, is an `anvil` node next to the app — real RPC, real tx
+hashes, survives restarts, no faucet.

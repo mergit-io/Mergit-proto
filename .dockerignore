@@ -6,6 +6,7 @@ backend/.env
 backend/.venv
 backend/__pycache__
 backend/**/*.pyc
+backend/.pytest_cache
 backend/mergit.db
 backend/mergit.db-*
 backend/logs
