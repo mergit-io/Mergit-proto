@@ -975,3 +975,15 @@ decisions but not that GitHub accepts the calls they make.
 `ACCESS_PASSWORD` is unset in the Render environment. Per `access_gate.py`'s own docstring that
 makes `POST /api/goals` plus the coder's `code_exec` remote code execution, and lets anyone
 rewrite the provider keys. Set it in the Render dashboard.
+
+**Follow-up, same branch — the gate that was never set.** `ACCESS_PASSWORD` was `sync: false`,
+which means "an operator sets this by hand in the dashboard". Two environments existed where
+nobody had: production, and — once Viscous106 enabled pull request previews — every preview.
+Render's blueprint spec is explicit about the second: "Render does not include `sync: false`
+environment variables in preview environments", so a preview could not have inherited a password
+even if production had one, and `mergit-pr-<n>.onrender.com` is guessable from the PR number.
+Confirmed on the live preview for PR #13: `/api/goals`, `/api/config/models` and
+`/api/config/keys` all returned 200 unauthenticated. Now `generateValue: true`, which mints a
+random 256-bit value when the variable does not already exist — an operator who wants a chosen
+password still sets one and it is left alone, but no environment can boot without a gate. The
+generated value is read from the Render dashboard.
