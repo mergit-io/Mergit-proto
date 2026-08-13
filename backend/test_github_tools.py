@@ -538,3 +538,57 @@ def test_branch_cleanup_is_skipped_for_a_fork_head(monkeypatch):
 
     assert result["ok"] is True and result["merged"] is True
     assert "branch_delete_skipped" in result
+
+
+# ── Plan validation: a merge plan has no coder ───────────────────────────────────
+
+def _plan(tasks, terminal):
+    from orchestrator import PlanSchema
+    return PlanSchema(tasks=tasks, terminal=terminal, reasoning="t")
+
+
+def _task(id, agent, description="do the thing", inputs=None, depends_on=()):
+    return {"id": id, "agent": agent, "description": description,
+            "inputs": inputs or {}, "depends_on": list(depends_on)}
+
+
+def test_a_merge_plan_validates_even_though_it_has_no_coder():
+    """Regression: "merge PR #3" failed before ever reaching GitHub.
+
+    _validate_plan allowed a terminal integrator only when the plan ALSO had a coder —
+    the issue-fix shape. A merge needs no coder, so every merge plan was rejected, the
+    orchestrator burned all five attempts, and the goal failed with a validation error.
+    Found by running the real goal against a real PR, not by the stubbed suite.
+    """
+    from orchestrator import _validate_plan
+
+    _validate_plan(_plan(
+        [_task("t1", "integrator", "Get pull request #3 details",
+               {"repo": "o/r", "pr_number": 3}),
+         _task("t2", "integrator", "Merge pull request #3",
+               {"repo": "o/r", "pr_number": 3}, ["t1"])],
+        "t2",
+    ))
+
+
+def test_the_issue_fix_shape_still_validates():
+    from orchestrator import _validate_plan
+
+    _validate_plan(_plan(
+        [_task("t1", "researcher", "read the repo"),
+         _task("t2", "coder", "write the fix", depends_on=["t1"]),
+         _task("t3", "integrator", "open the PR", depends_on=["t2"])],
+        "t3",
+    ))
+
+
+def test_an_integrator_that_only_fetches_data_still_needs_a_writer():
+    # The rule this exemption carves out of must survive: raw API data is not an answer.
+    from orchestrator import _validate_plan
+
+    with pytest.raises(ValueError, match="raw data"):
+        _validate_plan(_plan(
+            [_task("t1", "researcher", "look up the weather"),
+             _task("t2", "integrator", "call the weather API", depends_on=["t1"])],
+            "t2",
+        ))
