@@ -3,6 +3,29 @@ Assign any goal to an AI. It decomposes the task, spins up specialized agents, u
 
 Out of the box the chain runs *inside* the app process (`CHAIN_TARGET=local`), so it needs no keys, no tokens and no network. Point `CHAIN_TARGET` at `monad-testnet` and the same code records the same proofs on a public network.
 
+## Documentation
+
+| Doc | What it answers |
+|---|---|
+| **[docs/REPO_MAP.md](docs/REPO_MAP.md)** | **Where everything lives and what owns what** — every module, route, tool, page and script mapped to its job. Start here when you need to find something |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | How it works: system overview, request lifecycle, GitHub automation pipeline, agent registry, database schema |
+| [ROADMAP.md](ROADMAP.md) | What's left: every open issue rated P0–P3, what unblocks it, and the measured hosting analysis |
+| [progress.md](progress.md) | What happened: a dated changelog, one block per work session, oldest first |
+| [CLAUDE.md](CLAUDE.md) | Working agreements for AI coding agents, plus a condensed architecture summary |
+
+**Design records** live in [`docs/superpowers/`](docs/superpowers/) — a *spec* states a decision and
+its rationale, a *plan* carries the ordered steps and their `[x]` state:
+
+- Prototype design — [spec](docs/superpowers/specs/2026-07-18-mergit-prototype-design.md) · [plan](docs/superpowers/plans/2026-07-18-mergit-showcase.md)
+- On-chain proof layer — [spec](docs/superpowers/specs/2026-08-12-onchain-proof-layer.md) · [plan](docs/superpowers/plans/2026-08-12-onchain-proof-layer.md)
+
+These are historical: they record what was decided at the time, not necessarily what is true today.
+`ARCHITECTURE.md` and `docs/REPO_MAP.md` are the current-state docs.
+
+> ⚠️ [EXPLANATION.md](EXPLANATION.md) is a 5-minute pitch script left over from the hackathon
+> framing, and `ROADMAP.md` is still written around demoing rather than shipping. Both need
+> rewriting now that this is being built as a real product.
+
 ## Setup
 
 Create `backend/.env` from the example and fill in provider/tool keys:
