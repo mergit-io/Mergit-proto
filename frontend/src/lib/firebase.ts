@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, GithubAuthProvider, GoogleAuthProvider } from "firebase/auth";
+import { getAuth, GithubAuthProvider, GoogleAuthProvider, type Auth } from "firebase/auth";
 
 // Read from the environment rather than hardcoding a project. A Firebase project id is
 // immutable, so the old one could never be renamed — only replaced. Keeping it in `.env`
@@ -22,7 +22,19 @@ const firebaseConfig = {
 /** False when no project is configured — with `VITE_DEMO_MODE=true` nothing here is used. */
 export const isAuthConfigured = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId);
 
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const googleProvider = new GoogleAuthProvider();
-export const githubProvider = new GithubAuthProvider();
+// Initialise ONLY when a project is configured. `getAuth()` throws `auth/invalid-api-key`
+// on a missing key, and because this module is imported at the top of ProtectedRoute, that
+// throw happens before React renders anything — the whole app dies with a blank page.
+// A demo build (VITE_DEMO_MODE=true) has no Firebase project and must still boot.
+let auth: Auth | null = null;
+let googleProvider: GoogleAuthProvider | null = null;
+let githubProvider: GithubAuthProvider | null = null;
+
+if (isAuthConfigured) {
+  const app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  googleProvider = new GoogleAuthProvider();
+  githubProvider = new GithubAuthProvider();
+}
+
+export { auth, googleProvider, githubProvider };
