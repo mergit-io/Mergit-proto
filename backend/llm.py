@@ -7,6 +7,7 @@ from typing import Any
 import litellm
 from litellm import acompletion as _acompletion
 
+import model_health
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -162,6 +163,50 @@ def _normalize_tool_choice(tool_choice: dict | str | None) -> dict | str | None:
     return tool_choice
 
 
+# The env var each provider prefix authenticates with. A prefix that is absent here is
+# one we cannot check, and an unknown provider is assumed usable rather than skipped.
+_PROVIDER_KEY_ENV: dict[str, str] = {
+    "anthropic": "ANTHROPIC_API_KEY",
+    "groq": "GROQ_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "gemini": "GEMINI_API_KEY",
+    "mistral": "MISTRAL_API_KEY",
+}
+
+
+def has_credentials(model: str) -> bool:
+    """True when the provider behind `model` has an API key available."""
+    provider = model.split("/", 1)[0] if "/" in model else ""
+    env_var = _PROVIDER_KEY_ENV.get(provider)
+    if env_var is None:
+        return True
+    return bool(os.environ.get(env_var, "").strip())
+
+
+def _candidate_models(model: str) -> list[str]:
+    """The models to try, in order.
+
+    Two filters, both learned from production. Fallbacks whose provider has no key are
+    dropped: calling one raises an authentication error that is neither a rate limit nor
+    a missing model, so it escaped the retry logic entirely and replaced the real failure
+    with "Missing Anthropic API Key" on a Groq-only deployment. Models cooling down after
+    a hard rate limit are dropped too — that is what `model_health` was written for and
+    what `GET /api/config/model-health` reports.
+
+    The primary is always attempted regardless of either filter, so its own error is the
+    one that surfaces. If every candidate is cooling down we take the least cold rather
+    than returning nothing: a cooldown must slow the worker, never stop it.
+    """
+    fallbacks = [m for m in _FALLBACKS.get(model, []) if has_credentials(m)]
+
+    healthy = [m for m in fallbacks if model_health.is_healthy(m)]
+    if model_health.is_healthy(model):
+        return [model] + healthy
+    if healthy:
+        return healthy + [model]  # primary is cooling down; keep it as a last resort
+    return [model_health.get_least_cold([model] + fallbacks)]
+
+
 async def acompletion(
     model: str,
     messages: list[dict],
@@ -170,8 +215,18 @@ async def acompletion(
     temperature: float = 0.2,
     max_tokens: int = 4096,
 ) -> Any:
-    models_to_try = [model] + _FALLBACKS.get(model, [])
+    models_to_try = _candidate_models(model)
     last_err: Exception | None = None
+    # The first failure is the one that explains the run. Everything after it is a
+    # consequence of falling back, and reporting a consequence as the cause is how
+    # "Groq is rate limited" reached the operator as "Missing Anthropic API Key".
+    first_err: Exception | None = None
+
+    def record(exc: Exception) -> None:
+        nonlocal last_err, first_err
+        last_err = exc
+        if first_err is None:
+            first_err = exc
 
     for attempt_model in models_to_try:
         if attempt_model != model:
@@ -197,14 +252,20 @@ async def acompletion(
             try:
                 resp = await _acompletion(**kwargs)
                 if not getattr(resp, "choices", None):
-                    last_err = ValueError(f"{attempt_model} returned empty response (no choices)")
+                    record(ValueError(f"{attempt_model} returned empty response (no choices)"))
                     logger.warning("Empty choices from %s; trying next model", attempt_model)
                     break
                 return resp
             except Exception as exc:
                 if _is_hard_rate_limit(exc):
-                    logger.warning("Hard rate limit on %s: %s; trying next model", attempt_model, str(exc)[:120])
-                    last_err = exc
+                    cooldown = _hard_limit_cooldown(exc)
+                    # Register the outage so the next call skips this model instead of
+                    # spending another request discovering the same limit, and so
+                    # /api/config/model-health can report what is actually going on.
+                    model_health.mark_unhealthy(attempt_model, cooldown)
+                    logger.warning("Hard rate limit on %s: %s; cooling down %.0fs, trying next model",
+                                   attempt_model, str(exc)[:120], cooldown)
+                    record(exc)
                     break
                 if _is_soft_rate_limit(exc) and retry_attempt < 2:
                     delay = _rate_limit_delay(exc, retry_attempt)
@@ -214,11 +275,17 @@ async def acompletion(
                 err_lower = str(exc).lower()
                 if "not_found_error" in err_lower or "notfounderror" in err_lower or "model not found" in err_lower:
                     logger.warning("Model %s not found — trying next fallback", attempt_model)
-                    last_err = exc
+                    record(exc)
                     break
-                raise
+                # An unexpected error on the primary model is the answer: raise it. On a
+                # fallback it is noise, so move on and let the primary's error stand.
+                record(exc)
+                if attempt_model == model:
+                    raise
+                logger.warning("Fallback %s failed (%s); trying next", attempt_model, str(exc)[:120])
+                break
 
-    raise last_err  # type: ignore[misc]
+    raise first_err or last_err  # type: ignore[misc]
 
 
 def build_tool_defs(tool_registry: dict) -> list[dict]:

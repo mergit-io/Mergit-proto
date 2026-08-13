@@ -8,10 +8,16 @@ __pycache__/
 dist/
 build/
 
-# Env
-backend/.env
-backend/model_config.json
-backend/context.json
+# Env — unanchored, same reasoning as the SQLite rules below. `backend/.env` matched only
+# that one path, but Settings reads `env_file=".env"` relative to the working directory,
+# so anything run from the repo root produces a root `.env` that git offered to commit.
+# An env file is the one file in this repo that holds provider keys.
+.env
+.env.*
+!.env.example
+!.env.production.example
+model_config.json
+context.json
 backend/workspace/
 
 # SQLite — unanchored on purpose. These used to read `backend/mergit.db`, which only
