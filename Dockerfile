@@ -24,7 +24,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-RUN addgroup --system mergit && adduser --system --ingroup mergit mergit
+# UID/GID 1000 explicitly: Hugging Face Spaces runs the container as user 1000, so a
+# system user in the <1000 range owns /data and the app then cannot write its own database.
+RUN addgroup --gid 1000 mergit && adduser --uid 1000 --gid 1000 --disabled-password --gecos "" mergit
 
 COPY backend/requirements.txt /app/backend/requirements.txt
 RUN pip install --no-cache-dir --upgrade pip \

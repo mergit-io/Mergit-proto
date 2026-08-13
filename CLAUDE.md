@@ -112,6 +112,19 @@ set, so the feature demos with zero credentials — and spawn a fix goal tagged 
 to `fixed`/`failed` via `settle_outcome` when the fix goal ends. Tests: `test_self_heal.py`,
 `test_error_classifier.py`.
 
+**Access gate** (`access_gate.py`): HTTP Basic over every route except `/api/health`, enabled
+only when `ACCESS_PASSWORD` is set — empty leaves local dev and the test suite credential-free.
+Required on any reachable URL: the API is unauthenticated by design, so `POST /api/goals` plus the
+coder agent's `code_exec` is remote code execution, and `PUT /api/config/keys` rewrites the provider
+keys. Basic (not a bearer token) so the browser prompts natively and `EventSource` — which cannot
+send custom headers — still authenticates. Added last in `main.py` so it is the outermost
+middleware. Tests: `test_access_gate.py`.
+
+**Demo seeding** (`demo_seed.py`): with `SEED_DEMO=true`, boot mints a canned goal + 3 proofs when
+the ledger is empty, after `_init_chain()` so they verify against the live chain. For hosts with no
+persistent disk. Never raises into startup. `scripts/replay_demo.py` is a thin wrapper over the same
+module (with pacing) so the two cannot drift. Tests: `test_demo_seed.py`.
+
 **SSE** (`api/stream.py` + `events.py`): In-process `asyncio.Queue` per goal (plus global `economy` and `heal` channels). Worker calls `events.emit()`, stream endpoint drains the queue via Server-Sent Events.
 
 **Interpolation** (`interpolation.py`): Resolves `{{task_id.output.field}}` templates in task inputs before execution. Supports array index access (`{{id.output.key_points[0]}}`) and nested paths (`{{id.output.field[0].subfield}}`). `_resolve_path()` splits on `.` and `[N]` segments.

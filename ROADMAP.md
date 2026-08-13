@@ -36,8 +36,9 @@ is hard, and all of it is required.
 | 0.1 | 2 commits unpushed (`9fd29a1`, `225b7bd`) | ✅ | Pushed in `b56eaa9`. Both are the chain-honesty fixes — a host pulling from GitHub would have deployed the *old, lying* build |
 | 0.2 | `git remote` renamed `mergit-proto` → `Mergit-proto` | ✅ | Remote now `git@github.com:mergit-io/Mergit-proto.git` |
 | 0.3 | `backend/scripts/loadtest.py` untracked | ✅ | Tracked. It's the evidence for the 10-user claim; untracked evidence is an anecdote |
-| 0.4 | Pick a host + deploy | ⬜ | **Decision needed from you** — see *Hosting* below |
-| 0.5 | Seed-on-boot (`SEED_DEMO=true` → run `replay_demo.py` when the ledger is empty) | ⬜ | Free tiers have no persistent disk. Without this, any redeploy shows a visitor an empty dashboard |
+| 0.4 | Pick a host + deploy | 🔶 | **Render free** — `render.yaml` was already wired for it. Runbook: `docs/RENDER.md`. Oracle deferred (card verification kept failing), HF ruled out (Docker Spaces now need PRO). Revisit Oracle/AWS only when scaling |
+| 0.5 | Seed-on-boot (`SEED_DEMO=true`) | ✅ | `demo_seed.py`. Verified live: seeded proofs return `verified: true` against the running chain |
+| 0.7 | **Access gate for the public URL** (`ACCESS_PASSWORD`) | ✅ | `access_gate.py` — see the P0 note under M4. Verified live: 401 without credentials, 200 with |
 | 0.6 | A stray SQLite db under `frontend/` is tracked — 68 KB, empty schema, pre-rebrand leftover from `e0f6b36` | ⬜ | Scanned clean (no credentials, all tables empty). `git rm --cached` it — gitignore does not untrack what is already tracked |
 
 > **SQLite files must never be tracked.** `.gitignore` previously anchored the rule to
@@ -177,9 +178,15 @@ for a manager demo — wrong for anything public.
 before the URL goes anywhere beyond the demo, because the app currently writes provider API keys to
 `.env` from an unauthenticated UI endpoint (`PUT /api/config/keys`).
 
-> 🔒 **This is the one deferred item with a security edge.** As long as the deployed URL is
-> unlisted and short-lived, it's an acceptable demo trade-off. It stops being acceptable the moment
-> the link is shared or indexed — anyone who finds it can read and overwrite your provider keys.
+> 🔒 **This rating was wrong, and M0.7 now covers the urgent half of it.** The original note said an
+> unlisted URL made this an acceptable trade-off. That understated it: the API is unauthenticated
+> end to end, so anyone who finds the URL can not only read and overwrite the provider keys but
+> submit a goal that reaches the coder agent's `code_exec` — arbitrary Python in a subprocess. On a
+> *listed* host (Hugging Face publishes public Spaces in a browsable directory) that is P0, not P3.
+>
+> `ACCESS_PASSWORD` (M0.7) closes it: HTTP Basic over everything except `/api/health`. What remains
+> at P3 here is genuine multi-user auth — per-user identity and sessions — which a single shared
+> secret does not provide and a demo does not need.
 
 ---
 

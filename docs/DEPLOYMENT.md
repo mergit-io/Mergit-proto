@@ -150,24 +150,31 @@ podman-compose --env-file .env.production logs -f mergit
 
 **Do this before sharing the URL.** The backend exposes `PUT /api/config/keys`, which writes
 provider API keys to `.env` with no authentication, and the frontend ships with
-`VITE_DEMO_MODE=true`, which bypasses login. Anyone who finds the URL can read and overwrite your
-Groq and Anthropic keys.
+`VITE_DEMO_MODE=true`, which bypasses login. Worse than key theft: `POST /api/goals` is equally
+open, and the coder agent's `code_exec` tool runs its result in a subprocess — so an open URL is
+arbitrary code execution in your container, by design rather than by bug.
 
-Until real auth lands (M4), put HTTP basic auth in front of everything. Generate a hash:
+Set one variable in `.env.production`:
 
 ```bash
-podman run --rm caddy:2.8-alpine caddy hash-password --plaintext 'your-strong-password'
+ACCESS_PASSWORD=$(openssl rand -base64 24)
 ```
 
-Add to `deploy/Caddyfile` inside the site block:
+That turns on HTTP Basic across every route except `/api/health` (`backend/access_gate.py`).
+Any username works; the password is the secret. Restart the app container to pick it up.
 
-```caddyfile
-basic_auth {
-	admin <paste-the-hash-here>
-}
+Prefer this over a proxy rule: it lives with the app, so it still protects you if the container is
+ever reached directly — a Caddy `basic_auth` block guards only traffic that goes through Caddy.
+Adding the Caddy block too is fine as defence in depth.
+
+**Verify before sharing** — the middle command must return 401:
+
+```bash
+curl -o /dev/null -w "%{http_code}\n" https://your-domain.com/api/health           # 200
+curl -o /dev/null -w "%{http_code}\n" https://your-domain.com/api/config/keys      # 401
+curl -o /dev/null -w "%{http_code}\n" -u x:"$ACCESS_PASSWORD" \
+     https://your-domain.com/api/config/keys                                       # 200
 ```
-
-Then `podman-compose --env-file .env.production restart caddy`.
 
 ## Step 9 — Verify
 
