@@ -8,6 +8,7 @@ Out of the box the chain runs *inside* the app process (`CHAIN_TARGET=local`), s
 | Doc | What it answers |
 |---|---|
 | **[docs/REPO_MAP.md](docs/REPO_MAP.md)** | **Where everything lives and what owns what** — every module, route, tool, page and script mapped to its job. Start here when you need to find something |
+| **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** | **Step-by-step production deploy** on Oracle Cloud Always Free — always-on, persistent disk, automatic HTTPS, $0 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | How it works: system overview, request lifecycle, GitHub automation pipeline, agent registry, database schema |
 | [ROADMAP.md](ROADMAP.md) | What's left: every open issue rated P0–P3, what unblocks it, and the measured hosting analysis |
 | [progress.md](progress.md) | What happened: a dated changelog, one block per work session, oldest first |
