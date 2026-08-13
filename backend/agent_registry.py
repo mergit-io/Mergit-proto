@@ -20,6 +20,10 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
             "1. For GitHub tasks: use github_list_dir to explore the repo structure first, "
             "then github_read_file to read relevant files, github_get_issue for issue details, "
             "and github_search_code to find specific functions/classes.\n"
+            "1b. To review or judge a PULL REQUEST you MUST call github_get_pr_files to read the "
+            "actual diff, and github_get_pr for its state, checks and review verdicts. The PR "
+            "title and body are claims, not evidence — never describe a change you have not read. "
+            "Put the diff you read into code_context.\n"
             "2. For web research: use web_search for broad queries, http_request for specific URLs.\n"
             "3. If web_search returns a 'note' field saying it is unavailable, or returns no results, "
             "do NOT keep retrying it. Instead, use your training knowledge to answer.\n"
@@ -36,7 +40,8 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "allowed_tools": ["web_search", "http_request", "github_read_file", "github_list_dir",
                           "github_get_issue", "github_search_code", "github_list_workflows",
-                          "github_get_branch_protection", "spawn_goal"],
+                          "github_get_branch_protection", "github_get_pr", "github_get_pr_files",
+                          "github_list_prs", "spawn_goal"],
         "output_schema": {
             "type": "object",
             "properties": {
@@ -138,12 +143,30 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
             "- Use github_read_file to confirm the surrounding code before writing the fix.\n"
             "- After the PR is created, ALWAYS github_post_comment on the original issue with the PR link "
             "and a one-line summary of the fix.\n\n"
+            "For REVIEWING a PR: call github_get_pr_files first and quote the real diff. Submit the "
+            "verdict with github_review_pr (APPROVE / REQUEST_CHANGES / COMMENT) rather than a plain "
+            "comment, so it shows up as a review on GitHub.\n\n"
+            "For MERGING a PR:\n"
+            "- Call github_get_pr first and read `mergeable_state`, `checks` and `reviews`.\n"
+            "- Then call github_merge_pr. It refuses when the PR has conflicts, a failing or pending "
+            "check, requested changes, an unmet required review, or is a draft — and tells you which.\n"
+            "- If it refuses, REPORT THE REFUSAL AND ITS REASON in submit_result. Do NOT claim the PR "
+            "was merged, do not retry the same call hoping for a different answer, and never work "
+            "around the guard. A refusal is a correct, final outcome.\n"
+            "- Only report a merge when the tool returned merged == true.\n\n"
+            "For OPENING an issue use github_create_issue; to close one after the fix ships use "
+            "github_close_issue; github_add_labels for triage.\n\n"
+            "NEVER report an action you did not verify. Every claim in submit_result must correspond "
+            "to a tool result where ok == true. If a tool returned ok == false, say so plainly.\n\n"
             "Always return a JSON object with exactly these keys: "
             "action (str — what was done), result (any — the outcome), url (str — the PR URL, or null). "
             "Call submit_result only after the PR is actually created (result.ok == true)."
         ),
         "allowed_tools": ["github_pr", "github_post_comment", "github_read_file", "github_create_repo",
                           "github_list_workflows", "github_get_branch_protection", "github_set_branch_protection",
+                          "github_get_pr", "github_get_pr_files", "github_list_prs", "github_merge_pr",
+                          "github_review_pr", "github_request_review", "github_update_pr",
+                          "github_create_issue", "github_close_issue", "github_add_labels",
                           "http_request", "wait_webhook", "spawn_goal"],
         "output_schema": {
             "type": "object",
@@ -154,6 +177,8 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
             },
             "required": ["action", "result"],
         },
-        "max_iterations": 5,
+        # A merge is three calls (get_pr → merge_pr → post_comment) before submit_result,
+        # and 5 iterations left no room for a single retry.
+        "max_iterations": 8,
     },
 }

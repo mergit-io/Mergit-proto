@@ -904,3 +904,74 @@ what `demo_seed.py` now does. Added `ACCESS_PASSWORD` (sync:false), `SEED_DEMO=t
 idle sleep and the ~70s cold start behind it; a free 10-minute cron against `/api/health` — which sits
 outside the access gate precisely so unauthenticated pings work — keeps it warm inside the 750h/month
 allowance. Oracle and AWS come back into scope when there is a reason to scale, not before.
+
+---
+
+## 2026-08-13 — The GitHub write surface: audit, merge guard, and the blind reviewer
+
+Audited what the agent can actually do on GitHub when a user asks it to open a PR, fix an issue,
+or merge a PR. Two of those three worked. The third did not exist.
+
+**`merge PR` was not implemented at all.** `grep -rn "merge" backend/**/*.py` returned nothing
+outside a dict merge in `context.py`. No merge tool, nothing in `TOOL_REGISTRY`, nothing in the
+integrator's `allowed_tools`, no mention in the orchestrator prompt. A goal saying "merge PR #5"
+planned a DAG, ran an integrator with no way to merge anything, and terminated on whatever the
+model chose to claim.
+
+**"Review a GitHub PR" was documented, routed, and blind.** The orchestrator prompt promised
+`researcher (reads changed files) → writer`, but no tool in the registry returned a PR's diff or
+even its changed-file list. `github_get_issue` resolves a PR number — GitHub treats PRs as issues —
+and returns title, body and comments, so the pipeline *succeeded* while the reviewer never saw a
+line of the code. It shipped a review written from the PR title. The failure mode was silent,
+which is why 11 passing tests never caught it: they stub every GitHub tool, so they prove the
+wiring and assume the semantics.
+
+**The token had two sources that disagreed.** `github_pr` read `os.environ` *or*
+`settings.github_token`; every tool in `github_ops` read only `os.environ`. `Settings` loads
+`backend/.env` through pydantic-settings, which populates the settings object and never touches
+`os.environ`. So the documented setup — token in `backend/.env` — left `github_pr` working while
+the other nine tools reported a missing credential and parked their task in `WAITING_CREDENTIAL`.
+Render injects real environment variables, which is why production never showed it. Now one
+`github_token()` in `tools/github_client.py`, env first so a runtime `PUT /api/config/keys` still
+wins without a restart.
+
+**Ten new tools**, all on the integrator except the read paths: `github_merge_pr`,
+`github_get_pr`, `github_get_pr_files`, `github_list_prs`, `github_review_pr`,
+`github_request_review`, `github_update_pr`, `github_create_issue`, `github_close_issue`,
+`github_add_labels`. Twenty GitHub tools registered, up from ten.
+
+**The merge guard.** Merging is the one GitHub action an agent cannot walk back, so
+`github_merge_pr` gates rather than attempts: it merges only when `mergeable_state` is `clean` or
+`has_hooks` and no reviewer's latest review is `CHANGES_REQUESTED`, and otherwise returns
+`refused=True` naming the blocker — including which check failed. The review check is not
+redundant with `mergeable_state`: on a repo without branch protection, a `CHANGES_REQUESTED`
+review leaves the state `clean`, so trusting the state alone merges a rejected PR. `unknown` is
+polled rather than refused, because GitHub computes mergeability asynchronously and a PR read
+moments after creation always reports `unknown`. An already-merged PR returns `ok=True,
+already_merged=True` — the `tool_calls` idempotency cache replays a merge after a restart, and a
+replay must not read as a failure. The integrator's prompt states that a refusal is a correct
+final outcome, not something to retry or route around.
+
+**`github_pr` hardening.** An empty `files[]` was rejected by GitHub as "No commits between" only
+*after* the branch had been created, leaving a stray branch behind on every attempt — now refused
+up front. A re-run against an already-open PR raised 422; it now returns the existing PR, which
+matters because the task cache replays tool calls. The fork path branched from the fork's own
+default branch, so a fork taken weeks earlier produced a PR whose diff reverted every upstream
+commit landed since — it now branches from the upstream base sha (forks share an object store),
+falling back with a warning. Base-branch detection walked every branch in the repository on every
+call; now one lookup. The 60-second fork poll used `time.sleep` inside an `async def`, blocking the
+event loop for all five concurrent worker tasks — now `asyncio.sleep`.
+
+`test_github_tools.py` adds 29 tests over the merge-guard refusal matrix, diff truncation, the
+self-review downgrade (GitHub rejects approving your own PR, and the agent usually authored it),
+PR-creation robustness, and a check that every tool named in `allowed_tools` is actually
+registered. **215 tests passing**, up from 186. `scripts/github_e2e.py <owner/repo>` drives the
+whole surface against a real repository — real issue, real PR, real diff, real review, real merge,
+and a real conflicting PR to prove the guard refuses — because faked PyGithub proves the tools'
+decisions but not that GitHub accepts the calls they make.
+
+**Unrelated and urgent, found while probing the deployment:** `https://mergit.onrender.com` serves
+`/api/goals`, `/api/config/models` and `/api/config/keys` with HTTP 200 and no authentication.
+`ACCESS_PASSWORD` is unset in the Render environment. Per `access_gate.py`'s own docstring that
+makes `POST /api/goals` plus the coder's `code_exec` remote code execution, and lets anyone
+rewrite the provider keys. Set it in the Render dashboard.

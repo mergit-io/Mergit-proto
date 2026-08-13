@@ -59,13 +59,50 @@ Mergit is a generic multi-agent autonomy system: a user submits any natural lang
 
 **Agent runner** (`agent_runner.py`): Generic LLM tool-call loop. Reads agent config via `get_agent_config(name)` (reads live model from `model_config` on every call), calls `acompletion()` in a loop until the agent calls `submit_result`. Idempotency: each tool invocation is hashed and cached in `tool_calls` table — re-runs return the stored result without re-firing. Includes: exponential backoff for rate limits, retry-hint injection for Groq `tool_use_failed` errors, `consecutive_errors` counter that forces a "use your knowledge and submit NOW" message after 3 consecutive tool failures, and an early-warning nudge at `max_iter - 3`.
 
-**Agents** (`agent_registry.py`): `researcher` (web_search, http_request, **github_read_file, github_list_dir, github_get_issue, github_search_code**), `writer` (file_ops), `notifier` (slack_notify, http_request), `coder` (code_exec, file_ops, web_search, **github_read_file**), `integrator` (**github_pr, github_post_comment, github_read_file**, http_request, wait_webhook). All go through the same `agent_runner.run()`. Use `get_agent_config(name)` — not `AGENT_REGISTRY[name]` directly — to get the live model setting.
+**Agents** (`agent_registry.py`): `researcher` (web_search, http_request, **github_read_file, github_list_dir, github_get_issue, github_search_code, github_get_pr, github_get_pr_files, github_list_prs**, github_list_workflows, github_get_branch_protection, spawn_goal), `writer` (file_ops), `coder` (code_exec, file_ops, web_search, **github_read_file**), `integrator` (every GitHub **write** tool — see the GitHub tools table below — plus http_request, wait_webhook, spawn_goal). All go through the same `agent_runner.run()`. Use `get_agent_config(name)` — not `AGENT_REGISTRY[name]` directly — to get the live model setting.
+
+The split is deliberate: `researcher` reads GitHub, `integrator` writes to it. `github_get_pr_files` sits on the researcher because a PR review that has not read the diff is a review of the PR title.
 
 **Model config** (`model_config.py`): Per-role model store. Defaults all roles to Groq. Persists to `backend/model_config.json` (gitignored). `get_model(role)`, `get_all()`, `update(dict)`. Cache invalidated on write. 40 predefined models across Groq (Llama 4, Llama 3.x, DeepSeek, Qwen, Mixtral, Gemma), Anthropic (Claude 4/3.5/3), OpenAI (GPT-4o, o-series, GPT-3.5), Google (Gemini 2.5/2.0/1.5), Mistral (Large/Medium/Small/Codestral). Any LiteLLM-compatible string also accepted. **Note**: `gemini-2.5-pro` and `gemini-1.5-pro` require paid Google AI billing (free tier quota = 0) — the fallback chain handles this automatically.
 
 **LLM layer** (`llm.py`): `acompletion()` wraps LiteLLM with full provider fallback chains for all 40 models. At startup, sets env vars for all 5 providers from `config.settings`; bridges `GOOGLE_API_KEY` → `GEMINI_API_KEY` (LiteLLM uses `GEMINI_API_KEY` for `gemini/` prefix). `_is_hard_rate_limit()` catches daily quota (`tpd`, `quota`), Gemini `resource_exhausted`, and insufficient-quota errors — any of these trigger the fallback chain. `_is_soft_rate_limit()` catches per-minute throttling and sleeps the declared retry delay instead. **Claude 4 models** (`claude-opus-4-7`, `claude-sonnet-4-6`, `claude-haiku-4-5-20251001`) don't accept `temperature` — it's excluded for them. `not_found_error` (model deprecated) triggers fallback to next candidate and 1h cooldown.
 
-**Tools** (`tools/`): `web_search` (Tavily → DuckDuckGo fallback → training-knowledge note), `http_request` (httpx), `slack_notify`, `file_ops` (workspace-scoped, path traversal protected), `github_pr` (create PR with file commits), `github_read_file` / `github_list_dir` / `github_get_issue` / `github_post_comment` / `github_search_code` (GitHub API operations in `tools/github_ops.py`), `code_exec` (subprocess, 30s timeout), `wait_webhook` (suspends task to `WAITING_WEBHOOK` state).
+**Tools** (`tools/`): `web_search` (Tavily → DuckDuckGo fallback → training-knowledge note), `http_request` (httpx), `slack_notify`, `file_ops` (workspace-scoped, path traversal protected), `code_exec` (subprocess, 30s timeout), `wait_webhook` (suspends task to `WAITING_WEBHOOK` state), `spawn_goal`, plus the GitHub surface below.
+
+**GitHub tools** (`tools/github_ops.py`, `tools/github_pr.py`, `tools/github_client.py`):
+
+| Tool | Does | Agent |
+|------|------|-------|
+| `github_read_file` / `github_list_dir` / `github_search_code` | read repo contents | researcher, coder |
+| `github_get_issue` | issue body + comments | researcher |
+| `github_get_pr` | PR state, `mergeable_state`, check runs, review verdicts | researcher, integrator |
+| `github_get_pr_files` | **the unified diff** — budgeted to 12k chars / 60 files, reports what it truncated | researcher, integrator |
+| `github_list_prs` | list PRs | researcher, integrator |
+| `github_pr` | commit files to a branch and open a PR (forks when it lacks push access) | integrator |
+| `github_merge_pr` | **guarded merge** — see below | integrator |
+| `github_review_pr` | formal APPROVE / REQUEST_CHANGES / COMMENT review | integrator |
+| `github_request_review` / `github_update_pr` | request reviewers; edit title/body/base/draft/state | integrator |
+| `github_create_issue` / `github_close_issue` / `github_add_labels` / `github_post_comment` | issue lifecycle | integrator |
+| `github_create_repo` | ship a new project as its own repo | integrator |
+| `github_list_workflows` / `github_get_branch_protection` / `github_set_branch_protection` | CI and branch rules | researcher, integrator |
+
+**Merge guard** (`github_merge_pr`): merging is the one GitHub action an agent cannot undo, so it is
+gated rather than attempted. It merges only when `mergeable_state` is `clean` or `has_hooks` **and**
+no reviewer's latest review is `CHANGES_REQUESTED`. Conflicts, failing or pending checks, unmet
+required reviews, `behind`, and draft status each return `ok=False, refused=True` with the specific
+blocker (naming the failing check) instead of forcing the merge. `mergeable_state` is computed
+asynchronously by GitHub, so `unknown` is polled 6× at 2s rather than treated as a refusal. An
+already-merged PR returns `ok=True, already_merged=True` — the `tool_calls` idempotency cache can
+replay a merge after a restart, and a replay must not read as a failure. Default method is squash.
+The review check is not redundant with `mergeable_state`: on a repo without branch protection, a
+`CHANGES_REQUESTED` review leaves the state `clean`.
+
+**Token resolution** (`tools/github_client.py`): one `github_token()` reading `os.environ["GITHUB_TOKEN"]`
+first (so `PUT /api/config/keys` takes effect without a restart), then `settings.github_token`. Before
+this existed the two files disagreed — `github_pr` read both sources while every tool in `github_ops`
+read only `os.environ`, so a token configured the documented way (`backend/.env`, loaded by
+pydantic-settings, which never touches `os.environ`) left nine of ten tools parking their task in
+`WAITING_CREDENTIAL`. Hosts that inject real env vars, such as Render, hid the split completely.
 
 **Persistence** (`db.py`): SQLite WAL mode, `aiosqlite`. Tables: `goals`, `tasks`, `messages`, `tool_calls`, economy tables `agent_passports`, `agent_reputation`, `proofs`, plus `proof_outbox` (chain submission queue) and `heal_attempts` (self-heal history). Task claim is atomic via `UPDATE ... WHERE id=(SELECT ... LIMIT 1) RETURNING *`. `goals` carries `source`/`heal_depth` (added by migration in `init_db`) so self-heal fix goals are distinguishable and cannot recurse.
 
@@ -204,6 +241,18 @@ Standard 3-agent pipeline for issue fixing:
 1. **researcher**: `github_list_dir` + `github_read_file` + `github_get_issue` to understand the codebase and bug
 2. **coder**: writes the fix using `code_context` from researcher, runs tests via `code_exec`
 3. **integrator**: `github_pr` (creates PR with fixed files) + `github_post_comment` (posts PR link on original issue)
+
+PR review: **researcher** (`github_get_pr_files` — the real diff) → **writer** (the review text) →
+**integrator** (`github_review_pr` submits it as a review, not a bare comment).
+
+Merge: **integrator** alone — `github_get_pr` then `github_merge_pr`. No researcher, no coder. A
+refusal from the guard is a legitimate terminal outcome and is reported as such; the integrator's
+prompt forbids retrying it or working around it.
+
+Tests: `test_github_automation.py` covers the wiring (webhook → DAG → dispatch) with GitHub stubbed;
+`test_github_tools.py` covers what those stubs stand in for — the merge guard's refusal matrix, diff
+truncation, self-review downgrade, PR-creation robustness, and that every tool an agent may call is
+actually registered. `scripts/github_e2e.py <owner/repo>` drives all of it against a real repository.
 
 `_validate_plan` in `orchestrator.py` allows `integrator` as terminal task when the plan has both `coder` and `integrator` agents (detected by `_is_github_automation_plan()`).
 
