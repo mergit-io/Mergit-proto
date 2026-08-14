@@ -151,8 +151,19 @@ async def plan(goal: GoalRow) -> PlanSchema:
     last_error: str | None = None
     max_attempts = 5
     for attempt in range(max_attempts):
-        if last_error and "invalid" in last_error.lower():
-            messages.append({"role": "user", "content": f"Your previous plan was invalid: {last_error}. Please fix it."})
+        # Feed every rejection back, not only ones whose wording contains "invalid".
+        # None of `_validate_plan`'s messages do, so this branch never fired: each retry
+        # re-sent a byte-identical prompt to a temperature-0.1 model and got the same
+        # rejected plan back. A goal could burn all five attempts without the model ever
+        # learning what was wrong with the first one.
+        if last_error:
+            messages.append({
+                "role": "user",
+                "content": (
+                    f"Your previous plan was rejected: {last_error}\n"
+                    "Produce a corrected plan that resolves this specific problem."
+                ),
+            })
 
         # Use forced tool_choice on early attempts; fall back to auto on later retries
         # (Groq sometimes fails forced tool_choice with tool_use_failed)
@@ -303,11 +314,29 @@ def _salvage_failed_generation(error_str: str) -> dict | None:
 
 _RAW_OUTPUT_AGENTS = {"researcher", "integrator"}
 
+#: Agents that produce content for the integrator to act on. Either one means the
+#: integrator is publishing something the plan authored, not just echoing a fetch.
+_CONTENT_PRODUCING_AGENTS = {"coder", "writer"}
+
+
 def _is_github_automation_plan(p: "PlanSchema") -> bool:
-    """Return True when the plan looks like a GitHub automation workflow (researcher→coder→integrator).
-    In this pattern the integrator IS the terminal action (creates PR + posts comment) — no writer needed."""
+    """Return True when the integrator is publishing content an earlier task produced.
+
+    In that shape the integrator IS the deliverable — it opens the PR or posts the
+    comment — so requiring a writer after it is wrong; there is nothing left to present.
+
+    This used to require a *coder*, which quietly limited the exception to bug fixes.
+    Any GitHub goal needing no code change — write docs, review a PR — plans
+    researcher → writer → integrator, was rejected, and failed to plan at all with the
+    advice "add a writer task" when it already had one. The orchestrator prompt teaches
+    that exact shape for "review a GitHub PR", so the prompt and the validator
+    contradicted each other.
+
+    A bare researcher → integrator is still rejected: that is a fetch with nothing to
+    present it, which is what the human-readable-terminal rule exists to catch.
+    """
     agent_names = {t.agent for t in p.tasks}
-    return "coder" in agent_names and "integrator" in agent_names
+    return "integrator" in agent_names and bool(_CONTENT_PRODUCING_AGENTS & agent_names)
 
 
 def _validate_plan(p: PlanSchema) -> None:
@@ -331,9 +360,18 @@ def _validate_plan(p: PlanSchema) -> None:
     if terminal_task.agent in _RAW_OUTPUT_AGENTS and len(p.tasks) > 1:
         if terminal_task.agent == "integrator" and _is_github_automation_plan(p):
             return  # automation pattern: integrator is the correct terminal
+        # Say *where* the writer goes. "Add a writer after it" is right when the goal is
+        # to fetch and present, and wrong when the goal is to publish: a writer placed
+        # after the integrator becomes terminal and leaves the integrator with nothing
+        # authored to publish. The docs goal that exposed this looped five times on the
+        # old wording without ever producing an accepted plan.
         raise ValueError(
-            f"terminal task '{p.terminal}' uses agent '{terminal_task.agent}' which produces raw data. "
-            "Add a writer task after it to present the findings in human-readable form."
+            f"terminal task '{p.terminal}' uses agent '{terminal_task.agent}', which produces raw "
+            "structured data rather than a readable answer. If the goal is to publish something "
+            "(open a pull request, post a comment), add a writer or coder task BEFORE the "
+            f"'{terminal_task.agent}' to author the content, and keep '{terminal_task.agent}' as the "
+            "terminal task. Otherwise add a writer task AFTER it to present the findings, and make "
+            "that writer the terminal task."
         )
 
 

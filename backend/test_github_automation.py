@@ -322,6 +322,74 @@ def test_integrator_is_allowed_as_the_terminal_task(stack):
     assert terminal.agent_name == "integrator"
 
 
+# ── which GitHub plans _validate_plan accepts ───────────────────────────────────
+# The terminal-task rule exists so the user is handed something readable rather than
+# raw JSON. For GitHub automation the deliverable is the side effect — the PR, the
+# comment — so the integrator is legitimately terminal.
+#
+# The exception was written as "the plan contains a coder", which silently made it
+# bug-fix-only. A goal needing no code change (write docs, review a PR) plans
+# researcher → writer → integrator, was rejected five times, and the goal FAILED with
+# advice to "add a writer task" when it already had one. The orchestrator's own prompt
+# teaches the rejected shape: "review a GitHub PR" → researcher → writer → integrator.
+#
+# Observed on a real run: sandbox issue #19 ("make some docs for new contributors").
+
+def _plan(*agents: str):
+    from orchestrator import PlanSchema, TaskSpec
+    tasks = [
+        TaskSpec(id=f"t{i + 1}", agent=a, description="x",
+                 inputs={"repo": "owner/repo"},
+                 depends_on=([f"t{i}"] if i else []))
+        for i, a in enumerate(agents)
+    ]
+    return PlanSchema(reasoning="x", tasks=tasks, terminal=f"t{len(agents)}")
+
+
+def _accepts(*agents: str) -> bool:
+    import orchestrator
+    try:
+        orchestrator._validate_plan(_plan(*agents))
+        return True
+    except ValueError:
+        return False
+
+
+def test_a_bug_fix_plan_may_end_at_the_integrator():
+    """The pattern the orchestrator prompt documents for "fix a GitHub issue"."""
+    assert _accepts("researcher", "coder", "integrator")
+
+
+def test_a_pr_review_plan_may_end_at_the_integrator():
+    """Documented verbatim in the orchestrator prompt: "review a GitHub PR" →
+    researcher → writer → integrator. The validator rejected it."""
+    assert _accepts("researcher", "writer", "integrator"), (
+        "the orchestrator prompt instructs the model to produce this plan and the "
+        "validator refuses it — every GitHub goal needing no code change fails to plan"
+    )
+
+
+def test_a_docs_plan_may_end_at_the_integrator():
+    """Sandbox issue #19: no code change, so no coder — the writer produces the docs
+    and the integrator opens the PR."""
+    assert _accepts("researcher", "writer", "integrator")
+
+
+def test_a_writer_only_plan_may_end_at_the_integrator():
+    assert _accepts("writer", "integrator")
+
+
+def test_a_bare_fetch_still_needs_a_writer():
+    """The rule this exception lives inside must survive: researcher → integrator
+    produces raw structured data with nothing to present it, which is what the
+    human-readable-terminal rule was written to catch."""
+    assert not _accepts("researcher", "integrator")
+
+
+def test_a_lone_researcher_is_still_rejected_as_terminal():
+    assert not _accepts("researcher", "researcher")
+
+
 def test_real_github_operations_are_invoked(stack):
     asyncio.run(_run_goal(stack, _post(stack, ISSUE_PAYLOAD, "issues").json()["goal_id"]))
 
