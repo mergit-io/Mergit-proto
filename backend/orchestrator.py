@@ -92,7 +92,6 @@ Rules:
    - Only make researcher or integrator terminal if the user explicitly asks for raw data or JSON.
    - Decision guide: "fetch/get/look up X" → integrator/researcher then writer.
      "summarise/report on X" → researcher then writer. "run a script" → coder is fine as terminal.
-     "send a Slack message" → notifier is fine as terminal.
      "fix a GitHub issue" → researcher (reads code) → coder (writes fix) → integrator (creates PR + posts comment).
      "review a GitHub PR" → researcher (github_get_pr_files — reads the REAL diff) → writer (writes the review) → integrator (github_review_pr submits it).
      "merge a GitHub PR" → integrator alone (github_get_pr then github_merge_pr). No researcher, no coder.
