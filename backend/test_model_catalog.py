@@ -242,3 +242,72 @@ def test_a_model_without_credentials_can_still_be_selected(env):
     target = next(m["id"] for m in env.get("/api/config/models").json()["available"]
                   if not m["usable"])
     assert env.put("/api/config/models", json={"models": {"coder": target}}).status_code == 200
+
+
+# ── 5. OpenRouter — a second route to the same Anthropic models ─────────────────
+# Anthropic's own API needs an ANTHROPIC_API_KEY this deployment does not have.
+# OpenRouter resells the identical models against a single key, so it is the practical
+# fallback for a Groq-only instance. It is a *distinct* LiteLLM provider, not an alias:
+# the prefix is `openrouter/`, the credential is OPENROUTER_API_KEY, and the model slugs
+# use dots where Anthropic's own API uses dashes (`claude-haiku-4.5`, not
+# `claude-haiku-4-5`). Every slug below was checked against OpenRouter's /models
+# endpoint rather than guessed — the dash form does not exist there.
+
+OPENROUTER_SLUGS = {
+    "openrouter/anthropic/claude-opus-5",
+    "openrouter/anthropic/claude-sonnet-5",
+    "openrouter/anthropic/claude-haiku-4.5",
+}
+
+
+def test_openrouter_models_are_offered(catalog):
+    offered = {m["id"] for m in catalog.AVAILABLE_MODELS}
+    missing = OPENROUTER_SLUGS - offered
+    assert not missing, f"OpenRouter models not in the catalogue: {sorted(missing)}"
+
+
+def test_openrouter_slugs_use_the_dotted_form(catalog):
+    """`openrouter/anthropic/claude-haiku-4-5` 404s — OpenRouter's id is `-4.5`."""
+    for m in catalog.AVAILABLE_MODELS:
+        if m["id"].startswith("openrouter/") and "haiku" in m["id"]:
+            assert m["id"].endswith("claude-haiku-4.5"), (
+                f"{m['id']} uses Anthropic's dashed id; OpenRouter will not resolve it"
+            )
+
+
+def test_openrouter_credentials_come_from_its_own_key(monkeypatch):
+    """The provider prefix decides the credential. Reading ANTHROPIC_API_KEY for an
+    `openrouter/` model would report a model as usable that cannot authenticate."""
+    import llm
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    assert not llm.has_credentials("openrouter/anthropic/claude-haiku-4.5"), (
+        "an OpenRouter model was reported usable on the strength of an Anthropic key"
+    )
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
+    assert llm.has_credentials("openrouter/anthropic/claude-haiku-4.5")
+
+
+def test_an_openrouter_only_deployment_can_run(env, monkeypatch):
+    """The configuration this unblocks: one OpenRouter key, no Anthropic key."""
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
+
+    by_provider: dict[str, list[dict]] = {}
+    for m in env.get("/api/config/models").json()["available"]:
+        by_provider.setdefault(m["provider"], []).append(m)
+
+    assert all(m["usable"] for m in by_provider["OpenRouter"]), (
+        "an OpenRouter key was set and no OpenRouter model came back usable"
+    )
+    assert not any(m["usable"] for m in by_provider["Anthropic"])
+    assert not any(m["usable"] for m in by_provider["Groq"])
+
+
+def test_the_openrouter_key_can_be_set_through_the_keys_endpoint(catalog):
+    """Without this the key can only be supplied by editing .env and restarting."""
+    from api import keys as keys_api
+    assert "openrouter" in keys_api.PROVIDER_KEYS
+    assert keys_api.PROVIDER_KEYS["openrouter"] == "OPENROUTER_API_KEY"

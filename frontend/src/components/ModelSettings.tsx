@@ -13,8 +13,9 @@ const ROLE_META: Record<string, { label: string; description: string; Icon: Reac
 };
 
 const PROVIDER_COLORS: Record<string, string> = {
-  Groq:      "text-emerald-400",
-  Anthropic: "text-violet-400",
+  Groq:       "text-emerald-400",
+  Anthropic:  "text-violet-400",
+  OpenRouter: "text-sky-400",
 };
 
 const TIER_LABELS: Record<string, string> = {

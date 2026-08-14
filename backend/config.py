@@ -16,6 +16,11 @@ class Settings(BaseSettings):
     # LLM
     anthropic_api_key: str = ""
     groq_api_key: str = ""
+    # OpenRouter resells the same Anthropic models against a single key. It is a
+    # separate LiteLLM provider (`openrouter/...`), not an alias for Anthropic — a
+    # deployment can hold this key and no ANTHROPIC_API_KEY, which is why availability
+    # is resolved per provider prefix rather than per model family.
+    openrouter_api_key: str = ""
 
     # Tools
     tavily_api_key: str = ""

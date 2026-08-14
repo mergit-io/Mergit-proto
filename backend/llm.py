@@ -19,6 +19,7 @@ def _setenv(var: str, val: str) -> None:
 
 _setenv("ANTHROPIC_API_KEY", settings.anthropic_api_key)
 _setenv("GROQ_API_KEY", settings.groq_api_key)
+_setenv("OPENROUTER_API_KEY", settings.openrouter_api_key)
 
 litellm.drop_params = True  # ignore unsupported params per provider
 
@@ -31,9 +32,24 @@ litellm.drop_params = True  # ignore unsupported params per provider
 # fallback that can never succeed is a wasted attempt whose error the operator then has
 # to read past. `test_model_catalog.py` fails if the two lists separate again.
 _FALLBACKS: dict[str, list[str]] = {
-    # Groq
+    # Groq. OpenRouter comes before Anthropic here because a deployment is far more
+    # likely to hold one OpenRouter key than a direct Anthropic key; an unconfigured
+    # provider is skipped rather than attempted, so listing both costs nothing.
     "groq/llama-3.3-70b-versatile": [
+        "openrouter/anthropic/claude-haiku-4.5",
         "anthropic/claude-haiku-4-5",
+    ],
+    # OpenRouter
+    "openrouter/anthropic/claude-opus-5": [
+        "openrouter/anthropic/claude-sonnet-5",
+        "openrouter/anthropic/claude-haiku-4.5",
+    ],
+    "openrouter/anthropic/claude-sonnet-5": [
+        "openrouter/anthropic/claude-haiku-4.5",
+        "groq/llama-3.3-70b-versatile",
+    ],
+    "openrouter/anthropic/claude-haiku-4.5": [
+        "groq/llama-3.3-70b-versatile",
     ],
     # Anthropic — current generation
     "anthropic/claude-opus-5": [
@@ -148,6 +164,10 @@ def _normalize_tool_choice(tool_choice: dict | str | None) -> dict | str | None:
 _PROVIDER_KEY_ENV: dict[str, str] = {
     "anthropic": "ANTHROPIC_API_KEY",
     "groq": "GROQ_API_KEY",
+    # A distinct provider, not an alias for Anthropic: `openrouter/anthropic/...` routes
+    # through OpenRouter and authenticates with OpenRouter's key. Resolving it against
+    # ANTHROPIC_API_KEY would report a model as usable that cannot authenticate.
+    "openrouter": "OPENROUTER_API_KEY",
     "openai": "OPENAI_API_KEY",
     "gemini": "GEMINI_API_KEY",
     "mistral": "MISTRAL_API_KEY",

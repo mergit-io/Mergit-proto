@@ -28,9 +28,12 @@ const ROLE_META: Record<Role, { label: string; desc: string; Icon: React.Compone
 
 function detectProvider(modelId: string): { name: string; color: string; bg: string } {
   const id = modelId.toLowerCase();
-  if (id.startsWith("groq/"))      return { name: "Groq",      color: "text-emerald-400", bg: "bg-emerald-400/10 border-emerald-400/20" };
-  if (id.startsWith("anthropic/")) return { name: "Anthropic", color: "text-violet-400",  bg: "bg-violet-400/10 border-violet-400/20"  };
-  return                                   { name: "Custom",   color: "text-white",        bg: "bg-white/6 border-white/10"             };
+  // `openrouter/` must be tested before `anthropic/` — an OpenRouter id for a Claude
+  // model is `openrouter/anthropic/...`, and billing goes to OpenRouter, not Anthropic.
+  if (id.startsWith("openrouter/")) return { name: "OpenRouter", color: "text-sky-400",     bg: "bg-sky-400/10 border-sky-400/20"         };
+  if (id.startsWith("groq/"))       return { name: "Groq",       color: "text-emerald-400", bg: "bg-emerald-400/10 border-emerald-400/20" };
+  if (id.startsWith("anthropic/"))  return { name: "Anthropic",  color: "text-violet-400",  bg: "bg-violet-400/10 border-violet-400/20"   };
+  return                                   { name: "Custom",     color: "text-white",       bg: "bg-white/6 border-white/10"              };
 }
 
 function ProviderBadge({ modelId }: { modelId: string }) {
@@ -717,8 +720,14 @@ function ModelPicker({
               transition={{ duration: 0.13 }}
               className="absolute right-0 top-full mt-1.5 z-20 w-64 rounded-2xl border border-white/12 bg-[#161616] shadow-2xl overflow-y-auto max-h-72"
             >
-              {/* Group by provider */}
-              {["Groq", "Anthropic", "OpenAI", "Google", "Mistral"].map((prov) => {
+              {/* Group by provider. Derived from the options rather than hardcoded: a
+                  fixed list silently drops any provider the backend adds — OpenRouter
+                  models would have been absent from this menu entirely. Known providers
+                  keep their order; anything new is appended rather than lost. */}
+              {Array.from(new Set([
+                ...["Groq", "Anthropic", "OpenRouter"].filter((p) => options.some((o) => o.provider === p)),
+                ...options.map((o) => o.provider),
+              ])).map((prov) => {
                 const group = options.filter((o) => o.provider === prov);
                 if (!group.length) return null;
                 return (

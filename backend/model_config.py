@@ -33,6 +33,13 @@ AVAILABLE_MODELS = [
     # Anthropic — previous generation, still served.
     {"id": "anthropic/claude-opus-4-7",      "label": "Claude Opus 4.7",   "provider": "Anthropic", "tier": "powerful"},
     {"id": "anthropic/claude-sonnet-4-6",    "label": "Claude Sonnet 4.6", "provider": "Anthropic", "tier": "balanced"},
+    # OpenRouter — the same Anthropic models reached through a reseller, so one key
+    # covers them without an ANTHROPIC_API_KEY. Note the slugs use dots where
+    # Anthropic's own API uses dashes; these were read from OpenRouter's /models
+    # endpoint, and the dashed form does not resolve there.
+    {"id": "openrouter/anthropic/claude-opus-5",     "label": "Claude Opus 5 (OpenRouter)",    "provider": "OpenRouter", "tier": "powerful"},
+    {"id": "openrouter/anthropic/claude-sonnet-5",   "label": "Claude Sonnet 5 (OpenRouter)",  "provider": "OpenRouter", "tier": "balanced"},
+    {"id": "openrouter/anthropic/claude-haiku-4.5",  "label": "Claude Haiku 4.5 (OpenRouter)", "provider": "OpenRouter", "tier": "fast"},
 ]
 
 DEFAULTS: dict[str, str] = {
