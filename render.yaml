@@ -30,12 +30,26 @@ services:
       # preview environments." So a preview could not have inherited a password even if
       # production had one, and `mergit-pr-<n>.onrender.com` is guessable.
       #
-      # generateValue mints a random 256-bit value when the variable does not already
-      # exist, so no environment can boot without a gate. An operator who wants a chosen
-      # password still sets one in the dashboard; a set value is left alone.
-      # Read the generated value from the Render dashboard to log in.
+      # generateValue was minting a random 256-bit value here so that no environment
+      # could boot without a gate. It worked — too well: the value it mints is one
+      # nobody has seen, so the first sync after a merge locked the operator out of
+      # their own deployment with a password only the dashboard knows.
+      #
+      # Explicitly empty, deliberately. `sync: false` would stop MINTING a new value but
+      # leaves any existing one in place — blueprints never delete variables — so the
+      # generated password would keep gating the deployment with a value nobody has.
+      # An empty value is blueprint-managed and overwrites it on the next sync, and
+      # access_gate installs nothing at all when the password is falsy:
+      #
+      #     def add_access_gate(app, password):
+      #         if not password:
+      #             return
+      #
+      # THIS LEAVES THE DEPLOYMENT OPEN. Everything in the paragraph above still applies:
+      # POST /api/goals runs unsandboxed Python in the same process as GITHUB_TOKEN.
+      # To close it again, put a value here or set one in the dashboard.
       - key: ACCESS_PASSWORD
-        generateValue: true
+        value: ""
       # No persistent disk on the free plan, so every restart starts from an empty database.
       # This mints a canned goal + 3 verifiable proofs on boot so the dashboard and ledger
       # are never empty for a visitor.
