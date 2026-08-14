@@ -110,6 +110,36 @@ def _tool_allowed(tool_name: str, allowed_tools: list[str]) -> bool:
     return tool_name == "submit_result" or tool_name in allowed_tools
 
 
+def _self_reported_failure(result: dict, schema_required: list[str]) -> str | None:
+    """Describe how a submit_result contradicts itself, or None when it is coherent.
+
+    Presence of the required keys was never enough. A coder handed a path that does not
+    exist submitted `{code: "", path: "main/mergesort.py", output: "404 Not Found",
+    success: False}` — every required key present, so it was accepted as DONE, and the
+    integrator interpolated that empty `code` into a pull request that added an empty
+    file. The agent said it failed and the pipeline recorded success.
+
+    Two contradictions are caught, both about the result the agent itself declared:
+
+    * `success: False` — it is telling us the work did not happen.
+    * a required string that is empty — there is no content to hand downstream, and
+      every required field exists precisely because something needs to consume it.
+
+    Deliberately narrow. Only REQUIRED keys are checked, so an optional field like the
+    researcher's `code_context` may still be empty, and only `success` is read for its
+    truth value — no other field's meaning is assumed.
+    """
+    if result.get("success") is False:
+        return "you set success=False."
+    empty = [
+        k for k in schema_required
+        if isinstance(result.get(k), str) and not result[k].strip()
+    ]
+    if empty:
+        return f"these required fields are empty: {empty}."
+    return None
+
+
 async def run(
     task: TaskRow,
     resolved_inputs: dict,
@@ -280,6 +310,7 @@ async def run(
                 # Validate required keys for agents that have strict output schemas
                 schema_required = config.get("output_schema", {}).get("required", [])
                 missing = [k for k in schema_required if k not in result]
+                feedback = None
                 if missing:
                     feedback = (
                         f"submit_result rejected — missing required keys: {missing}. "
@@ -289,6 +320,21 @@ async def run(
                     )
                     logger.warning("[task=%s agent=%s] submit_result missing keys %s — rejecting",
                                    task.id, task.agent_name, missing)
+                else:
+                    contradiction = _self_reported_failure(result, schema_required)
+                    if contradiction:
+                        feedback = (
+                            f"submit_result rejected — {contradiction} You are reporting failure "
+                            "and submitting it as the task's result, which would hand an empty or "
+                            "failed output to the next agent as if it had worked. Either do the "
+                            "work and submit a real result, or if it genuinely cannot be done "
+                            "(the file does not exist, the input you were given is wrong), say so "
+                            "in every field rather than leaving them blank — do not submit a "
+                            "success-shaped result that is empty."
+                        )
+                        logger.warning("[task=%s agent=%s] submit_result contradicts itself (%s) — rejecting",
+                                       task.id, task.agent_name, contradiction)
+                if feedback is not None:
                     # Anthropic: assistant msg (with tool_use) must come before tool_result
                     messages.append({"role": "assistant", "content": assistant_content or "", "tool_calls": [
                         {"id": tc_id, "type": "function", "function": {"name": tool_name, "arguments": args_str}}
