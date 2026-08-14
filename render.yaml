@@ -19,35 +19,13 @@ services:
         value: /data/config
       - key: DEBUG
         value: "false"
-      # REQUIRED on any reachable URL. The API is unauthenticated: POST /api/goals is open
-      # and the coder agent's code_exec runs its result in a subprocess, so an open URL is
-      # arbitrary code execution, and PUT /api/config/keys rewrites the provider keys.
+      # Deliberately empty — the deployment runs with no gate, and access_gate installs
+      # nothing when the password is falsy. Keep the key declared with an empty value
+      # rather than deleting the entry: blueprints never DELETE an existing variable, so
+      # removing these two lines would leave whatever value is already set in force.
       #
-      # This was `sync: false`, which meant "set it by hand in the dashboard" — and an
-      # environment where nobody did got no gate at all. Two of them existed: production,
-      # and every pull request preview. Render's blueprint spec is explicit about the
-      # second one: "Render does not include `sync: false` environment variables in
-      # preview environments." So a preview could not have inherited a password even if
-      # production had one, and `mergit-pr-<n>.onrender.com` is guessable.
-      #
-      # generateValue was minting a random 256-bit value here so that no environment
-      # could boot without a gate. It worked — too well: the value it mints is one
-      # nobody has seen, so the first sync after a merge locked the operator out of
-      # their own deployment with a password only the dashboard knows.
-      #
-      # Explicitly empty, deliberately. `sync: false` would stop MINTING a new value but
-      # leaves any existing one in place — blueprints never delete variables — so the
-      # generated password would keep gating the deployment with a value nobody has.
-      # An empty value is blueprint-managed and overwrites it on the next sync, and
-      # access_gate installs nothing at all when the password is falsy:
-      #
-      #     def add_access_gate(app, password):
-      #         if not password:
-      #             return
-      #
-      # THIS LEAVES THE DEPLOYMENT OPEN. Everything in the paragraph above still applies:
-      # POST /api/goals runs unsandboxed Python in the same process as GITHUB_TOKEN.
-      # To close it again, put a value here or set one in the dashboard.
+      # THIS LEAVES THE DEPLOYMENT OPEN. POST /api/goals is unauthenticated and the coder
+      # agent's code_exec runs unsandboxed Python in the same process as GITHUB_TOKEN.
       - key: ACCESS_PASSWORD
         value: ""
       # No persistent disk on the free plan, so every restart starts from an empty database.
@@ -82,9 +60,11 @@ services:
         sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
-      - key: TAVILY_API_KEY
+      # Last-resort fallback tier for every model chain. Was set only in the dashboard,
+      # so a blueprint re-sync would not have recreated it.
+      - key: OPENROUTER_API_KEY
         sync: false
-      - key: SLACK_WEBHOOK_URL
+      - key: TAVILY_API_KEY
         sync: false
       - key: GITHUB_TOKEN
         sync: false
