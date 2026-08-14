@@ -178,6 +178,7 @@ async def plan(goal: GoalRow) -> PlanSchema:
         )
         try:
             response = await acompletion(
+                role="orchestrator",
                 model=orchestrator_model,
                 messages=messages,
                 tools=[PLAN_TOOL],

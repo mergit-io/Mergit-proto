@@ -15,6 +15,7 @@ rate limiting:
      failing.
 """
 import asyncio
+import json
 import types
 
 import pytest
@@ -321,3 +322,41 @@ def test_every_fallback_id_is_a_model_the_dashboard_can_select():
     referenced = {m for chain in llm._FALLBACKS.values() for m in chain} | set(llm._FALLBACKS)
 
     assert referenced <= catalog, f"fallback ids missing from the catalog: {sorted(referenced - catalog)}"
+
+
+def test_the_log_says_which_key_paid_for_the_call(monkeypatch, caplog):
+    """A fallback swaps the provider silently, so without this a deployment can be
+    spending an OpenRouter balance while the dashboard still shows Groq."""
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
+    rec = Recorder({GROQ: GROQ_DAILY})
+    monkeypatch.setattr(llm, "_acompletion", rec)
+
+    with caplog.at_level("INFO", logger="llm"):
+        asyncio.run(llm.acompletion(model=GROQ, messages=[{"role": "user", "content": "hi"}],
+                                    role="orchestrator"))
+
+    lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith("llm_call ")]
+    assert lines, f"no llm_call line was logged; got {[r.getMessage() for r in caplog.records]}"
+    entry = json.loads(lines[-1].removeprefix("llm_call "))
+    assert entry == {
+        "role": "orchestrator",
+        "requested": GROQ,
+        "served_by": OR_LLAMA,
+        "provider": "openrouter",
+        "key": "OPENROUTER_API_KEY",
+        "fell_back": True,
+    }
+
+
+def test_a_call_that_never_fell_back_says_so(monkeypatch, caplog):
+    rec = Recorder({GROQ: _Resp()})
+    monkeypatch.setattr(llm, "_acompletion", rec)
+
+    with caplog.at_level("INFO", logger="llm"):
+        asyncio.run(llm.acompletion(model=GROQ, messages=[{"role": "user", "content": "hi"}],
+                                    role="coder"))
+
+    entry = json.loads([r.getMessage() for r in caplog.records
+                        if r.getMessage().startswith("llm_call ")][-1].removeprefix("llm_call "))
+    assert entry["fell_back"] is False
+    assert entry["key"] == "GROQ_API_KEY" and entry["role"] == "coder"
