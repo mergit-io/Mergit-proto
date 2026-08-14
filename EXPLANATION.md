@@ -32,7 +32,7 @@ That's the foundation. Now let me walk you through the actual components."
 
 "We have four specialist agents. Each one has its own model, its own set of tools, and its own output schema.
 
-**Researcher** — powered by Groq's LLaMA 4 Maverick, the fastest model we have. It searches the web via Tavily, reads GitHub repos file by file, fetches issue details, searches code by symbol, and synthesises everything into a structured output: summary, key points, sources, and raw code context for downstream agents.
+**Researcher** — reads GitHub repos file by file, fetches issue details, searches code by symbol, and synthesises everything into a structured output: summary, key points, sources, and raw code context for downstream agents. It also holds `web_search`, which uses Tavily when a key is configured; without one it degrades to a note telling the model to use its training knowledge, so the GitHub reading tools are what carry it.
 
 **Writer** — takes research or raw API data and produces polished, human-readable output. Reports, architecture docs, PR descriptions. It's also wired to generate Mermaid diagrams — so if you ask it to document a codebase, you get an interactive flowchart rendered right in the UI.
 
@@ -40,7 +40,7 @@ That's the foundation. Now let me walk you through the actual components."
 
 **Integrator** — the one that acts on the real world. It opens GitHub pull requests, posts comments on issues, creates entire new repositories with README files, reads and sets branch protection rulesets, and manages GitHub Actions workflows. It can also wait for an inbound webhook — suspending itself until an external event arrives.
 
-All four agents run through the same generic agent runner. It's a tool-call loop: build messages, call the LLM, execute any tool calls, store results, repeat until the agent calls submit_result. Every tool call is idempotency-checked — we hash the task ID, tool name, and arguments, and if we've already run this exact call successfully, we return the stored result instead of re-running. That's how we prevent duplicate PRs or double Slack posts after a crash."
+All four agents run through the same generic agent runner. It's a tool-call loop: build messages, call the LLM, execute any tool calls, store results, repeat until the agent calls submit_result. Every tool call is idempotency-checked — we hash the task ID, tool name, and arguments, and if we've already run this exact call successfully, we return the stored result instead of re-running. That's how we prevent duplicate PRs or duplicate issue comments after a crash."
 
 ---
 
@@ -78,13 +78,13 @@ From webhook to merged-ready PR — fully autonomous. The developer opens their 
 
 "Quick word on the technical choices, because they're intentional.
 
-**Groq for leaf agents** — LLaMA 4 Maverick for the researcher because speed matters when you're making 10 tool calls in sequence. LLaMA 3.3 70B for writer, coder, integrator — excellent instruction following, fast enough for multi-step tool use.
+**Groq for every role** — `model_config.py` defaults all five roles, orchestrator included, to `groq/llama-3.3-70b-versatile`, and that is what the live deployment runs. Any role can be pointed somewhere else from the Models page without a restart.
 
-**Claude for orchestration** — planning a task DAG is a reasoning problem. Claude produces valid, well-structured plans consistently. Groq models are available as fallback when Claude is unavailable.
+**Fallback, not a second default** — planning a DAG is the hardest reasoning step, so each model has a chain behind it: Groq → `anthropic/claude-haiku-4-5` → OpenRouter's Llama 3.3 70B → OpenRouter's Claude Haiku 4.5. A provider with no key configured is skipped rather than attempted, and a daily cap puts the model in a timed cooldown instead of failing the goal.
 
 **SQLite WAL** — single-file, zero operational overhead, supports concurrent reads and atomic writes. For a system that needs to survive restarts and run on any machine without a database server, it's the right choice.
 
-**LiteLLM** — provider-agnostic LLM layer. We support 40 models across Groq, Anthropic, OpenAI, Google, and Mistral. You switch models from the UI — no code changes, no restart.
+**LiteLLM** — provider-agnostic LLM layer. 15 model ids across Groq, Anthropic and OpenRouter, switchable from the UI with no code change and no restart.
 
 **React Flow + SSE** — the frontend visualises the task DAG live. Every tool call, every agent message, every status change streams over Server-Sent Events to the dashboard in real time. You watch the agents think."
 
@@ -107,7 +107,7 @@ The differentiator is that this isn't a copilot. It's not autocomplete. It's a s
 
 ## [4:50 – 5:00] Close
 
-"Mergit is open source, runs locally with a single make command, supports 40 LLM models, records every completed task as a verifiable on-chain proof, and just built and submitted this pitch autonomously.
+"Mergit is open source, runs locally with a single make command, supports 15 LLM models across three providers, records every completed task as a verifiable on-chain proof, and just built and submitted this pitch autonomously.
 
 The code is at github.com/mergit-io/Mergit-proto.
 

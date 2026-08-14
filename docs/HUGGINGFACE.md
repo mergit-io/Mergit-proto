@@ -28,7 +28,8 @@ the process that recorded them, so every Verify button would answer `verified: n
 **2. Public Spaces are listed and browsable.** Mergit's API has no authentication —
 `POST /api/goals` takes a free-form goal, `code_exec` runs the result in a subprocess, and
 `PUT /api/config/keys` rewrites your provider keys. On a discoverable URL that is remote code
-execution plus credential theft. **`ACCESS_PASSWORD` is not optional here.**
+execution plus credential theft, and nothing in the app prevents it. Deploy here only with
+credentials you are willing to lose.
 
 ---
 
@@ -69,13 +70,12 @@ Space → **Settings** → **Variables and secrets**. Add as *secrets*, not vari
 
 | Name | Value | Why |
 |---|---|---|
-| `ACCESS_PASSWORD` | a long random string | **Required.** Gates every route |
 | `SEED_DEMO` | `true` | Ledger survives the ephemeral disk |
 | `GROQ_API_KEY` | your key | Goal execution |
 | `MAX_CONCURRENT_TASKS` | `3` | Groq free-tier rate limits bite before CPU does |
 
-Optional, per feature: `ANTHROPIC_API_KEY`, `TAVILY_API_KEY`, `GITHUB_TOKEN`,
-`GITHUB_DEFAULT_REPO`, `SLACK_WEBHOOK_URL`.
+Optional, per feature: `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, `TAVILY_API_KEY`,
+`GITHUB_TOKEN`, `GITHUB_DEFAULT_REPO`.
 
 Never commit these. `backend/.env` is gitignored and must stay that way.
 
@@ -95,15 +95,14 @@ Watch the build in the Space's **Logs** tab. Look for `Mergit ready ✓` and
 `Chain: ... status=ready`. Then, replacing `<url>` with your Space URL:
 
 ```bash
-curl -o /dev/null -w "%{http_code}\n" <url>/api/health              # 200 — open by design
-curl -o /dev/null -w "%{http_code}\n" <url>/api/config/keys         # 401 — gate is on
-curl -o /dev/null -w "%{http_code}\n" -u x:$ACCESS_PASSWORD <url>/api/config/keys   # 200
+curl -s <url>/api/health
+# {"status":"ok","db":"ok","worker":"running","chain":"ready","chain_id":31337}
 ```
 
-**If the middle one returns 200, stop — the gate is off.** Check `ACCESS_PASSWORD` is set as a
-secret and restart the Space.
+Remember that every route is reachable by anyone who has the URL, including `POST /api/goals` and
+`PUT /api/config/keys`.
 
-Then open the URL in a browser: it prompts for credentials (any username, the password), and
+Then open the URL in a browser, and
 `/app/economy` should already show 3 proofs and a populated leaderboard.
 
 ### 6. Share

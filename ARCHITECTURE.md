@@ -213,12 +213,25 @@ flowchart LR
 
 ## Agent Registry
 
-| Agent | Model | Tools | Output |
+All four default to `groq/llama-3.3-70b-versatile`. Per-role overrides live in `model_config.json`
+and are read live on every call through `get_agent_config(name)`. **Bold** output keys are in
+`output_schema["required"]`: `agent_runner` rejects a `submit_result` without them and re-prompts,
+and that rejection consumes an iteration.
+
+| Agent | Iters | Tools | Output |
 |-------|-------|-------|--------|
-| **researcher** | `groq/meta-llama/llama-4-maverick-17b-128e-instruct` | web_search, http_request, github_read_file, github_list_dir, github_get_issue, github_search_code, github_list_workflows, github_get_branch_protection, spawn_goal | `{summary, key_points, sources, code_context}` |
-| **writer** | `groq/llama-3.3-70b-versatile` | file_ops | `{text, title}` |
-| **coder** | `groq/llama-3.3-70b-versatile` | code_exec, file_ops, web_search, github_read_file | `{code, output, success}` |
-| **integrator** | `groq/llama-3.3-70b-versatile` | github_pr, github_post_comment, github_read_file, github_create_repo, github_list_workflows, github_get_branch_protection, github_set_branch_protection, http_request, wait_webhook, spawn_goal | `{action, result, url}` |
+| **researcher** | 15 | web_search, http_request, github_read_file, github_list_dir, github_get_issue, github_search_code, github_list_workflows, github_get_branch_protection, github_get_pr, github_get_pr_files, github_list_prs, spawn_goal | **summary**, **key_points**, **sources**, code_context |
+| **writer** | 4 | file_ops | **text**, **title** |
+| **coder** | 10 | code_exec, file_ops, web_search, github_read_file | **code**, **path**, **output**, **success** |
+| **integrator** | 8 | github_pr, github_post_comment, github_read_file, github_list_dir, github_create_repo, github_list_workflows, github_get_branch_protection, github_set_branch_protection, github_get_pr, github_get_pr_files, github_list_prs, github_merge_pr, github_review_pr, github_request_review, github_update_pr, github_create_issue, github_close_issue, github_add_labels, http_request, wait_webhook, spawn_goal | **action**, **result**, url |
+
+`coder.path` is the load-bearing one — it names the existing file the fix belongs in. Before it was
+required the filename died at the coder boundary and the integrator invented one: a real run shipped
+`calculator.py` next to the `calc.py` that had the bug, and the PR still opened green.
+
+The read/write split is deliberate — `researcher` reads GitHub, `integrator` writes to it.
+`github_get_pr_files` sits on the researcher because a PR review that has not read the diff is a
+review of the PR title.
 
 ---
 

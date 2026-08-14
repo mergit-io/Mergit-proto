@@ -48,31 +48,31 @@ Everything marked `sync: false` in `render.yaml` must be filled in the dashboard
 
 | Key | Value | Notes |
 |---|---|---|
-| `ACCESS_PASSWORD` | long random string | **Required before sharing the URL** |
 | `GROQ_API_KEY` | your key | Needed for goal execution |
+| `GITHUB_TOKEN` | a PAT | Needed by all 20 GitHub tools |
+| `GITHUB_DEFAULT_REPO` | `owner/repo` | Repo used when a tool call omits one |
 
 `SEED_DEMO=true` and `MAX_CONCURRENT_TASKS=3` are already set in `render.yaml`.
-Optional per feature: `ANTHROPIC_API_KEY`, `TAVILY_API_KEY`, `GITHUB_TOKEN`,
-`GITHUB_DEFAULT_REPO`, `SLACK_WEBHOOK_URL`.
+Optional per feature: `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY` (last-resort model fallback),
+`TAVILY_API_KEY` (without it `web_search` returns no results).
 
-### 4. Verify before sharing — the middle one must be 401
+### 4. Verify the deploy
 
 ```bash
-curl -o /dev/null -w "%{http_code}\n" https://<app>.onrender.com/api/health          # 200
-curl -o /dev/null -w "%{http_code}\n" https://<app>.onrender.com/api/config/keys     # 401
-curl -o /dev/null -w "%{http_code}\n" -u x:'<password>' \
-     https://<app>.onrender.com/api/config/keys                                       # 200
+curl -s https://<app>.onrender.com/api/health
+# {"status":"ok","db":"ok","worker":"running","chain":"ready","chain_id":31337}
 ```
-
-**If the middle command returns 200, stop and do not share the link** — `ACCESS_PASSWORD`
-didn't take. Check the env var and redeploy.
 
 In the deploy logs, look for `Mergit ready ✓` and `Chain: ... status=ready`. A line reading
 `"chain":"disabled"` means the contracts did not come up — the app serves happily either way,
 so the health check alone will not tell you.
 
-Then open the URL: the browser prompts for credentials (any username, your password), and
-`/app/economy` should already show 3 proofs.
+> ⚠️ **The deployed API is unauthenticated.** `POST /api/goals` is open and the coder agent's
+> `code_exec` runs unsandboxed Python in the same process that holds `GITHUB_TOKEN`. Anyone with the
+> URL can run code and read that token, so use a scoped token on a repo you don't mind, and treat the
+> URL as public.
+
+Then open the URL — `/app/economy` should already show 3 proofs.
 
 ### 5. Kill the cold start
 
