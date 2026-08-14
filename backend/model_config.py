@@ -12,25 +12,27 @@ logger = logging.getLogger(__name__)
 
 _CONFIG_FILE = Path(settings.runtime_config_dir) / "model_config.json"
 
+#: The models the picker offers. Every id here was set on a live deployment and sent a
+#: one-line goal; ids that answered `model_not_found` or "has been decommissioned" are
+#: not in this list. Seven Groq entries and two Anthropic entries were removed that way —
+#: eleven of the previous thirteen choices could not run, and `is_known_model` could not
+#: catch it because it validates against this list.
+#:
+#: A model being listed here does not mean this deployment can use it: that depends on
+#: whether the provider's API key is set, which `GET /api/config/models` reports
+#: per request via `llm.has_credentials`.
 AVAILABLE_MODELS = [
-    # Groq — Meta Llama 4
-    {"id": "groq/meta-llama/llama-4-maverick-17b-128e-instruct", "label": "Llama 4 Maverick 17B", "provider": "Groq", "tier": "fast"},
-    {"id": "groq/meta-llama/llama-4-scout-17b-16e-instruct",     "label": "Llama 4 Scout 17B",    "provider": "Groq", "tier": "instant"},
-    # Groq — Meta Llama 3.x
-    {"id": "groq/llama-3.3-70b-versatile",                       "label": "Llama 3.3 70B",        "provider": "Groq", "tier": "fast"},
-    {"id": "groq/llama-3.2-90b-vision-preview",                  "label": "Llama 3.2 90B Vision", "provider": "Groq", "tier": "fast"},
-    {"id": "groq/llama-3.2-11b-vision-preview",                  "label": "Llama 3.2 11B Vision", "provider": "Groq", "tier": "instant"},
-    # Groq — DeepSeek / Qwen
-    {"id": "groq/deepseek-r1-distill-llama-70b",                 "label": "DeepSeek R1 70B",      "provider": "Groq", "tier": "fast"},
-    {"id": "groq/qwen-qwq-32b",                                  "label": "Qwen QwQ 32B",         "provider": "Groq", "tier": "fast"},
-    {"id": "groq/gemma2-9b-it",                                  "label": "Gemma 2 9B",           "provider": "Groq", "tier": "instant"},
-    # Anthropic — Claude 4
-    {"id": "anthropic/claude-opus-4-7",                          "label": "Claude Opus 4.7",      "provider": "Anthropic", "tier": "powerful"},
-    {"id": "anthropic/claude-sonnet-4-6",                        "label": "Claude Sonnet 4.6",    "provider": "Anthropic", "tier": "powerful"},
-    {"id": "anthropic/claude-haiku-4-5-20251001",                "label": "Claude Haiku 4.5",     "provider": "Anthropic", "tier": "fast"},
-    # Anthropic — Claude 3.5
-    {"id": "anthropic/claude-3-5-sonnet-20241022",               "label": "Claude 3.5 Sonnet",    "provider": "Anthropic", "tier": "powerful"},
-    {"id": "anthropic/claude-3-5-haiku-20241022",                "label": "Claude 3.5 Haiku",     "provider": "Anthropic", "tier": "fast"},
+    # Groq — the only id on this account that serves traffic. The rest of the Groq
+    # catalogue was either never accessible (Llama 4) or has since been decommissioned
+    # (Qwen QwQ, DeepSeek R1 distill, Gemma 2, both Llama 3.2 vision previews).
+    {"id": "groq/llama-3.3-70b-versatile",   "label": "Llama 3.3 70B",     "provider": "Groq", "tier": "fast"},
+    # Anthropic — current generation.
+    {"id": "anthropic/claude-opus-5",        "label": "Claude Opus 5",     "provider": "Anthropic", "tier": "powerful"},
+    {"id": "anthropic/claude-sonnet-5",      "label": "Claude Sonnet 5",   "provider": "Anthropic", "tier": "balanced"},
+    {"id": "anthropic/claude-haiku-4-5",     "label": "Claude Haiku 4.5",  "provider": "Anthropic", "tier": "fast"},
+    # Anthropic — previous generation, still served.
+    {"id": "anthropic/claude-opus-4-7",      "label": "Claude Opus 4.7",   "provider": "Anthropic", "tier": "powerful"},
+    {"id": "anthropic/claude-sonnet-4-6",    "label": "Claude Sonnet 4.6", "provider": "Anthropic", "tier": "balanced"},
 ]
 
 DEFAULTS: dict[str, str] = {
@@ -51,8 +53,21 @@ def _load() -> dict[str, str]:
     if _CONFIG_FILE.exists():
         try:
             saved = json.loads(_CONFIG_FILE.read_text())
+            # Drop any saved id the catalogue no longer offers. A model that was
+            # selected before it was decommissioned would otherwise keep being sent to
+            # the provider, failing every goal with an error naming a model the picker
+            # no longer shows — invisible from the UI.
+            usable = {}
+            for role, model_id in saved.items():
+                if is_known_model(model_id):
+                    usable[role] = model_id
+                else:
+                    logger.warning(
+                        "Saved model %r for role %r is no longer offered — falling back "
+                        "to the default (%s)", model_id, role, DEFAULTS.get(role),
+                    )
             # Merge with defaults so new roles always have a value
-            _cache = {**DEFAULTS, **saved}
+            _cache = {**DEFAULTS, **usable}
             return _cache
         except Exception as e:
             logger.warning("model_config.json unreadable (%s) — using defaults", e)

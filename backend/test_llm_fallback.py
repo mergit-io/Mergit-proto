@@ -45,7 +45,10 @@ class Recorder:
 
 
 GROQ = "groq/llama-3.3-70b-versatile"
-CLAUDE = "anthropic/claude-haiku-4-5-20251001"
+#: Groq's configured fallback. The id changed once already — the catalogue carried the
+#: dated form (`claude-haiku-4-5-20251001`) alongside two Claude 3.5 ids the provider had
+#: since retired. `test_model_catalog.py` pins this list against `AVAILABLE_MODELS`.
+CLAUDE = "anthropic/claude-haiku-4-5"
 
 # Verbatim shapes of the two errors, as litellm raises them.
 GROQ_DAILY = Exception(

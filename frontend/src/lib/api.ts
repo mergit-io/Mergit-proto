@@ -68,6 +68,10 @@ export interface ModelOption {
   label: string;
   provider: string;
   tier: string;
+  /** Whether this deployment holds an API key for the model's provider. Computed by the
+   *  backend per request, so a key pasted moments ago is reflected without a reload. */
+  usable: boolean;
+  unusable_reason: string | null;
 }
 
 export interface ModelConfig {

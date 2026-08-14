@@ -4,7 +4,7 @@ import {
   Check, RotateCcw, Save, Cpu, FlaskConical, PenLine,
   Code2, Plug, Settings2, ChevronDown, AlertCircle,
   Layers, FileJson, Plus, X, Key, Eye, EyeOff, CheckCircle,
-  FolderGit2,
+  FolderGit2, AlertTriangle,
 } from "lucide-react";
 import { AppNav } from "../components/AppNav";
 import { AppBackground } from "../components/AppBackground";
@@ -598,10 +598,17 @@ export function Models() {
             </div>
             <div className="divide-y divide-white/4">
               {config.available.map((m) => (
-                <div key={m.id} className="flex items-center gap-3 px-6 py-3 hover:bg-white/2 transition-colors">
+                <div key={m.id} className={`flex items-center gap-3 px-6 py-3 hover:bg-white/2 transition-colors ${m.usable ? "" : "opacity-60"}`}>
                   <ProviderBadge modelId={m.id} />
                   <code className="text-xs text-white/80 font-mono flex-1">{m.id}</code>
-                  <span className="text-[11px] text-text-muted">{m.label}</span>
+                  {m.usable ? (
+                    <span className="text-[11px] text-text-muted">{m.label}</span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[11px] text-amber-400" title={m.unusable_reason ?? undefined}>
+                      <AlertTriangle className="w-3 h-3" />
+                      {m.unusable_reason}
+                    </span>
+                  )}
                   <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
                     m.tier === "powerful" ? "text-violet-400 bg-violet-400/8 border-violet-400/20" :
                     m.tier === "instant"  ? "text-emerald-400 bg-emerald-400/8 border-emerald-400/20" :
@@ -643,6 +650,9 @@ function ModelPicker({
   const knownOption = options.find((o) => o.id === value);
   const isCustom    = !knownOption;
   const provider    = detectProvider(value);
+  // A model the picker offers but this deployment holds no key for. Custom ids are not
+  // flagged — the backend cannot know what credentials an arbitrary provider needs.
+  const selectedUnusable = knownOption != null && !knownOption.usable;
 
   useEffect(() => {
     if (isCustom && !custom) setCustomVal(value);
@@ -683,8 +693,12 @@ function ModelPicker({
     <div className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 text-xs text-white transition-all min-w-[200px] group"
+        title={selectedUnusable ? knownOption?.unusable_reason ?? undefined : undefined}
+        className={`flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-xl bg-white/5 border text-xs text-white transition-all min-w-[200px] group ${
+          selectedUnusable ? "border-amber-500/40 hover:border-amber-500/60" : "border-white/10 hover:border-white/20"
+        }`}
       >
+        {selectedUnusable && <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0" />}
         <span className={`${provider.color} font-mono font-medium truncate max-w-[130px]`}>
           {knownOption ? knownOption.label : value}
         </span>
@@ -714,14 +728,19 @@ function ModelPicker({
                       <button
                         key={opt.id}
                         onClick={() => { onChange(opt.id); setOpen(false); }}
-                        className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/6 transition-colors text-left ${opt.id === value ? "bg-white/4" : ""}`}
+                        title={opt.unusable_reason ?? undefined}
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/6 transition-colors text-left ${opt.id === value ? "bg-white/4" : ""} ${opt.usable ? "" : "opacity-50"}`}
                       >
+                        {/* Marked, not blocked — an operator may pick the model first and
+                            paste the provider key second. */}
+                        {!opt.usable && <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0" />}
                         <span className={`font-medium font-mono ${detectProvider(opt.id).color} flex-1 truncate`}>{opt.label}</span>
                         <span className={`text-[10px] px-1 py-0.5 rounded border ${
+                          !opt.usable            ? "text-amber-400 border-amber-400/20 bg-amber-400/6" :
                           opt.tier === "powerful" ? "text-violet-400 border-violet-400/20 bg-violet-400/6" :
                           opt.tier === "instant"  ? "text-emerald-400 border-emerald-400/20 bg-emerald-400/6" :
                           "text-blue-400 border-blue-400/20 bg-blue-400/6"
-                        }`}>{opt.tier}</span>
+                        }`}>{opt.usable ? opt.tier : "no key"}</span>
                         {opt.id === value && <Check className="w-3 h-3 text-accent shrink-0" />}
                       </button>
                     ))}

@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Check, ChevronDown, FlaskConical, PenLine, Code2, Plug, Settings2 } from "lucide-react";
+import { X, Check, ChevronDown, FlaskConical, PenLine, Code2, Plug, Settings2, AlertTriangle } from "lucide-react";
 import { api } from "../lib/api";
-import type { ModelConfig } from "../lib/api";
+import type { ModelConfig, ModelOption } from "../lib/api";
 
 const ROLE_META: Record<string, { label: string; description: string; Icon: React.ComponentType<{ className?: string }> }> = {
   orchestrator: { label: "Orchestrator", description: "Plans the task DAG from your goal", Icon: Settings2 },
@@ -20,6 +20,7 @@ const PROVIDER_COLORS: Record<string, string> = {
 const TIER_LABELS: Record<string, string> = {
   fast:     "Fast",
   instant:  "Instant",
+  balanced: "Balanced",
   powerful: "Powerful",
 };
 
@@ -184,18 +185,28 @@ function ModelSelect({
   onChange,
 }: {
   value: string;
-  options: { id: string; label: string; provider: string; tier: string }[];
+  options: ModelOption[];
   onChange: (v: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const selected = options.find((o) => o.id === value);
+  // A selectable-but-unusable model is the failure this warning exists for: the picker
+  // used to render every option identically, so choosing a provider with no API key
+  // looked like a normal selection and then failed every goal.
+  const selectedUnusable = selected != null && !selected.usable;
 
   return (
     <div className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 pl-2.5 pr-2 py-1.5 rounded-lg bg-white/6 border border-white/10 hover:border-white/20 text-xs text-white transition-all min-w-[140px]"
+        title={selectedUnusable ? selected?.unusable_reason ?? undefined : undefined}
+        className={`flex items-center gap-1.5 pl-2.5 pr-2 py-1.5 rounded-lg bg-white/6 border text-xs text-white transition-all min-w-[140px] ${
+          selectedUnusable
+            ? "border-amber-500/40 hover:border-amber-500/60"
+            : "border-white/10 hover:border-white/20"
+        }`}
       >
+        {selectedUnusable && <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0" />}
         <span className={`${PROVIDER_COLORS[selected?.provider ?? ""] ?? "text-white"} font-medium truncate`}>
           {selected?.label ?? value}
         </span>
@@ -218,14 +229,20 @@ function ModelSelect({
                 <button
                   key={opt.id}
                   onClick={() => { onChange(opt.id); setOpen(false); }}
+                  title={opt.unusable_reason ?? undefined}
                   className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/6 transition-colors text-left ${
                     opt.id === value ? "bg-white/4" : ""
-                  }`}
+                  } ${opt.usable ? "" : "opacity-50"}`}
                 >
+                  {/* Still selectable — an operator may pick the model first and paste
+                      the key second. It is marked, not blocked. */}
+                  {!opt.usable && <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0" />}
                   <span className={`font-medium ${PROVIDER_COLORS[opt.provider] ?? "text-white"}`}>
                     {opt.label}
                   </span>
-                  <span className="text-text-muted ml-auto">{opt.provider}</span>
+                  <span className="text-text-muted ml-auto truncate">
+                    {opt.usable ? opt.provider : "No API key"}
+                  </span>
                   {opt.id === value && <Check className="w-3 h-3 text-accent shrink-0" />}
                 </button>
               ))}

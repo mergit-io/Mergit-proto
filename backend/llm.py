@@ -24,56 +24,36 @@ litellm.drop_params = True  # ignore unsupported params per provider
 
 # Fallback chain: when a model hits a hard rate limit (TPD / daily quota),
 # try these alternatives in order before giving up.
+#
+# Every id here must also appear in `model_config.AVAILABLE_MODELS`. These are two
+# independent lists and they drifted: the catalogue kept offering decommissioned Groq
+# models long after they stopped serving, and these chains kept pointing at them. A
+# fallback that can never succeed is a wasted attempt whose error the operator then has
+# to read past. `test_model_catalog.py` fails if the two lists separate again.
 _FALLBACKS: dict[str, list[str]] = {
-    # Groq Llama 4
-    "groq/meta-llama/llama-4-maverick-17b-128e-instruct": [
-        "groq/llama-3.3-70b-versatile",
-        "anthropic/claude-haiku-4-5-20251001",
-    ],
-    "groq/meta-llama/llama-4-scout-17b-16e-instruct": [
-        "groq/llama-3.3-70b-versatile",
-        "anthropic/claude-haiku-4-5-20251001",
-    ],
-    # Groq Llama 3.x
+    # Groq
     "groq/llama-3.3-70b-versatile": [
-        "anthropic/claude-haiku-4-5-20251001",
+        "anthropic/claude-haiku-4-5",
     ],
-    "groq/llama-3.2-90b-vision-preview": [
+    # Anthropic — current generation
+    "anthropic/claude-opus-5": [
+        "anthropic/claude-sonnet-5",
+        "anthropic/claude-haiku-4-5",
+    ],
+    "anthropic/claude-sonnet-5": [
+        "anthropic/claude-haiku-4-5",
         "groq/llama-3.3-70b-versatile",
     ],
-    "groq/llama-3.2-11b-vision-preview": [
-        "groq/llama-3.2-90b-vision-preview",
+    "anthropic/claude-haiku-4-5": [
         "groq/llama-3.3-70b-versatile",
     ],
-    # Groq specialised
-    "groq/deepseek-r1-distill-llama-70b": [
-        "groq/llama-3.3-70b-versatile",
-        "anthropic/claude-haiku-4-5-20251001",
-    ],
-    "groq/qwen-qwq-32b": [
-        "groq/llama-3.3-70b-versatile",
-    ],
-    "groq/gemma2-9b-it": [
-        "groq/llama-3.3-70b-versatile",
-    ],
-    # Anthropic
+    # Anthropic — previous generation
     "anthropic/claude-opus-4-7": [
         "anthropic/claude-sonnet-4-6",
-        "anthropic/claude-haiku-4-5-20251001",
+        "anthropic/claude-haiku-4-5",
     ],
     "anthropic/claude-sonnet-4-6": [
-        "anthropic/claude-haiku-4-5-20251001",
-        "groq/llama-3.3-70b-versatile",
-    ],
-    "anthropic/claude-haiku-4-5-20251001": [
-        "groq/llama-3.3-70b-versatile",
-    ],
-    "anthropic/claude-3-5-sonnet-20241022": [
-        "anthropic/claude-sonnet-4-6",
-        "anthropic/claude-haiku-4-5-20251001",
-    ],
-    "anthropic/claude-3-5-haiku-20241022": [
-        "anthropic/claude-haiku-4-5-20251001",
+        "anthropic/claude-haiku-4-5",
         "groq/llama-3.3-70b-versatile",
     ],
 }
