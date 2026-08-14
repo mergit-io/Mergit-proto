@@ -73,6 +73,31 @@ def test_the_decision_guide_only_recommends_agents_that_exist():
         )
 
 
+def test_the_prompt_says_a_tree_url_segment_is_a_branch_not_a_directory():
+    """The `main/mergesort.py` failure.
+
+    Goal text: "https://github.com/OfficialAbhinavSingh/mergit-e2e-sandbox/tree/main this
+    repo has a mergesort file check if the code is correct if not fix it raise a pr".
+    The orchestrator read `main` — the branch — as a folder and wrote
+    `file_path: "main/mergesort.py"` into task 1. The researcher reported "The directory
+    main was not found in the repository", and every agent after it produced nothing.
+    """
+    prompt = orchestrator.SYSTEM_PROMPT.lower()
+    assert "/tree/" in prompt and "/blob/" in prompt, (
+        "the prompt never tells the planner how to read a GitHub tree/blob URL"
+    )
+    assert "branch" in prompt and "not a" in prompt, (
+        "the prompt does not say the segment after /tree/ is a branch rather than a directory"
+    )
+
+
+def test_the_prompt_forbids_inventing_a_file_path():
+    """A guessed path is worse than no path: with none, the researcher enumerates the
+    repo; with a wrong one, every downstream agent aims at a file that does not exist."""
+    prompt = orchestrator.SYSTEM_PROMPT.lower()
+    assert "never invent a file path" in prompt
+
+
 def test_the_prompt_never_promises_a_tool_that_is_not_registered():
     """A prompt naming a deleted tool teaches the model to call something that 404s."""
     from tools import TOOL_REGISTRY

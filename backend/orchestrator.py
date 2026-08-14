@@ -109,6 +109,18 @@ Rules:
    - web researcher: inputs must include "search_query".
    - writer: inputs must reference prior task output e.g. {{"data": "{{{{t1.output}}}}"}}.
    - A task with empty inputs {{{{}}}} has no information to act on and will fail.
+9b. NEVER INVENT A FILE PATH. Only write a "file_path"/"file_to_fix" you were literally
+   given in the goal text. If the goal names no file, OMIT the key and tell the researcher
+   to find it — that is what github_list_dir is for. A path you guessed sends every later
+   agent at a file that does not exist.
+   READING A GITHUB URL — the segment after /tree/ or /blob/ is a BRANCH NAME, not a folder:
+     https://github.com/owner/repo/tree/main            -> repo "owner/repo". NO path. There
+                                                           is no directory called "main".
+     https://github.com/owner/repo/blob/main/src/app.py -> repo "owner/repo", file "src/app.py"
+                                                           — strip BOTH "blob" and the branch.
+   A goal saying "this repo has a mergesort file, fix it" gives you a repo and no path.
+   Writing "main/mergesort.py" invents a directory from the branch name; the researcher then
+   reports the file is missing and everything downstream produces nothing.
 10. FOR GITHUB AUTOMATION GOALS: When the goal mentions fixing an issue or reviewing a PR:
     - t1: researcher — reads repo structure, issue details, relevant files
     - t2: coder — writes the fix using the code context from t1, and reports `path`,
