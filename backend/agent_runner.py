@@ -129,6 +129,9 @@ def _self_reported_failure(result: dict, schema_required: list[str]) -> str | No
     researcher's `code_context` may still be empty, and only `success` is read for its
     truth value — no other field's meaning is assumed.
     """
+    if not isinstance(result, dict):
+        return (f"the result must be a JSON object with the keys {schema_required}, "
+                f"but you sent a bare {type(result).__name__}.")
     if result.get("success") is False:
         return "you set success=False."
     empty = [
@@ -309,9 +312,20 @@ async def run(
                 result = args.get("result", args)
                 # Validate required keys for agents that have strict output schemas
                 schema_required = config.get("output_schema", {}).get("required", [])
-                missing = [k for k in schema_required if k not in result]
                 feedback = None
-                if missing:
+                # A bare string here used to reach `k not in result`, which silently became
+                # a SUBSTRING test, and then `result.keys()` — crashing the task with
+                # "'str' object has no attribute 'keys'" instead of re-prompting. Settle the
+                # shape once, before anything reads it as a mapping.
+                if schema_required and not isinstance(result, dict):
+                    feedback = (
+                        f"submit_result rejected — the result must be a JSON object with the "
+                        f"keys {schema_required}, but you sent a bare "
+                        f"{type(result).__name__}. Call submit_result again, passing an object."
+                    )
+                    logger.warning("[task=%s agent=%s] submit_result was a %s, not an object — rejecting",
+                                   task.id, task.agent_name, type(result).__name__)
+                elif (missing := [k for k in schema_required if k not in result]):
                     feedback = (
                         f"submit_result rejected — missing required keys: {missing}. "
                         f"Your result had keys: {list(result.keys())}. "
