@@ -1,13 +1,14 @@
 import asyncio
 import json
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from sse_starlette.sse import EventSourceResponse
 
 import db
 import economy
 import events
 from chain.client import get_client
+from config import settings
 
 router = APIRouter(prefix="/api/economy", tags=["economy"])
 
@@ -104,7 +105,12 @@ async def leaderboard():
 
 
 @router.get("/proofs")
-async def proofs(limit: int = 50, before: int | None = None):
+async def proofs(
+    # Bounded: this reaches `LIMIT ?` directly, and SQLite treats a negative limit as
+    # unbounded — ?limit=-1 dumped the entire proof ledger.
+    limit: int = Query(50, ge=1, le=settings.max_page_size),
+    before: int | None = Query(None, ge=0),
+):
     return await db.list_proofs(limit=limit, before_block=before)
 
 

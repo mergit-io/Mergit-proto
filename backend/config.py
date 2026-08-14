@@ -62,6 +62,12 @@ class Settings(BaseSettings):
     chain_private_key: str = ""
     chain_submit_interval_seconds: float = 2.0
 
+    # API limits. Both endpoints below are unauthenticated, so these bound abuse rather
+    # than real use: the orchestrator is expected to cope with long problem statements
+    # (it truncates to 3000 chars for planning), and no UI asks for more than a page.
+    max_goal_chars: int = 20_000
+    max_page_size: int = 200
+
     # Worker
     max_concurrent_tasks: int = 5
     lease_seconds: int = 300
