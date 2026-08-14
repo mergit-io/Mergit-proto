@@ -128,6 +128,14 @@ async def _execute_task(task: Any) -> None:
 
     try:
         output = await agent_run(task, resolved, emit=emit)
+        # An agent that returns normally has not necessarily succeeded. The integrator
+        # reports `result`, the coder reports `success` — both required by their output
+        # schemas — and settling on control flow alone ignored them: a PR that could not
+        # be created came back as `result: "failed"`, the task was marked DONE, the goal
+        # COMPLETED, and a proof was minted for work that never happened.
+        declared = _declared_failure(output)
+        if declared:
+            raise AgentDeclaredFailure(declared)
         await db.settle_task(task.id, TaskStatus.DONE, output=output)
         events.emit(goal_id, "task_done", {"task_id": task.id, "output": output})
         logger.info("Task %s DONE (goal=%s)", task.id, goal_id)
@@ -173,6 +181,48 @@ async def _execute_task(task: Any) -> None:
             await db.settle_task(task.id, TaskStatus.READY, error=str(e))
             events.emit(goal_id, "task_update", {"task_id": task.id, "status": TaskStatus.READY,
                                                   "retry_reason": str(e)[:200]})
+
+
+class AgentDeclaredFailure(Exception):
+    """An agent returned normally but its output says the work did not succeed.
+
+    Raised so a self-reported failure takes the same path as a raised one — retry,
+    replan, then goal failure — rather than being recorded as a completed task.
+    """
+
+
+#: Values of a string `result` field that mean the action did not happen.
+_FAILURE_RESULTS = {"failed", "failure", "error"}
+
+
+def _declared_failure(output: Any) -> str | None:
+    """Return why `output` declares failure, or None if it does not.
+
+    Deliberately narrow. A false positive fails a goal that actually worked, so nothing
+    short of an explicit declaration counts: a researcher whose prose happens to mention
+    an error, or an `error` key that is null or empty, must pass through untouched.
+    """
+    if not isinstance(output, dict):
+        return None
+
+    # An explicit success outranks everything else — a coder may attach a warning to an
+    # `error` field while still having produced working code.
+    if output.get("success") is True:
+        return None
+    if output.get("success") is False:
+        detail = output.get("error") or output.get("output") or ""
+        return f"agent reported success=false: {str(detail)[:300]}" if detail else "agent reported success=false"
+
+    result = output.get("result")
+    if isinstance(result, str) and result.strip().lower() in _FAILURE_RESULTS:
+        detail = output.get("error") or output.get("details") or ""
+        return f"agent reported result={result.strip()!r}: {str(detail)[:300]}" if detail else f"agent reported result={result.strip()!r}"
+
+    error = output.get("error")
+    if isinstance(error, str) and error.strip():
+        return f"agent reported an error: {error.strip()[:300]}"
+
+    return None
 
 
 async def _requeue_task_later(task_id: str, goal_id: str, delay: int) -> None:
