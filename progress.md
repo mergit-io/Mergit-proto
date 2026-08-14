@@ -1052,3 +1052,42 @@ reviewer that never read a diff. Re-run after the fix: plan `integrator → inte
 (`mergeable: false`), t2 returned `merged: false, reason: "the branch has merge conflicts with the
 base"`, and GitHub confirms PR #3 is still open and unmerged. The agent attempted a real merge, was
 refused, and reported the refusal instead of claiming success. 220 tests passing.
+
+---
+
+## 2026-08-14 — CLAUDE.md audited against the tree: how to run tests, and four stale claims
+
+`CLAUDE.md` had no test commands at all. Anyone following it could develop the backend without
+ever learning that 364 tests exist, how to run one, or that `pytest-asyncio` is absent — so a new
+`async def test_x` written the obvious way is collected, skipped and reported as passing. The
+Commands section now carries the whole-suite, single-file, single-test and `-k` invocations, the
+frontend `lint`/`build` (the latter being the only type check there is), `scripts/test-local.sh`,
+the `MERGIT_BASE_URL` gate on `test_live_deployment.py`, and a note that `backend/jsonstats.py` is
+agent output rather than app code.
+
+Four claims in the architecture summary had drifted from the code:
+
+- **"40 predefined models across Groq, Anthropic, OpenAI, Google, Mistral"** — `AVAILABLE_MODELS`
+  holds 15 ids across Groq, Anthropic and OpenRouter. Worse, the doc said "any LiteLLM-compatible
+  string also accepted"; `model_config.update()` rejects anything not in the list, and has since
+  the unauthenticated `PUT /api/config/models` made a bad id a way to break every goal at once.
+- **"sets env vars for all 5 providers"** — `llm.py` sets three (Anthropic, Groq, OpenRouter), and
+  the `GOOGLE_API_KEY → GEMINI_API_KEY` bridge the doc described no longer exists. The OpenRouter
+  last-resort tier appended to every fallback chain was undocumented entirely.
+- **"reads/writes provider API keys (Groq, Anthropic, OpenAI, Google, Mistral, Tavily)"** —
+  `PROVIDER_KEYS` is groq / anthropic / openrouter / tavily / github, and saving one resumes tasks
+  parked in `WAITING_CREDENTIAL`, which was the part worth documenting and the part missing.
+- **"a visually-simulated Monad chain"** — left over from before the real EVM landed. "Simulated"
+  here means the chain runs in-process, not that the transactions are fake.
+
+Newly documented because nothing in the summary mentioned them: `replanner.py` (a goal gets one
+alternative plan when a task exhausts its attempts), `model_health.py` (cooldowns, and the
+least-cold pick that keeps a fully-throttled chain moving), `context.py` (operator context injected
+into both orchestrator and agent prompts), the `RUNTIME_CONFIG_DIR` indirection all three
+config files resolve through and read at import time, the `WAITING_CREDENTIAL` sentinel protocol,
+and the API routes in `api/tasks.py`, `api/actions.py`, `api/context.py` and `api/auth.py`.
+
+Not fixed, only flagged: `backend/.env.example` still lists `OPENAI_API_KEY`, `GOOGLE_API_KEY` and
+`MISTRAL_API_KEY`, which no model uses, and omits `OPENROUTER_API_KEY`, which every fallback chain
+now ends in — so a deployment set up from the example has no cross-provider escape when a daily
+quota runs out.
