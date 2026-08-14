@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     # LLM
     anthropic_api_key: str = ""
     groq_api_key: str = ""
+    # One key, many providers — the fallback of last resort when a first-party
+    # quota is gone. See _FALLBACKS in llm.py.
+    openrouter_api_key: str = ""
 
     # Tools
     tavily_api_key: str = ""
