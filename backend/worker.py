@@ -100,6 +100,33 @@ async def _execute_with_semaphore(semaphore: asyncio.Semaphore, task: Any) -> No
         await _execute_task(task)
 
 
+# Any input name a plan might already be using for the file under repair. If one is
+# present the plan said where the fix goes, and nothing here second-guesses it.
+_PATH_INPUT_KEYS = ("file_path", "path", "target_file", "file_to_fix")
+
+
+def _inherit_target_path(resolved: dict, task: Any, task_outputs: dict[str, Any]) -> dict:
+    """Carry an upstream `path` into an integrator that was not handed one.
+
+    The integrator commits to whatever path it is given; a path it had to guess opens a
+    PR that adds a file beside the bug and leaves the bug in place — and still reports
+    success. The coder knows the real filename, but the plan that carries it from one to
+    the other is written by a model, so relying on the plan makes a correct fix a matter
+    of prompt compliance. This closes it in code, on every model.
+    """
+    if task.agent_name != "integrator":
+        return resolved
+    if any(key in resolved for key in _PATH_INPUT_KEYS):
+        return resolved
+    for dep_id in (task.depends_on or []):
+        upstream = task_outputs.get(dep_id)
+        path = upstream.get("path") if isinstance(upstream, dict) else None
+        if isinstance(path, str) and path.strip():
+            logger.info("Task %s: carried target path %r forward from %s", task.id, path, dep_id)
+            return {**resolved, "file_path": path}
+    return resolved
+
+
 async def _execute_task(task: Any) -> None:
     goal_id = task.goal_id
 
@@ -117,7 +144,9 @@ async def _execute_task(task: Any) -> None:
             for t in done_tasks
             if t.status == TaskStatus.DONE and t.output is not None
         }
-        resolved = resolve_inputs(task.inputs, task_outputs)
+        resolved = _inherit_target_path(
+            resolve_inputs(task.inputs, task_outputs), task, task_outputs
+        )
     except KeyError as e:
         error_msg = f"Interpolation error: {e}"
         logger.error("Interpolation failed for task %s: %s", task.id, e)

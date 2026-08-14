@@ -11,6 +11,7 @@ import hmac
 import importlib
 import json
 import os
+import re
 import tempfile
 import types
 
@@ -77,6 +78,25 @@ def _msg(tool_calls=None, content=""):
     )
 
 
+_PY_PATH_RE = re.compile(r"\b[\w./-]+\.py\b")
+
+
+def visible_path(messages: list[dict]) -> str | None:
+    """The first repo path the agent can actually SEE — in its resolved inputs or in a
+    tool result it got back. Its own system prompt is excluded on purpose: the examples
+    in there ("main.py") are not evidence about this repository.
+
+    A scripted agent that reaches past this function is testing the fixture, not the code.
+    """
+    for message in messages:
+        if message.get("role") == "system":
+            continue
+        found = _PY_PATH_RE.search(str(message.get("content") or ""))
+        if found:
+            return found.group(0)
+    return None
+
+
 def role_from_tools(tool_names: set[str]) -> str | None:
     from agent_registry import AGENT_REGISTRY
 
@@ -92,6 +112,7 @@ class ScriptedLLM:
     def __init__(self):
         self.calls = []
         self.tool_calls_made = []
+        self.listed = False
 
     async def __call__(self, model, messages, tools=None, tool_choice=None, **kwargs):
         names = {t["function"]["name"] for t in (tools or [])}
@@ -120,18 +141,28 @@ class ScriptedLLM:
                 return _msg([("code_exec", {"code": "print('tests pass')"})])
             return _msg([("submit_result", {"result": {
                 "code": "if token is None:\n    return None\n",
+                "path": "auth.py",
                 "output": "tests pass",
                 "success": True,
                 "files": [{"path": "auth.py", "content": "if token is None: return None\n"}],
             }})])
 
         if role == "integrator":
+            # The integrator may only use a path it can actually see: one handed to it in
+            # its inputs, or one it read back from a tool. With neither it has to guess —
+            # which is how a real run shipped a brand-new calculator.py next to the calc.py
+            # that had the bug. Do NOT hardcode "auth.py" here; that hid this bug once.
             if not already:
+                seen = visible_path(messages)
+                if seen is None and "github_list_dir" in names and not self.listed:
+                    self.listed = True  # one look; a repo with no .py must not spin
+                    return _msg([("github_list_dir", {"repo": REPO, "path": ""})])
                 self.tool_calls_made.append((role, "github_pr"))
+                path = seen or "calculator.py"
                 return _msg([("github_pr", {
                     "repo": REPO, "title": "Fix null token refresh",
                     "body": "Fixes #42", "branch": "fix/issue-42",
-                    "files": [{"path": "auth.py", "content": "if token is None: return None\n"}],
+                    "files": [{"path": path, "content": "if token is None: return None\n"}],
                 })])
             return _msg([("submit_result", {"result": {
                 "action": "pull_request_opened",
@@ -331,7 +362,98 @@ def test_real_github_operations_are_invoked(stack):
 
     pr_call = next(c for c in stack.github_calls if c["tool"] == "github_pr")
     assert pr_call["args"]["repo"] == REPO
-    assert pr_call["args"]["files"][0]["path"] == "auth.py"
+    assert pr_call["args"]["files"][0]["path"] == "auth.py", (
+        "the PR edited a file nobody read — a fix committed to the wrong path is a new "
+        "file sitting next to the bug, not a fix"
+    )
+
+
+# ── Fixing the file that actually has the bug ───────────────────────────────────
+
+def test_the_coder_reports_which_file_its_fix_belongs_in():
+    """The coder is the only agent that both reads the buggy file and writes the fix.
+    If its output carries no path, the filename dies at that boundary and whoever opens
+    the PR has to invent one."""
+    from agent_registry import AGENT_REGISTRY
+
+    schema = AGENT_REGISTRY["coder"]["output_schema"]
+    assert "path" in schema["properties"], "the coder cannot report a target file"
+    assert "path" in schema["required"], (
+        "an optional path is a path the model will omit — agent_runner only rejects a "
+        "submit_result for keys listed in `required`"
+    )
+
+
+def test_the_integrator_can_find_out_what_is_in_the_repo():
+    """github_read_file needs a path you already know. Without a way to enumerate, an
+    integrator handed code and no filename has no move except guessing."""
+    from agent_registry import AGENT_REGISTRY
+
+    assert "github_list_dir" in AGENT_REGISTRY["integrator"]["allowed_tools"]
+
+
+def test_the_target_path_reaches_the_integrator_without_the_plan_carrying_it(stack):
+    """FIX_PLAN hands the integrator `{{t2.output.code}}` and nothing else — the exact
+    shape the orchestrator produced when it shipped calculator.py beside the bug.
+
+    The plan is written by a model, so the prompt telling it to pass "file_path" is a
+    request, not a guarantee. The worker carries the coder's path forward itself, which
+    is what makes the outcome the same on every model.
+    """
+    asyncio.run(_run_goal(stack, _post(stack, ISSUE_PAYLOAD, "issues").json()["goal_id"]))
+
+    integrator_prompt = next(
+        c["messages"][1]["content"] for c in stack.llm.calls
+        if role_from_tools(c["tools"]) == "integrator"
+    )
+    assert "auth.py" in integrator_prompt, (
+        "the integrator was handed a fix with no filename — it can only guess from here"
+    )
+
+    pr_call = next(c for c in stack.github_calls if c["tool"] == "github_pr")
+    assert [f["path"] for f in pr_call["args"]["files"]] == ["auth.py"]
+
+
+def test_a_path_the_plan_supplies_is_never_overwritten():
+    """The carry-forward fills a gap; it does not overrule a plan that said where to go."""
+    import worker
+
+    task = types.SimpleNamespace(id="g_t3", agent_name="integrator", depends_on=["g_t2"])
+    outputs = {"g_t2": {"code": "...", "path": "src/auth.py"}}
+
+    assert worker._inherit_target_path({}, task, outputs)["file_path"] == "src/auth.py"
+
+    explicit = {"file_path": "src/chosen.py"}
+    assert worker._inherit_target_path(explicit, task, outputs) == explicit
+    for alias in ("path", "target_file", "file_to_fix"):
+        assert worker._inherit_target_path({alias: "x.py"}, task, outputs) == {alias: "x.py"}
+
+
+def test_only_the_integrator_inherits_a_path_and_only_a_usable_one():
+    import worker
+
+    outputs = {"g_t2": {"code": "...", "path": "src/auth.py"}}
+    coder = types.SimpleNamespace(id="g_t3", agent_name="coder", depends_on=["g_t2"])
+    assert worker._inherit_target_path({}, coder, outputs) == {}
+
+    integrator = types.SimpleNamespace(id="g_t3", agent_name="integrator", depends_on=["g_t2"])
+    for junk in ({"code": "..."}, {"path": "   "}, {"path": None}, "not-a-dict"):
+        assert worker._inherit_target_path({}, integrator, {"g_t2": junk}) == {}
+    assert worker._inherit_target_path({}, integrator, {}) == {}
+
+
+def test_the_integrator_can_still_discover_a_path_nobody_handed_it(stack):
+    """The backstop for a plan with no coder in it at all: enumerate rather than guess."""
+    from agent_registry import AGENT_REGISTRY
+
+    messages = [{"role": "system", "content": "…example uses main.py…"},
+                {"role": "user", "content": 'Task: open a PR\n\nInputs:\n{"repo": "o/r"}'}]
+    names = set(AGENT_REGISTRY["integrator"]["allowed_tools"]) | {"submit_result"}
+
+    assert visible_path(messages) is None, "nothing in context names a file"
+    assert "github_list_dir" in names, (
+        "with no path in context and no way to list the repo, the only move left is a guess"
+    )
 
 
 def test_coder_receives_the_researchers_findings(stack):

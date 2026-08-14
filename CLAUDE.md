@@ -59,7 +59,7 @@ Mergit is a generic multi-agent autonomy system: a user submits any natural lang
 
 **Agent runner** (`agent_runner.py`): Generic LLM tool-call loop. Reads agent config via `get_agent_config(name)` (reads live model from `model_config` on every call), calls `acompletion()` in a loop until the agent calls `submit_result`. Idempotency: each tool invocation is hashed and cached in `tool_calls` table — re-runs return the stored result without re-firing. Includes: exponential backoff for rate limits, retry-hint injection for Groq `tool_use_failed` errors, `consecutive_errors` counter that forces a "use your knowledge and submit NOW" message after 3 consecutive tool failures, and an early-warning nudge at `max_iter - 3`.
 
-**Agents** (`agent_registry.py`): `researcher` (web_search, http_request, **github_read_file, github_list_dir, github_get_issue, github_search_code, github_get_pr, github_get_pr_files, github_list_prs**, github_list_workflows, github_get_branch_protection, spawn_goal), `writer` (file_ops), `coder` (code_exec, file_ops, web_search, **github_read_file**), `integrator` (every GitHub **write** tool — see the GitHub tools table below — plus http_request, wait_webhook, spawn_goal). All go through the same `agent_runner.run()`. Use `get_agent_config(name)` — not `AGENT_REGISTRY[name]` directly — to get the live model setting.
+**Agents** (`agent_registry.py`): `researcher` (web_search, http_request, **github_read_file, github_list_dir, github_get_issue, github_search_code, github_get_pr, github_get_pr_files, github_list_prs**, github_list_workflows, github_get_branch_protection, spawn_goal), `writer` (file_ops), `coder` (code_exec, file_ops, web_search, **github_read_file**), `integrator` (every GitHub **write** tool — see the GitHub tools table below — plus **github_read_file, github_list_dir** for confirming which file it is about to change, http_request, wait_webhook, spawn_goal). All go through the same `agent_runner.run()`. Use `get_agent_config(name)` — not `AGENT_REGISTRY[name]` directly — to get the live model setting.
 
 The split is deliberate: `researcher` reads GitHub, `integrator` writes to it. `github_get_pr_files` sits on the researcher because a PR review that has not read the diff is a review of the PR title.
 
@@ -78,7 +78,7 @@ The split is deliberate: `researcher` reads GitHub, `integrator` writes to it. `
 | `github_get_pr` | PR state, `mergeable_state`, check runs, review verdicts | researcher, integrator |
 | `github_get_pr_files` | **the unified diff** — budgeted to 12k chars / 60 files, reports what it truncated | researcher, integrator |
 | `github_list_prs` | list PRs | researcher, integrator |
-| `github_pr` | commit files to a branch and open a PR (forks when it lacks push access) | integrator |
+| `github_pr` | commit files to a branch and open a PR (forks when it lacks push access); reports `files_created` vs `files_modified` | integrator |
 | `github_merge_pr` | **guarded merge** — see below | integrator |
 | `github_review_pr` | formal APPROVE / REQUEST_CHANGES / COMMENT review | integrator |
 | `github_request_review` / `github_update_pr` | request reviewers; edit title/body/base/draft/state | integrator |
@@ -239,8 +239,23 @@ Model selection is managed at runtime via `backend/model_config.json` (created a
 
 Standard 3-agent pipeline for issue fixing:
 1. **researcher**: `github_list_dir` + `github_read_file` + `github_get_issue` to understand the codebase and bug
-2. **coder**: writes the fix using `code_context` from researcher, runs tests via `code_exec`
+2. **coder**: writes the fix using `code_context` from researcher, runs tests via `code_exec`, and reports
+   **`path`** — the existing file the fix belongs in (a required output key)
 3. **integrator**: `github_pr` (creates PR with fixed files) + `github_post_comment` (posts PR link on original issue)
+
+### Which file the fix lands in
+
+`github_pr` commits whatever path it is handed. A path that does not exist becomes a *new file*
+next to the bug, and the PR still opens and still reports `ok: true` — a green run that fixed
+nothing. A real run shipped `calculator.py` beside the `calc.py` that had the bug this way.
+
+The filename therefore has to survive every hop, and is defended three times:
+1. **Carried** — `coder.output_schema` requires `path`; `agent_runner` rejects a `submit_result`
+   without it. The orchestrator threads it on as the integrator's `file_path` input.
+2. **Recoverable** — the integrator holds `github_list_dir`, so an integrator handed code and no
+   filename can enumerate the repo instead of guessing. Its prompt forbids inventing one.
+3. **Visible** — `github_pr` returns `files_created` and `files_modified`. A fix meant for an
+   existing file showing up under `files_created` is the failure, stated in the tool result.
 
 PR review: **researcher** (`github_get_pr_files` — the real diff) → **writer** (the review text) →
 **integrator** (`github_review_pr` submits it as a review, not a bare comment).

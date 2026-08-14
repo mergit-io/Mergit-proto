@@ -101,7 +101,10 @@ Rules:
    - GitHub tasks: inputs must include "repo" (owner/repo format) and relevant issue/PR numbers.
    - researcher reading GitHub: inputs must include {{"repo": "owner/repo", "issue_number": N, "task": "read the repo structure and find files related to the issue"}}.
    - coder fixing a bug: inputs must include {{"code_context": "{{{{t1.output.code_context}}}}", "issue_summary": "{{{{t1.output.summary}}}}", "repo": "owner/repo", "file_to_fix": "path/to/file.py"}}.
-   - integrator creating PR: inputs must include {{"repo": "owner/repo", "issue_number": N, "fixed_code": "{{{{t2.output.code}}}}"}}.
+   - integrator creating PR: inputs must include {{"repo": "owner/repo", "issue_number": N, "fixed_code": "{{{{t2.output.code}}}}", "file_path": "{{{{t2.output.path}}}}"}}.
+     "file_path" is NOT optional. Code without the file it belongs in makes the integrator
+     guess a filename, and a guessed filename opens a PR that adds a new file beside the
+     bug instead of fixing it.
    - integrator merging a PR: inputs must include {{"repo": "owner/repo", "pr_number": N}}.
    - researcher reading a PR: inputs must include {{"repo": "owner/repo", "pr_number": N, "task": "read the full diff of the pull request"}}.
    - web researcher: inputs must include "search_query".
@@ -109,8 +112,10 @@ Rules:
    - A task with empty inputs {{{{}}}} has no information to act on and will fail.
 10. FOR GITHUB AUTOMATION GOALS: When the goal mentions fixing an issue or reviewing a PR:
     - t1: researcher — reads repo structure, issue details, relevant files
-    - t2: coder — writes the fix using the code context from t1
-    - t3: integrator — creates PR with the fix AND posts a comment on the original issue/PR
+    - t2: coder — writes the fix using the code context from t1, and reports `path`,
+      the existing file the fix belongs in
+    - t3: integrator — creates PR with the fix AND posts a comment on the original issue/PR.
+      Thread t2's path through as "file_path" so the PR edits that file rather than a new one.
     This 3-task pattern is the correct approach. The integrator is the terminal task for GitHub automation.
 """
 
@@ -173,6 +178,7 @@ async def plan(goal: GoalRow) -> PlanSchema:
         )
         try:
             response = await acompletion(
+                role="orchestrator",
                 model=orchestrator_model,
                 messages=messages,
                 tools=[PLAN_TOOL],
