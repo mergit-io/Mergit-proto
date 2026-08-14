@@ -19,6 +19,7 @@ def _setenv(var: str, val: str) -> None:
 
 _setenv("ANTHROPIC_API_KEY", settings.anthropic_api_key)
 _setenv("GROQ_API_KEY", settings.groq_api_key)
+_setenv("OPENROUTER_API_KEY", settings.openrouter_api_key)
 
 litellm.drop_params = True  # ignore unsupported params per provider
 
@@ -76,6 +77,26 @@ _FALLBACKS: dict[str, list[str]] = {
         "anthropic/claude-haiku-4-5-20251001",
         "groq/llama-3.3-70b-versatile",
     ],
+    # OpenRouter — reached as a last resort, and chained to each other so the tier
+    # is not a dead end either.
+    "openrouter/meta-llama/llama-3.3-70b-instruct": [],
+    "openrouter/anthropic/claude-haiku-4.5": [],
+}
+
+# Every chain above ends here. The first-party tiers share a failure mode: one key,
+# one quota, and when a daily cap is gone every model behind that key is gone with
+# it — which is exactly how a Groq-only deployment loses the ability to plan at all.
+# OpenRouter fronts many providers behind a single key, so it is the fallback that
+# survives that. Ordered same-family first: a Llama 3.3 deployment falling through
+# to Llama 3.3 changes provider without changing the model's behaviour.
+_OPENROUTER_LAST_RESORT = [
+    "openrouter/meta-llama/llama-3.3-70b-instruct",
+    "openrouter/anthropic/claude-haiku-4.5",
+]
+
+_FALLBACKS = {
+    model: chain + [m for m in _OPENROUTER_LAST_RESORT if m != model and m not in chain]
+    for model, chain in _FALLBACKS.items()
 }
 
 RETRY_AFTER_RE = re.compile(
@@ -171,6 +192,10 @@ _PROVIDER_KEY_ENV: dict[str, str] = {
     "openai": "OPENAI_API_KEY",
     "gemini": "GEMINI_API_KEY",
     "mistral": "MISTRAL_API_KEY",
+    # Without this entry has_credentials() falls through to True for every
+    # openrouter/* id, so a keyless deployment would "fall back" to a model it
+    # cannot call and replace a real rate-limit error with an auth error.
+    "openrouter": "OPENROUTER_API_KEY",
 }
 
 
