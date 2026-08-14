@@ -6,20 +6,31 @@ from tools.github_client import TOKEN_MISSING, client as _client, github_token, 
 logger = logging.getLogger(__name__)
 
 
-def _commit_files(repo, files, head_branch, base_sha):
-    """Ensure head_branch exists (from base_sha) and commit files onto it."""
+def _commit_files(repo, files, head_branch, base_sha) -> dict[str, list[str]]:
+    """Ensure head_branch exists (from base_sha) and commit files onto it.
+
+    Reports which paths were added versus edited. A fix meant for an existing file that
+    lands as an addition is the failure mode where the PR opens green, the issue gets a
+    comment, and the bug is still there — untouched, beside a brand-new file. The caller
+    surfaces this so the agent and the reviewer can both see it.
+    """
     from github import GithubException
     try:
         repo.get_branch(head_branch)
     except GithubException:
         repo.create_git_ref(f"refs/heads/{head_branch}", base_sha)
+    created: list[str] = []
+    modified: list[str] = []
     for f in files:
         path, content = f["path"], f["content"]
         try:
             existing = repo.get_contents(path, ref=head_branch)
             repo.update_file(path, f"Fix {path}", content, existing.sha, branch=head_branch)
+            modified.append(path)
         except GithubException:
             repo.create_file(path, f"Add {path}", content, branch=head_branch)
+            created.append(path)
+    return {"files_created": created, "files_modified": modified}
 
 
 def _find_open_pr(upstream, head_label: str, base_branch: str):
@@ -86,11 +97,12 @@ async def github_pr(args: dict) -> dict:
     # ── Path 1: we have push access → branch + PR directly on the upstream ──
     if getattr(upstream.permissions, "push", False):
         try:
-            _commit_files(upstream, files, head_branch, base_sha)
+            touched = _commit_files(upstream, files, head_branch, base_sha)
             pr = upstream.create_pull(title=title, body=body, head=head_branch, base=base_branch)
-            logger.info("PR created directly on %s: %s", repo_name, pr.html_url)
+            logger.info("PR created directly on %s: %s (added %s, edited %s)", repo_name,
+                        pr.html_url, touched["files_created"], touched["files_modified"])
             return {"action": "create_pr", "result": pr.number, "url": pr.html_url,
-                    "mode": "direct", "ok": True}
+                    "mode": "direct", "ok": True, **touched}
         except GithubException as e:
             # Re-running a task that already opened its PR must not read as a failure.
             existing = _find_open_pr(upstream, f"{upstream.owner.login}:{head_branch}", base_branch)
@@ -126,13 +138,13 @@ async def github_pr(args: dict) -> dict:
         # branching off it produces a PR whose diff reverts every commit landed since.
         # Forks share an object store with the upstream, so the upstream sha is valid here.
         try:
-            _commit_files(fork, files, head_branch, base_sha)
+            touched = _commit_files(fork, files, head_branch, base_sha)
         except GithubException:
             logger.warning("Could not branch %s from upstream sha %s — falling back to the "
                            "fork's own %s (the PR may show unrelated changes)",
                            head_branch, base_sha[:8], fork.default_branch)
-            _commit_files(fork, files, head_branch,
-                          fork.get_branch(fork.default_branch).commit.sha)
+            touched = _commit_files(fork, files, head_branch,
+                                    fork.get_branch(fork.default_branch).commit.sha)
 
         # Cross-repo PR: head must be "forkowner:branch", opened on the upstream.
         head_label = f"{login}:{head_branch}"
@@ -145,9 +157,10 @@ async def github_pr(args: dict) -> dict:
             logger.info("PR already open via fork %s: %s", fork_full, existing.html_url)
             return {"action": "create_pr", "result": existing.number, "url": existing.html_url,
                     "mode": "fork", "fork": fork_full, "existing": True, "ok": True}
-        logger.info("PR created via fork %s → %s: %s", fork_full, repo_name, pr.html_url)
+        logger.info("PR created via fork %s → %s: %s (added %s, edited %s)", fork_full,
+                    repo_name, pr.html_url, touched["files_created"], touched["files_modified"])
         return {"action": "create_pr", "result": pr.number, "url": pr.html_url,
-                "mode": "fork", "fork": fork_full, "ok": True}
+                "mode": "fork", "fork": fork_full, "ok": True, **touched}
     except GithubException as e:
         return {"action": "create_pr", "result": None, "url": None,
                 "error": f"fork PR failed: {e}", "ok": False}
