@@ -96,6 +96,9 @@ async def github_pr(args: dict) -> dict:
 
     # ── Path 1: we have push access → branch + PR directly on the upstream ──
     if getattr(upstream.permissions, "push", False):
+        # Seeded before the commit so the already-open-PR branch below can still report
+        # what it wrote. The commit happens first; only create_pull fails on a re-run.
+        touched: dict[str, list[str]] = {"files_created": [], "files_modified": []}
         try:
             touched = _commit_files(upstream, files, head_branch, base_sha)
             pr = upstream.create_pull(title=title, body=body, head=head_branch, base=base_branch)
@@ -107,9 +110,10 @@ async def github_pr(args: dict) -> dict:
             # Re-running a task that already opened its PR must not read as a failure.
             existing = _find_open_pr(upstream, f"{upstream.owner.login}:{head_branch}", base_branch)
             if existing is not None:
-                logger.info("PR already open on %s: %s", repo_name, existing.html_url)
+                logger.info("PR already open on %s: %s (added %s, edited %s)", repo_name,
+                            existing.html_url, touched["files_created"], touched["files_modified"])
                 return {"action": "create_pr", "result": existing.number, "url": existing.html_url,
-                        "mode": "direct", "existing": True, "ok": True}
+                        "mode": "direct", "existing": True, "ok": True, **touched}
             logger.warning("Direct PR on %s failed (%s) — falling back to fork", repo_name, e)
 
     # ── Path 2: no push access (or direct failed) → autonomous fork-and-PR ──
@@ -132,6 +136,7 @@ async def github_pr(args: dict) -> dict:
             return {"action": "create_pr", "result": None, "url": None,
                     "error": f"fork {fork_full} did not become ready in time", "ok": False}
 
+    touched = {"files_created": [], "files_modified": []}
     try:
         # Branch from the UPSTREAM base commit, not from the fork's own default branch.
         # A fork created weeks ago sits at whatever the upstream looked like then, so
@@ -154,9 +159,10 @@ async def github_pr(args: dict) -> dict:
             existing = _find_open_pr(upstream, head_label, base_branch)
             if existing is None:
                 raise
-            logger.info("PR already open via fork %s: %s", fork_full, existing.html_url)
+            logger.info("PR already open via fork %s: %s (added %s, edited %s)", fork_full,
+                        existing.html_url, touched["files_created"], touched["files_modified"])
             return {"action": "create_pr", "result": existing.number, "url": existing.html_url,
-                    "mode": "fork", "fork": fork_full, "existing": True, "ok": True}
+                    "mode": "fork", "fork": fork_full, "existing": True, "ok": True, **touched}
         logger.info("PR created via fork %s → %s: %s (added %s, edited %s)", fork_full,
                     repo_name, pr.html_url, touched["files_created"], touched["files_modified"])
         return {"action": "create_pr", "result": pr.number, "url": pr.html_url,

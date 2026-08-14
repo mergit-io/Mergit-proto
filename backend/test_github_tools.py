@@ -503,6 +503,29 @@ def test_pr_reports_a_brand_new_file_so_a_missed_fix_cannot_hide(monkeypatch):
     assert result["files_modified"] == []
 
 
+def test_a_rerun_onto_an_open_pr_still_says_which_files_it_wrote(monkeypatch):
+    """The retry path commits first and only then discovers the PR is already open.
+
+    Reporting nothing here is worse than reporting nothing on a fresh PR: a re-run is
+    exactly when a wrong path slips in unnoticed, because the PR url comes back
+    unchanged and everything reads like a no-op.
+    """
+    repo = FakeRepo(existing_files=("calc.py",))
+    repo.open_pulls = [FakePR(number=18, base="main")]
+    repo.create_pull_error = _gh_error(422, "A pull request already exists")
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "fix/x",
+                                "files": [{"path": "calculator.py", "content": "fixed"}]}))
+
+    assert result["ok"] is True and result["existing"] is True
+    assert result["result"] == 18, "the already-open PR is returned, not a new one"
+    assert repo.created_files == [("calculator.py", "fix/x")], "it did commit"
+    assert result["files_created"] == ["calculator.py"], "and it has to say so"
+    assert result["files_modified"] == []
+
+
 def test_pr_falls_back_to_the_default_branch_when_the_base_is_wrong(monkeypatch):
     # Models guess "main" on repos whose default is "master".
     repo = FakeRepo(default_branch="master", branches=("master",))
