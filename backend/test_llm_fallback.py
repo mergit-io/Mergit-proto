@@ -64,8 +64,19 @@ ANTHROPIC_NO_KEY = Exception(
 
 @pytest.fixture(autouse=True)
 def _clean(monkeypatch):
+    """Pin the credential environment to Groq-only.
+
+    Every provider key is cleared, not just Anthropic. Candidate selection reads
+    `os.environ`, and `llm` copies configured keys into it at import — so a developer
+    who happens to have, say, an OpenRouter key in their `.env` silently changes which
+    fallback these tests exercise. That is not hypothetical: adding OPENROUTER_API_KEY
+    to `backend/.env` turned eight of these green tests red, because the Groq chain
+    then resolved to OpenRouter instead of the unconfigured Anthropic model the tests
+    are about. Derived from `_PROVIDER_KEY_ENV` so a new provider cannot reintroduce it.
+    """
     model_health._cooldowns.clear()
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    for env_var in llm._PROVIDER_KEY_ENV.values():
+        monkeypatch.delenv(env_var, raising=False)
     monkeypatch.setenv("GROQ_API_KEY", "gsk_test")
     yield
     model_health._cooldowns.clear()
