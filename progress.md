@@ -904,3 +904,151 @@ what `demo_seed.py` now does. Added `ACCESS_PASSWORD` (sync:false), `SEED_DEMO=t
 idle sleep and the ~70s cold start behind it; a free 10-minute cron against `/api/health` — which sits
 outside the access gate precisely so unauthenticated pings work — keeps it warm inside the 750h/month
 allowance. Oracle and AWS come back into scope when there is a reason to scale, not before.
+
+## 2026-08-13 — API contract tests, and what testing the live deployment turned up
+
+Every router except `api/economy.py` had no test file. Wrote contract tests for the rest and, while
+exercising the deployed instance at `mergit.onrender.com`, found nine defects — all fixed here, each
+with a test that fails on the old code first.
+
+**The two that mattered.** `llm.py` walked `_FALLBACKS` without checking whether the fallback
+provider had a key. `groq/llama-3.3-70b-versatile` falls back to Claude Haiku, `ANTHROPIC_API_KEY`
+is unset on that deployment, and the resulting `AuthenticationError` is neither a rate limit nor a
+missing model — so it escaped the retry logic and propagated, discarding the Groq error that caused
+the fallback in the first place. Every goal submitted while Groq was throttling failed with
+"Missing Anthropic API Key" on a deliberately Groq-only instance. Reproduced three times; the fix
+skips providers with no credentials and raises the *first* error rather than the last, because the
+first one is the one that explains the run.
+
+Underneath that: `model_health` was never wired to anything. Nothing called `mark_unhealthy`, so
+`GET /api/config/model-health` answered `all_healthy: true` throughout — while nothing worked. Its
+docstring promised that "subsequent acompletion() calls skip unhealthy models"; `llm.py` did not
+import the module. Now a hard rate limit registers a cooldown, cooling models are skipped, and if
+every candidate is cooling down the least cold is tried anyway — a cooldown must slow the worker,
+never stop it.
+
+**The rest.** `GET /api/goals/{id}/stream` on an already-finished goal never closed: 75 seconds and
+nine keepalives with no terminating event, one leaked connection per visit to a past goal. It only
+broke on a live `goal_done` it happened to witness. It now subscribes *first*, then re-reads the
+goal — which also closes the race where a goal finishing between the 404 lookup and the subscription
+emitted its event to nobody — and re-checks stored state on each keepalive so a lost event is
+bounded by `PING_TIMEOUT` instead of forever. `SPAStaticFiles` is mounted at `/` and swallowed 404s
+for every path including `/api/…`, so `/api/nope` returned 200 and 479 bytes of SPA index; callers
+expecting JSON got a decode error instead of a status code. `limit` reached `LIMIT ?` unvalidated
+and SQLite reads a negative limit as unbounded, so `?limit=-1` dumped whole tables from
+unauthenticated endpoints. `POST /api/goals` accepted a 20,000-character body and stored it whole.
+`PUT /api/config/models` accepted any string as a model id, which saves cleanly and then fails every
+goal with a provider error naming a model nobody chose. Both new limits are settings
+(`max_goal_chars`, `max_page_size`), not constants.
+
+**And the one that hid the others.** `scripts/test-local.sh` — the script the README points at —
+ran `py_compile` and a frontend build, printed "Local checks passed", and never invoked pytest.
+`pytest` was not in `requirements.txt` either, so a clean checkout could not run the suite at all.
+
+**270 tests passing**, up from 186. `test_live_deployment.py` runs the same contract against a
+running instance (`MERGIT_BASE_URL=…`), skipping entirely when unset; `MERGIT_LIVE_GOAL=1`
+additionally drives one real goal to completion and verifies its proofs. Nothing in it issues a PUT
+— on an ungated deployment a test suite must not be the thing that overwrites live provider keys.
+Against production it reports 18 passed / 9 failed, and the nine are exactly the fixes above.
+
+Confirmed working on the live instance, unchanged: a real goal ran researcher → writer in 49s,
+`{{t1.output}}` interpolated, both tasks minted proofs that verify against the chain
+(`computed_hash == onchain_hash`, real tx hashes, blocks 12 and 14), and reputation moved.
+
+---
+
+## 2026-08-13 — The GitHub write surface: audit, merge guard, and the blind reviewer
+
+Audited what the agent can actually do on GitHub when a user asks it to open a PR, fix an issue,
+or merge a PR. Two of those three worked. The third did not exist.
+
+**`merge PR` was not implemented at all.** `grep -rn "merge" backend/**/*.py` returned nothing
+outside a dict merge in `context.py`. No merge tool, nothing in `TOOL_REGISTRY`, nothing in the
+integrator's `allowed_tools`, no mention in the orchestrator prompt. A goal saying "merge PR #5"
+planned a DAG, ran an integrator with no way to merge anything, and terminated on whatever the
+model chose to claim.
+
+**"Review a GitHub PR" was documented, routed, and blind.** The orchestrator prompt promised
+`researcher (reads changed files) → writer`, but no tool in the registry returned a PR's diff or
+even its changed-file list. `github_get_issue` resolves a PR number — GitHub treats PRs as issues —
+and returns title, body and comments, so the pipeline *succeeded* while the reviewer never saw a
+line of the code. It shipped a review written from the PR title. The failure mode was silent,
+which is why 11 passing tests never caught it: they stub every GitHub tool, so they prove the
+wiring and assume the semantics.
+
+**The token had two sources that disagreed.** `github_pr` read `os.environ` *or*
+`settings.github_token`; every tool in `github_ops` read only `os.environ`. `Settings` loads
+`backend/.env` through pydantic-settings, which populates the settings object and never touches
+`os.environ`. So the documented setup — token in `backend/.env` — left `github_pr` working while
+the other nine tools reported a missing credential and parked their task in `WAITING_CREDENTIAL`.
+Render injects real environment variables, which is why production never showed it. Now one
+`github_token()` in `tools/github_client.py`, env first so a runtime `PUT /api/config/keys` still
+wins without a restart.
+
+**Ten new tools**, all on the integrator except the read paths: `github_merge_pr`,
+`github_get_pr`, `github_get_pr_files`, `github_list_prs`, `github_review_pr`,
+`github_request_review`, `github_update_pr`, `github_create_issue`, `github_close_issue`,
+`github_add_labels`. Twenty GitHub tools registered, up from ten.
+
+**The merge guard.** Merging is the one GitHub action an agent cannot walk back, so
+`github_merge_pr` gates rather than attempts: it merges only when `mergeable_state` is `clean` or
+`has_hooks` and no reviewer's latest review is `CHANGES_REQUESTED`, and otherwise returns
+`refused=True` naming the blocker — including which check failed. The review check is not
+redundant with `mergeable_state`: on a repo without branch protection, a `CHANGES_REQUESTED`
+review leaves the state `clean`, so trusting the state alone merges a rejected PR. `unknown` is
+polled rather than refused, because GitHub computes mergeability asynchronously and a PR read
+moments after creation always reports `unknown`. An already-merged PR returns `ok=True,
+already_merged=True` — the `tool_calls` idempotency cache replays a merge after a restart, and a
+replay must not read as a failure. The integrator's prompt states that a refusal is a correct
+final outcome, not something to retry or route around.
+
+**`github_pr` hardening.** An empty `files[]` was rejected by GitHub as "No commits between" only
+*after* the branch had been created, leaving a stray branch behind on every attempt — now refused
+up front. A re-run against an already-open PR raised 422; it now returns the existing PR, which
+matters because the task cache replays tool calls. The fork path branched from the fork's own
+default branch, so a fork taken weeks earlier produced a PR whose diff reverted every upstream
+commit landed since — it now branches from the upstream base sha (forks share an object store),
+falling back with a warning. Base-branch detection walked every branch in the repository on every
+call; now one lookup. The 60-second fork poll used `time.sleep` inside an `async def`, blocking the
+event loop for all five concurrent worker tasks — now `asyncio.sleep`.
+
+`test_github_tools.py` adds 29 tests over the merge-guard refusal matrix, diff truncation, the
+self-review downgrade (GitHub rejects approving your own PR, and the agent usually authored it),
+PR-creation robustness, and a check that every tool named in `allowed_tools` is actually
+registered. **215 tests passing**, up from 186. `scripts/github_e2e.py <owner/repo>` drives the
+whole surface against a real repository — real issue, real PR, real diff, real review, real merge,
+and a real conflicting PR to prove the guard refuses — because faked PyGithub proves the tools'
+decisions but not that GitHub accepts the calls they make.
+
+**Unrelated and urgent, found while probing the deployment:** `https://mergit.onrender.com` serves
+`/api/goals`, `/api/config/models` and `/api/config/keys` with HTTP 200 and no authentication.
+`ACCESS_PASSWORD` is unset in the Render environment. Per `access_gate.py`'s own docstring that
+makes `POST /api/goals` plus the coder's `code_exec` remote code execution, and lets anyone
+rewrite the provider keys. Set it in the Render dashboard.
+
+**Follow-up, same branch — the gate that was never set.** `ACCESS_PASSWORD` was `sync: false`,
+which means "an operator sets this by hand in the dashboard". Two environments existed where
+nobody had: production, and — once Viscous106 enabled pull request previews — every preview.
+Render's blueprint spec is explicit about the second: "Render does not include `sync: false`
+environment variables in preview environments", so a preview could not have inherited a password
+even if production had one, and `mergit-pr-<n>.onrender.com` is guessable from the PR number.
+Confirmed on the live preview for PR #13: `/api/goals`, `/api/config/models` and
+`/api/config/keys` all returned 200 unauthenticated. Now `generateValue: true`, which mints a
+random 256-bit value when the variable does not already exist — an operator who wants a chosen
+password still sets one and it is left alone, but no environment can boot without a gate. The
+generated value is read from the Render dashboard.
+
+**Second follow-up — the merge route was unreachable.** Running the real goal ("Merge pull request
+#3 in OfficialAbhinavSingh/mergit-e2e-sandbox") against a live Groq model and live GitHub failed
+before a single GitHub call: `Orchestrator failed after 5 attempts. Last error: terminal task 't2'
+uses agent 'integrator' which produces raw data.` `_validate_plan` permitted a terminal integrator
+only when the plan also contained a `coder` — the issue-fix shape. A merge needs no coder, so the
+prompt was routing "merge PR #N → integrator alone" into a plan the validator rejected every time.
+`_integrator_terminal_is_an_action()` now also accepts a direct action on a named PR or issue,
+detected structurally by a `pr_number`/`issue_number` input with a write-verb fallback on the task
+description. The stubbed suite could not have caught this: it scripts the plan instead of asking a
+model for one, so the validator never saw a real merge plan — the same shape of blind spot as the
+reviewer that never read a diff. Re-run after the fix: plan `integrator → integrator`, t1 read PR #3
+(`mergeable: false`), t2 returned `merged: false, reason: "the branch has merge conflicts with the
+base"`, and GitHub confirms PR #3 is still open and unmerged. The agent attempted a real merge, was
+refused, and reported the refusal instead of claiming success. 220 tests passing.

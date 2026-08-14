@@ -19,11 +19,23 @@ services:
         value: /data/config
       - key: DEBUG
         value: "false"
-      # REQUIRED before sharing the URL. The API is unauthenticated: POST /api/goals is open
+      # REQUIRED on any reachable URL. The API is unauthenticated: POST /api/goals is open
       # and the coder agent's code_exec runs its result in a subprocess, so an open URL is
-      # arbitrary code execution. sync:false = set it by hand in the Render dashboard.
+      # arbitrary code execution, and PUT /api/config/keys rewrites the provider keys.
+      #
+      # This was `sync: false`, which meant "set it by hand in the dashboard" — and an
+      # environment where nobody did got no gate at all. Two of them existed: production,
+      # and every pull request preview. Render's blueprint spec is explicit about the
+      # second one: "Render does not include `sync: false` environment variables in
+      # preview environments." So a preview could not have inherited a password even if
+      # production had one, and `mergit-pr-<n>.onrender.com` is guessable.
+      #
+      # generateValue mints a random 256-bit value when the variable does not already
+      # exist, so no environment can boot without a gate. An operator who wants a chosen
+      # password still sets one in the dashboard; a set value is left alone.
+      # Read the generated value from the Render dashboard to log in.
       - key: ACCESS_PASSWORD
-        sync: false
+        generateValue: true
       # No persistent disk on the free plan, so every restart starts from an empty database.
       # This mints a canned goal + 3 verifiable proofs on boot so the dashboard and ledger
       # are never empty for a visitor.
