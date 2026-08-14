@@ -127,6 +127,11 @@ class FakeRepo:
         return type("C", (), {"get_check_runs": lambda self=None: runs})()
 
     def get_contents(self, path, ref=None):
+        # "" is a listing of the repo root — what _find_by_name reads to notice that a
+        # "new" file duplicates one that is already there.
+        if path == "":
+            return [type("E", (), {"type": "file", "path": p})()
+                    for p in sorted(self.existing_files) if "/" not in p]
         if path in self.existing_files:
             return type("F", (), {"sha": f"blob-{path}",
                                   "decoded_content": self.file_contents[path].encode()})()
@@ -732,6 +737,97 @@ def test_a_brand_new_file_has_nothing_to_lose(monkeypatch):
 
     assert result["ok"] is True
     assert result["files_created"] == ["brand_new.py"]
+
+
+MERGESORT_PY = '''def merge_sort(arr):
+    return arr
+
+
+def merge(left, right):
+    return left + right
+'''
+
+
+def test_a_pull_request_that_would_add_an_empty_file_is_refused(monkeypatch):
+    """Live failure, PR #30 on the sandbox.
+
+    A coder handed a path that did not exist submitted `code: ""`. The integrator
+    interpolated that into files[].content and opened a PR whose single commit added an
+    empty `main/mergesort.py`: +0 -0, checks green, nothing fixed.
+    """
+    repo = FakeRepo(existing_files=[("mergesort.py", MERGESORT_PY)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    result = run(gpr.github_pr({"repo": "o/r", "title": "Fix mergesort code", "body": "b",
+                                "head_branch": "fix/mergesort",
+                                "files": [{"path": "mergesort.py", "content": ""}]}))
+
+    assert result["ok"] is False
+    assert "empty" in result["error"]
+    assert repo.created_refs == [], "refused before committing — no branch left behind"
+    assert repo.created_files == [] and repo.updated_files == []
+
+
+def test_whitespace_only_content_counts_as_empty(monkeypatch):
+    repo = FakeRepo(existing_files=[("mergesort.py", MERGESORT_PY)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "fix/x",
+                                "files": [{"path": "mergesort.py", "content": "\n\n   \t\n"}]}))
+
+    assert result["ok"] is False and "empty" in result["error"]
+
+
+def test_a_new_file_beside_one_of_the_same_name_is_refused(monkeypatch):
+    """The `main/mergesort.py` failure.
+
+    The goal text contained a `/tree/main` URL, so the orchestrator read the BRANCH as a
+    directory. `main/mergesort.py` does not exist, so the truncation guard skipped it —
+    nothing to lose — and the PR added a second copy of the file in an invented folder.
+    """
+    repo = FakeRepo(existing_files=[("mergesort.py", MERGESORT_PY)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    result = run(gpr.github_pr({"repo": "o/r", "title": "Fix mergesort code", "body": "b",
+                                "head_branch": "fix/mergesort",
+                                "files": [{"path": "main/mergesort.py",
+                                           "content": "def merge_sort(arr):\n    return arr\n"}]}))
+
+    assert result["ok"] is False
+    assert "mergesort.py already exists" in result["error"]
+    assert "branch is not a directory" in result["error"]
+    assert repo.created_refs == [] and repo.created_files == []
+
+
+def test_the_same_file_at_the_path_that_really_exists_is_committed(monkeypatch):
+    """The corrected form of the call above must go straight through."""
+    repo = FakeRepo(existing_files=[("mergesort.py", MERGESORT_PY)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    fixed = MERGESORT_PY.replace("return left + right", "return sorted(left + right)")
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "fix/mergesort",
+                                "files": [{"path": "mergesort.py", "content": fixed}]}))
+
+    assert result["ok"] is True
+    assert result["files_modified"] == ["mergesort.py"]
+    assert result["files_created"] == []
+
+
+def test_a_genuinely_new_file_in_a_subdirectory_is_still_allowed(monkeypatch):
+    """The guard must not block real work. `tests/test_stats.py` shares no filename with
+    anything at the root, so adding it is ordinary."""
+    repo = FakeRepo(existing_files=[("stats.py", STATS_PY)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "feat/tests",
+                                "files": [{"path": "tests/test_stats.py",
+                                           "content": "def test_median():\n    assert True\n"}]}))
+
+    assert result["ok"] is True
+    assert result["files_created"] == ["tests/test_stats.py"]
 
 
 def test_renaming_is_not_mistaken_for_deleting_when_the_file_is_whole(monkeypatch):

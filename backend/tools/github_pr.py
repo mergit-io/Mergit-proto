@@ -45,6 +45,68 @@ def _dropped_definitions(repo, files, ref) -> list[str]:
     return problems
 
 
+def _empty_contents(files) -> list[str]:
+    """Paths whose content is empty or only whitespace.
+
+    A fix is never an empty file. This shipped: a coder handed a path that did not exist
+    submitted `code: ""`, the integrator interpolated it into `files[].content`, and the
+    PR added an empty `main/mergesort.py` — green, and fixing nothing.
+    """
+    return [f["path"] for f in files if not (f.get("content") or "").strip()]
+
+
+def _find_by_name(repo, name: str, ref: str) -> str | None:
+    """An existing root-level path whose filename is `name`, if there is one.
+
+    Root listing only — one API call. A recursive walk would be more thorough and cost a
+    request per directory on every PR; the root is where this mistake lands, because an
+    agent that invents a location invents a shallow one.
+    """
+    from github import GithubException
+    try:
+        entries = repo.get_contents("", ref=ref)
+    except GithubException:
+        return None
+    if not isinstance(entries, list):
+        return None
+    for e in entries:
+        if getattr(e, "type", "") == "file" and e.path == name:
+            return e.path
+    return None
+
+
+def _misplaced_new_files(repo, files, ref) -> list[str]:
+    """Paths being CREATED whose filename already exists at the repo root.
+
+    `_dropped_definitions` only protects files that already exist, so aiming at a path
+    that does NOT exist slips past it entirely: the failure becomes a brand-new file
+    rather than a truncated one, and the PR still opens green.
+
+    Seen twice. `calculator.py` was created beside the `calc.py` that had the bug. Then a
+    goal whose text contained a `/tree/main` URL made the orchestrator read the BRANCH as
+    a directory, and the PR created `main/mergesort.py` beside the real `mergesort.py`.
+
+    Matching on filename catches both, because an agent that invents a location keeps the
+    filename. Only creations are inspected, so a path the agent got right is untouched.
+    """
+    from github import GithubException
+    problems = []
+    for f in files:
+        path = f["path"]
+        try:
+            repo.get_contents(path, ref=ref)
+            continue  # exists → a modification, not a misplaced creation
+        except GithubException:
+            pass
+        name = path.rsplit("/", 1)[-1]
+        if name == path:
+            continue  # already at the root; there is no better location it could mean
+        existing = _find_by_name(repo, name, ref)
+        if existing:
+            problems.append(f"{path} would be a NEW file, but {existing} already exists")
+    return problems
+
+
 def _commit_files(repo, files, head_branch, base_sha) -> dict[str, list[str]]:
     """Ensure head_branch exists (from base_sha) and commit files onto it.
 
@@ -129,6 +191,27 @@ async def github_pr(args: dict) -> dict:
 
     base_branch = _resolve_base(upstream, args.get("base_branch"))
     base_sha = upstream.get_branch(base_branch).commit.sha
+
+    # All three checks below run BEFORE any commit, so a refusal leaves no branch and no
+    # partial commit behind. Ordered cheapest first: empty content needs no API call.
+    empty = _empty_contents(files)
+    if empty:
+        logger.warning("Refusing PR on %s — empty content for: %s", repo_name, empty)
+        return {"action": "create_pr", "result": None, "url": None, "ok": False,
+                "error": f"the content for {', '.join(empty)} is empty. A pull request that "
+                         "adds an empty file fixes nothing. If you were handed no code, or "
+                         "the file you were told to change does not exist, say that instead "
+                         "of opening a pull request — do not commit a placeholder."}
+
+    misplaced = _misplaced_new_files(upstream, files, base_branch)
+    if misplaced:
+        logger.warning("Refusing PR on %s — misplaced new file: %s", repo_name, misplaced)
+        return {"action": "create_pr", "result": None, "url": None, "ok": False,
+                "error": f"{'; '.join(misplaced)}. You are about to add a second copy of that "
+                         "file in a new directory instead of changing the one that is already "
+                         "there. Use the existing path. If a path was given to you that starts "
+                         "with a branch name such as 'main/', drop that prefix — a branch is "
+                         "not a directory."}
 
     # Refuse before committing anything, so a truncated fix leaves no branch behind.
     # The message names what would be lost because the agent has to send the whole file
