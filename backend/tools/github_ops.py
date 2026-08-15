@@ -4,13 +4,32 @@ GitHub read/comment operations for agents.
 Complements github_pr.py (which handles PR creation).
 These tools let agents read repo contents, post comments, and get issue details.
 """
+import logging
+import re
+
 from tools.github_client import TOKEN_MISSING as _TOKEN_MISSING
 from tools.github_client import client as _client
 from tools.github_client import github_token
 
+logger = logging.getLogger(__name__)
+
 
 def _require_token() -> str | None:
     return github_token() or None
+
+
+#: A value that was never filled in. `{{t3.output.pr_number}}` is an interpolation
+#: template that outlived its task; `#<pr_number>` is the model writing its own blank.
+#:
+#: The angle-bracket form requires lowercase snake_case with an underscore, which is what
+#: a blank looks like and what ordinary comment text does not: `Vec<String>` is CamelCase,
+#: `<div>` and `<br>` have no underscore, and <https://example.com> is not an identifier.
+#: `<number>` slips through as the price of that — a wrong refusal costs a real comment.
+_PLACEHOLDER = re.compile(r"\{\{[^}]*\}\}|<[a-z][a-z0-9]*_[a-z0-9_]*>")
+
+
+def _unfilled_placeholders(body: str) -> list[str]:
+    return _PLACEHOLDER.findall(body or "")
 
 
 # ── Read file ────────────────────────────────────────────────────────────────────
@@ -138,6 +157,19 @@ async def github_post_comment(args: dict) -> dict:
     repo_name = args["repo"]
     issue_number = int(args["issue_number"])
     body = args["body"]
+    # A comment is published the moment it is posted, usually on someone else's
+    # repository. An integrator that has not created the pull request yet writes the blank
+    # it was given and posts it, so the thread gets "see PR #<pr_number>" followed by a
+    # correction — twice the noise, and the first one cannot be unsent.
+    unfilled = _unfilled_placeholders(body)
+    if unfilled:
+        logger.warning("Refusing comment on %s#%s — unfilled placeholders: %s",
+                       repo_name, issue_number, unfilled)
+        return {"ok": False, "error": (
+            f"the comment still contains {', '.join(unfilled)}, which is a placeholder "
+            "rather than a value. Get the real value first — if you are referring to a "
+            "pull request you have not created yet, create it and use the number it "
+            "returns — then post the comment once, filled in.")}
     try:
         g = _client()
         repo = g.get_repo(repo_name)
