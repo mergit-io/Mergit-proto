@@ -444,8 +444,31 @@ async def run(
         for tc in msg.tool_calls:
             tool_name = tc.function.name
             args_str = tc.function.arguments
-            args = json.loads(args_str)
             tc_id = tc.id
+            # A syntax error in the model's own tool call used to raise straight out of
+            # run(), killing the task. Goal 32d630f2: the coder wrote Rust containing
+            # backticks where quotes belong, that string reached the next task's tool
+            # call, and `Unterminated string starting at line 1 column 12` failed the
+            # review — so the integrator behind it never ran and no PR was opened. Every
+            # other invalid thing a model sends gets a rejection and another turn; this
+            # was the one shape that ended the task instead.
+            try:
+                args = json.loads(args_str)
+            except json.JSONDecodeError as exc:
+                logger.warning("[task=%s agent=%s] %s called with invalid JSON (%s) — re-prompting",
+                               task.id, task.agent_name, tool_name, exc)
+                messages.append({"role": "assistant", "content": assistant_content or "", "tool_calls": [
+                    {"id": tc_id, "type": "function",
+                     "function": {"name": tool_name, "arguments": args_str}}
+                ]})
+                messages.append({"role": "tool", "tool_call_id": tc_id, "content": (
+                    f"Your call to {tool_name} could not be read: its arguments are not valid "
+                    f"JSON ({exc}). This usually means a string in the payload contains an "
+                    "unescaped quote, newline or backtick. Send the call again with the "
+                    "arguments as well-formed JSON."
+                )})
+                _submit_rejected = True
+                break
 
             if tool_name == "submit_result":
                 result = args.get("result", args)
@@ -585,7 +608,18 @@ async def run(
             final = await acompletion(role=task.agent_name, model=model, messages=messages, **_fkw)
             fmsg = final.choices[0].message
             if fmsg.tool_calls:
-                fargs = json.loads(fmsg.tool_calls[0].function.arguments)
+                # Unreadable arguments are a reason to use the second attempt, not to
+                # abandon it: this `raise` used to land in the `except Exception` below
+                # and break out of the loop, so the retry existed but was never made.
+                try:
+                    fargs = json.loads(fmsg.tool_calls[0].function.arguments)
+                except json.JSONDecodeError as exc:
+                    last_problem = f"the arguments were not valid JSON ({exc})"
+                    logger.warning("[task=%s] forced final sent invalid JSON: %s", task.id, exc)
+                    messages.append({"role": "user", "content": (
+                        f"Your submit_result arguments were not valid JSON ({exc}). Send it "
+                        "again as a well-formed JSON object.")})
+                    continue
                 result = fargs.get("result", fargs)
             else:
                 result = _try_parse_json_result(fmsg.content or "")
