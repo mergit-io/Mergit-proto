@@ -196,3 +196,76 @@ def test_a_rate_limit_is_not_fed_back_as_plan_criticism(monkeypatch):
     assert not any("previous plan was invalid" in m for m in seen[1]), (
         "a rate limit was reported to the model as a defect in its plan"
     )
+
+
+# ── An integrator told to raise a PR must be given the code ─────────────────────
+
+def _t(id, agent, desc, inputs, deps=()):
+    return TaskSpec(id=id, agent=agent, description=desc, inputs=inputs,
+                    depends_on=list(deps))
+
+
+#: The plan from goal b78892d5, which produced PR #35.
+PR_WITHOUT_CODE = [
+    _t("t1", "researcher", "Research the auth.py file", {"file_path": "auth.py"}),
+    _t("t2", "coder", "Implement the TODO in Rust",
+       {"code_context": "{{t1.output.code_context}}"}, ["t1"]),
+    _t("t3", "writer", "Write a review of the Rust codebase",
+       {"data": "{{t2.output}}"}, ["t2"]),
+    _t("t4", "integrator", "Raise a PR with the migrated codebase in Rust",
+       {"file_path": "auth.rs", "pr_title": "Migrated to Rust",
+        "pr_body": "{{t3.output.text}}", "repo": "o/r"}, ["t3"]),
+]
+
+
+def test_an_integrator_raising_a_pr_without_the_code_is_rejected():
+    """Live failure, goal b78892d5 → PR #35.
+
+    The integrator was handed a filename, a title and a body, and no code. It had nothing
+    to commit, so it committed the literal string "TODO: replace with actual file
+    content". The coder's Rust — which existed, and was fine — was never referenced by the
+    task that does the committing.
+    """
+    with pytest.raises(ValueError) as exc:
+        _validate_plan(PlanSchema(tasks=PR_WITHOUT_CODE, terminal="t4", reasoning="r"))
+    assert "t4" in str(exc.value)
+    assert "code" in str(exc.value).lower()
+
+
+def test_the_same_plan_with_the_code_handed_over_is_accepted():
+    """The corrected shape, and the one the working mergesort plans always had."""
+    fixed = list(PR_WITHOUT_CODE)
+    fixed[-1] = _t("t4", "integrator", "Raise a PR with the migrated codebase in Rust",
+                   {"file_path": "{{t2.output.path}}", "fixed_code": "{{t2.output.code}}",
+                    "pr_title": "Migrated to Rust", "repo": "o/r"}, ["t2", "t3"])
+    _validate_plan(PlanSchema(tasks=fixed, terminal="t4", reasoning="r"))
+
+
+def test_a_whole_output_handoff_from_the_coder_counts():
+    """`{{t2.output}}` carries the code along with everything else."""
+    fixed = list(PR_WITHOUT_CODE)
+    fixed[-1] = _t("t4", "integrator", "Open a pull request",
+                   {"work": "{{t2.output}}", "repo": "o/r"}, ["t2"])
+    _validate_plan(PlanSchema(tasks=fixed, terminal="t4", reasoning="r"))
+
+
+def test_an_integrator_doing_something_other_than_a_pr_is_not_policed():
+    """Merging, commenting and labelling do not commit files, so they need no code."""
+    tasks = [
+        _t("t1", "coder", "Write the fix", {"x": 1}),
+        _t("t2", "integrator", "Merge pull request 7",
+           {"repo": "o/r", "pr_number": 7}, ["t1"]),
+        _t("t3", "writer", "Report", {"d": "{{t2.output}}"}, ["t2"]),
+    ]
+    _validate_plan(PlanSchema(tasks=tasks, terminal="t3", reasoning="r"))
+
+
+def test_a_pr_plan_with_no_coder_at_all_is_not_policed():
+    """A docs PR is written by the writer, and its text is the content."""
+    tasks = [
+        _t("t1", "writer", "Draft the CONTRIBUTING guide", {"topic": "contributing"}),
+        _t("t2", "integrator", "Raise a PR adding CONTRIBUTING.md",
+           {"repo": "o/r", "content": "{{t1.output.text}}"}, ["t1"]),
+        _t("t3", "writer", "Report what was opened", {"d": "{{t2.output}}"}, ["t2"]),
+    ]
+    _validate_plan(PlanSchema(tasks=tasks, terminal="t3", reasoning="r"))

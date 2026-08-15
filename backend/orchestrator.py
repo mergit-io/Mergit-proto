@@ -387,6 +387,47 @@ def _all_references(inputs: dict) -> bool:
     return bool(inputs) and all(k in _REFERENCE_KEYS for k in inputs)
 
 
+#: An integrator task that will COMMIT files, as opposed to merging, commenting or
+#: labelling — those act on something that already exists and need no content.
+_CREATES_A_PR = re.compile(r"\b(?:raise|raising|open|opening|create|creating|submit|"
+                           r"submitting)\b[^.]{0,40}\b(?:pr|pull request)\b", re.I)
+
+
+def _pr_task_without_the_code(p: "PlanSchema") -> str | None:
+    """An integrator asked to open a pull request without being handed the code.
+
+    Live failure, goal b78892d5 → PR #35. The integrator's inputs were:
+
+        {"file_path": "auth.rs", "pr_title": "Migrated and enhanced codebase to Rust",
+         "pr_body": "{{t5.output.text}}", "repo": "..."}
+
+    A filename, a title and a review paragraph — and no code. The coder's Rust existed and
+    was fine, but the task that does the committing never referenced it, so the integrator
+    committed the literal string "TODO: replace with actual file content".
+
+    The working plans always passed `{{<coder>.output.code}}` or the whole
+    `{{<coder>.output}}`. This requires that link to exist whenever there is a coder whose
+    work is supposed to reach the repository.
+    """
+    coder_ids = {t.id for t in p.tasks if t.agent == "coder"}
+    if not coder_ids:
+        return None  # nothing produced code; the content comes from somewhere else
+    for t in p.tasks:
+        if t.agent != "integrator" or not _CREATES_A_PR.search(t.description or ""):
+            continue
+        referenced = _extract_template_deps(t.inputs or {})
+        if not (referenced & coder_ids):
+            return (
+                f"task '{t.id}' opens a pull request but was never given the code to put "
+                f"in it — its inputs are {sorted(t.inputs or {})}, none of which reference "
+                f"the coder task(s) {sorted(coder_ids)}. Pass the code through, for "
+                f"example \"fixed_code\": \"{{{{{sorted(coder_ids)[0]}.output.code}}}}\" "
+                f"and \"file_path\": \"{{{{{sorted(coder_ids)[0]}.output.path}}}}\". "
+                "Without it the integrator has nothing to commit."
+            )
+    return None
+
+
 def _validate_plan(p: PlanSchema) -> None:
     ids = {t.id for t in p.tasks}
     if p.terminal not in ids:
@@ -401,6 +442,8 @@ def _validate_plan(p: PlanSchema) -> None:
     for t in p.tasks:
         if t.agent not in known_agents:
             raise ValueError(f"unknown agent '{t.agent}' in task '{t.id}'")
+    if (missing_code := _pr_task_without_the_code(p)):
+        raise ValueError(missing_code)
     for t in p.tasks:
         if t.agent == "writer" and _all_references(t.inputs):
             raise ValueError(
