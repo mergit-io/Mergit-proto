@@ -175,10 +175,18 @@ async def plan(goal: GoalRow) -> PlanSchema:
     ]
 
     last_error: str | None = None
+    # Only a complaint about the PLAN may be fed back as criticism of the plan. `last_error`
+    # also carries rate limits and provider faults, and telling the model its plan was wrong
+    # because Groq was busy teaches it nothing. This used to be filtered by testing the error
+    # text for the word "invalid" — which no message from `_validate_plan` contains, so a
+    # rejected plan was regenerated blind from an unchanged prompt and every guard here was
+    # silent to the only party that could act on it.
+    last_plan_error: str | None = None
     max_attempts = 5
     for attempt in range(max_attempts):
-        if last_error and "invalid" in last_error.lower():
-            messages.append({"role": "user", "content": f"Your previous plan was invalid: {last_error}. Please fix it."})
+        if last_plan_error:
+            messages.append({"role": "user", "content": f"Your previous plan was invalid: {last_plan_error}. Please fix it."})
+            last_plan_error = None
 
         # Use forced tool_choice on early attempts; fall back to auto on later retries
         # (Groq sometimes fails forced tool_choice with tool_use_failed)
@@ -218,7 +226,7 @@ async def plan(goal: GoalRow) -> PlanSchema:
                         goal.id, len(plan_obj.tasks), orchestrator_model)
             return plan_obj
         except (ValidationError, ValueError, KeyError) as e:
-            last_error = str(e)
+            last_error = last_plan_error = str(e)
             logger.warning("Plan attempt %d/%d validation error: %s", attempt + 1, max_attempts, e)
         except Exception as e:
             err_str = str(e).lower()
@@ -243,7 +251,7 @@ async def plan(goal: GoalRow) -> PlanSchema:
                         )
                         return plan_obj
                     except (ValidationError, ValueError, KeyError) as pe:
-                        last_error = f"tool_use_failed + salvage parse error: {pe}"
+                        last_error = last_plan_error = f"tool_use_failed + salvage parse error: {pe}"
                         logger.warning("Salvage parse failed: %s", pe)
                         continue
                 last_error = str(e)

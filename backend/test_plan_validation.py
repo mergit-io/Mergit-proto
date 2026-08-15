@@ -19,6 +19,8 @@ The orchestrator prompt already says a PR review goes to the researcher, which o
 `github_get_pr_files`. That instruction was simply not followed, so the shape is rejected
 here instead of asked for.
 """
+import json
+
 import pytest
 
 from orchestrator import PlanSchema, TaskSpec, _validate_plan
@@ -99,3 +101,98 @@ def test_the_researcher_may_be_given_references_too():
                       inputs={"repo": "o/r", "pr_number": 32}, depends_on=[])
 
     _validate_plan(_plan(single))
+
+
+# ── A rejected plan has to come back with the reason attached ───────────────────
+
+def _goal(text="Review the pull request"):
+    from state import GoalRow
+    return GoalRow(id="g1", title=text[:80], goal_text=text, status="PLANNING",
+                   output=None, error=None, plan_json=None, terminal_task_id=None,
+                   trace_id="tr1", created_at=0, updated_at=0)
+
+
+def _plan_response(plan: dict):
+    import types
+    call = types.SimpleNamespace(
+        id="c0",
+        function=types.SimpleNamespace(name="submit_plan", arguments=json.dumps(plan)),
+    )
+    message = types.SimpleNamespace(content="", tool_calls=[call])
+    return types.SimpleNamespace(choices=[types.SimpleNamespace(message=message)])
+
+
+REJECTED_PLAN = {
+    "tasks": [
+        {"id": "t1", "agent": "integrator", "description": "Open the pull request",
+         "inputs": {"repo": "o/r"}, "depends_on": []},
+        {"id": "t2", "agent": "writer", "description": "Write a review of the PR",
+         "inputs": {"pr_number": "{{t1.output.pr_number}}", "repo": "o/r"},
+         "depends_on": ["t1"]},
+    ],
+    "terminal": "t2", "reasoning": "review it",
+}
+
+ACCEPTED_PLAN = {
+    "tasks": [
+        {"id": "t1", "agent": "researcher", "description": "Read the PR diff",
+         "inputs": {"repo": "o/r", "pr_number": 32}, "depends_on": []},
+        {"id": "t2", "agent": "writer", "description": "Write a review of the PR",
+         "inputs": {"diff": "{{t1.output.code_context}}"}, "depends_on": ["t1"]},
+    ],
+    "terminal": "t2", "reasoning": "read it, then review it",
+}
+
+
+def test_a_rejected_plan_is_retried_with_the_reason_attached(monkeypatch):
+    """A guard the planner is never told about cannot teach it anything.
+
+    The retry only appended the reason when the error text happened to contain the word
+    "invalid", and no message from `_validate_plan` does — not the writer rule, not the
+    pre-existing terminal-agent rule. So a rejected plan was regenerated blind from an
+    unchanged prompt, and the model had no reason to produce anything different until all
+    five attempts were gone.
+    """
+    import asyncio
+
+    import orchestrator as orch
+
+    seen = []
+
+    async def fake(messages, **kwargs):
+        seen.append([m["content"] for m in messages])
+        return _plan_response(REJECTED_PLAN if len(seen) == 1 else ACCEPTED_PLAN)
+
+    monkeypatch.setattr(orch, "acompletion", fake)
+    result = asyncio.run(orch.plan(_goal()))
+
+    assert [t.id for t in result.tasks] == ["t1", "t2"]
+    assert result.tasks[0].agent == "researcher", "the accepted plan should be the one returned"
+    assert len(seen) == 2, "the rejected plan should have been retried"
+    assert any("no tool that can read anything" in m for m in seen[1]), (
+        "the second attempt never saw why the first was rejected"
+    )
+
+
+def test_a_rate_limit_is_not_fed_back_as_plan_criticism(monkeypatch):
+    """Only a complaint about the PLAN belongs in the plan conversation. Telling the model
+    its plan was invalid because the provider was busy is a lie that teaches it nothing."""
+    import asyncio
+
+    import orchestrator as orch
+
+    seen = []
+
+    async def fake(messages, **kwargs):
+        seen.append([m["content"] for m in messages])
+        if len(seen) == 1:
+            raise RuntimeError("litellm.RateLimitError: rate_limit_exceeded")
+        return _plan_response(ACCEPTED_PLAN)
+
+    monkeypatch.setattr(orch, "acompletion", fake)
+    asyncio.run(orch.plan(_goal()))
+
+    assert len(seen) == 2
+    assert not any("previous plan was invalid" in m for m in seen[1]), (
+        "a rate limit was reported to the model as a defect in its plan"
+    )
