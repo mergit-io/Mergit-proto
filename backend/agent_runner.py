@@ -133,7 +133,19 @@ def _self_reported_failure(result: dict, schema_required: list[str]) -> str | No
     if not isinstance(result, dict):
         return (f"the result must be a JSON object with the keys {schema_required}, "
                 f"but you sent a bare {type(result).__name__}.")
-    if result.get("success") is False:
+    if "success" in result and not isinstance(result["success"], bool):
+        # Goal 00605510: the coder put a paragraph explaining why the task could not be
+        # done into `success`. It is not the literal False, so the check below could not
+        # see it — an admission of failure recorded as a pass. "true"/"false" are
+        # tolerated because models write JSON by hand and bouncing a spelling of True
+        # costs a turn and teaches nothing.
+        spelled = str(result["success"]).strip().lower()
+        if spelled == "false":
+            return "you set success=false."
+        if spelled != "true":
+            return (f"success must be true or false, but you sent "
+                    f"{str(result['success'])[:80]!r}.")
+    elif result.get("success") is False:
         return "you set success=False."
     empty = [
         k for k in schema_required
@@ -208,8 +220,48 @@ def _unrunnable_execution_claim(result: dict, task_text: str) -> str | None:
             f"here can run {wanted} — code_exec is a Python interpreter.")
 
 
+#: A claim to have PRODUCED something on GitHub: a pull request, or a posted comment.
+#: Deliberately not every GitHub URL — a researcher assembling a blob or repository link
+#: is doing its job, while "here is the PR I opened" is an assertion about the world.
+_CLAIMED_URL = re.compile(
+    r"https?://(?:www\.)?github\.com/[\w.-]+/[\w.-]+/"
+    r"(?:pull/\d+|issues/\d+#issuecomment-\d+)", re.I)
+
+
+def _collect_urls(obj: Any) -> list[str]:
+    """Every produced-artifact URL anywhere inside a nested structure."""
+    found: list[str] = []
+    if isinstance(obj, str):
+        found.extend(_CLAIMED_URL.findall(obj))
+    elif isinstance(obj, dict):
+        for v in obj.values():
+            found.extend(_collect_urls(v))
+    elif isinstance(obj, (list, tuple)):
+        for v in obj:
+            found.extend(_collect_urls(v))
+    return found
+
+
+def _fabricated_urls(result: Any, known: set[str]) -> list[str]:
+    """URLs the result claims that nothing in this task ever produced or was given.
+
+    Live failure, goal 00605510. The integrator submitted `url: ".../pull/1"` and
+    `result: "PR raised and comment posted successfully"`. No pull request was created —
+    the newest in that repository is #34 — and it posted a public comment on the issue
+    announcing the PR, linking to nothing. Every shape check passed, because the shape was
+    perfect; nothing compared the claim against what the task had actually done.
+
+    `known` holds URLs that really exist as far as this task can tell: whatever its tool
+    calls returned, plus whatever it was handed in its inputs or description. Anything
+    else in a produced-artifact position was invented.
+    """
+    seen = {u.rstrip("/.,);") for u in known}
+    return [u for u in dict.fromkeys(_collect_urls(result)) if u.rstrip("/.,);") not in seen]
+
+
 def _submission_problem(result: Any, schema_required: list[str],
-                        task_text: str = "") -> str | None:
+                        task_text: str = "",
+                        known_urls: set[str] | None = None) -> str | None:
     """The feedback to hand back when a submitted result cannot be accepted, else None.
 
     A task can end in four places — the `submit_result` tool call, JSON parsed out of a
@@ -247,6 +299,17 @@ def _submission_problem(result: Any, schema_required: list[str],
             "so plainly instead of submitting something else and calling it done — an "
             "answer in the wrong language is not a partial answer, it is the wrong answer."
         )
+    if known_urls is not None and isinstance(result, dict):
+        invented = _fabricated_urls(result, known_urls)
+        if invented:
+            return (
+                f"submit_result rejected — you are reporting {', '.join(invented)}, but no "
+                "tool call in this task produced that and it was not given to you. A pull "
+                "request or comment exists only if you created it: call the tool, and "
+                "report the URL it returns. If the tool failed or you never called it, say "
+                "that instead — do not describe an outcome that did not happen."
+            )
+
     unrunnable = _unrunnable_execution_claim(result, task_text)
     if unrunnable:
         return (
@@ -310,6 +373,10 @@ async def run(
 
     logger.info("[task=%s agent=%s] Starting agent loop (model=%s max_iter=%d)",
                 task.id, task.agent_name, model, max_iter)
+
+    # URLs this task can honestly refer to: whatever it was handed, plus whatever its
+    # tool calls actually return. A produced-artifact URL outside this set was invented.
+    known_urls: set[str] = set(_collect_urls(resolved_inputs)) | set(_collect_urls(task.description))
 
     consecutive_errors = 0  # consecutive tool-call errors; triggers forced submit
     _failing_tools: set[str] = set()  # tools that have failed — used in nudge messages
@@ -413,7 +480,7 @@ async def run(
                 # Returning it unchecked let an agent skip every guard simply by printing
                 # its JSON instead of calling the tool.
                 problem = _submission_problem(result, config.get("output_schema", {}).get("required", []),
-                                              task.description)
+                                              task.description, known_urls)
                 if problem is None:
                     logger.info("[task=%s agent=%s] Parsed JSON result from assistant text (no tool call)",
                                 task.id, task.agent_name)
@@ -474,7 +541,7 @@ async def run(
                 result = args.get("result", args)
                 # Validate required keys for agents that have strict output schemas
                 schema_required = config.get("output_schema", {}).get("required", [])
-                feedback = _submission_problem(result, schema_required, task.description)
+                feedback = _submission_problem(result, schema_required, task.description, known_urls)
                 if feedback is not None:
                     logger.warning("[task=%s agent=%s] submit_result rejected: %s",
                                    task.id, task.agent_name, feedback[:160])
@@ -543,6 +610,8 @@ async def run(
                 emit("tool_result", {"task_id": task.id, "tool": tool_name,
                                      "status": "ERROR" if "error" in result else "SUCCESS"})
 
+            # A URL becomes claimable only once a tool has actually returned it.
+            known_urls.update(_collect_urls(result))
             result_str = json.dumps(result)
             tool_results.append({"role": "tool", "tool_call_id": tc_id, "content": result_str})
             await db.save_message(task.id, "tool", result_str, sequence=len(messages) + iteration + 1, tool_call_id=tc_id)
@@ -625,7 +694,7 @@ async def run(
                 result = _try_parse_json_result(fmsg.content or "")
             if result is None:
                 break  # nothing was submitted at all — the generic failure below says so
-            problem = _submission_problem(result, schema_required, task.description)
+            problem = _submission_problem(result, schema_required, task.description, known_urls)
             if problem is None:
                 logger.info("[task=%s agent=%s] forced final submit_result succeeded", task.id, task.agent_name)
                 return result
