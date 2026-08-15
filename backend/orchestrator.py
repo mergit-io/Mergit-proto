@@ -362,6 +362,23 @@ def _integrator_terminal_is_an_action(p: "PlanSchema") -> bool:
     return any(v in (terminal.description or "").lower() for v in _GITHUB_WRITE_VERBS)
 
 
+#: Input keys that POINT AT something rather than carry it. Handing one to an agent is an
+#: instruction to go and fetch, which only an agent with a fetching tool can obey.
+_REFERENCE_KEYS = {"repo", "repository", "pr_number", "pull_number", "issue_number",
+                   "file_path", "path", "branch", "url", "commit", "sha"}
+
+
+def _all_references(inputs: dict) -> bool:
+    """True when every input names something to look up and none of them is content.
+
+    Goal efb784fb ended with `writer` given `{"pr_number": ..., "repo": ...}` and asked to
+    review the pull request. It has no tool that can open one, so it wrote a clean approval
+    of a PR it had never seen. One real value among the references is enough to make the
+    task honest work, so only the all-references case is refused.
+    """
+    return bool(inputs) and all(k in _REFERENCE_KEYS for k in inputs)
+
+
 def _validate_plan(p: PlanSchema) -> None:
     ids = {t.id for t in p.tasks}
     if p.terminal not in ids:
@@ -376,6 +393,14 @@ def _validate_plan(p: PlanSchema) -> None:
     for t in p.tasks:
         if t.agent not in known_agents:
             raise ValueError(f"unknown agent '{t.agent}' in task '{t.id}'")
+    for t in p.tasks:
+        if t.agent == "writer" and _all_references(t.inputs):
+            raise ValueError(
+                f"task '{t.id}' asks the writer for work on {sorted(t.inputs)} — those name "
+                "something to go and read, and the writer has no tool that can read anything "
+                "(its toolset is file_ops). It would have to invent the answer. Put a "
+                "researcher task first to fetch the content, and hand the writer that output."
+            )
     # Enforce: researcher/integrator must not be terminal unless they are the only task,
     # OR it's a GitHub automation workflow (researcher → coder → integrator) where the
     # integrator creates real side-effects (PR + comment) as the final action.
