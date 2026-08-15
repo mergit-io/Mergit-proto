@@ -142,6 +142,49 @@ def _language_mismatches(files) -> list[str]:
     return problems
 
 
+def _significant(source: str) -> str:
+    """The source with blank lines and trailing whitespace removed.
+
+    Not a formatter and not a parser — just enough to tell "this diff means something"
+    from "this diff is whitespace".
+    """
+    return "\n".join(line.rstrip() for line in source.splitlines() if line.strip())
+
+
+def _changes_nothing(repo, files, ref) -> bool:
+    """True when not one file in the request would gain a real change.
+
+    Live failure, PR #33 on the sandbox. `mergesort.py` had already been fixed and merged.
+    Asked to "check if the code is correct, if not fix it, raise a PR", the pipeline found
+    nothing to fix and opened a PR anyway to satisfy the last clause — deleting a single
+    blank line, `+0 -1`.
+
+    Every other guard passed it, and each was right to: the content is not empty, it is
+    Python under a `.py` path, the file exists so it is not a misplaced creation, and no
+    definition is lost. None of them asked whether the diff changes anything, which is the
+    one question a pull request has to answer.
+
+    A new file, a missing path or anything unreadable counts as a real change — this only
+    reports the case it is certain about. Only an ALL-nothing request is refused: an
+    unchanged file resent alongside a genuine fix is untidy, not a lie.
+    """
+    from github import GithubException
+    for f in files:
+        try:
+            existing = repo.get_contents(f["path"], ref=ref)
+        except GithubException:
+            return False  # a path that does not exist yet is a real addition
+        if isinstance(existing, list):
+            return False
+        try:
+            before = existing.decoded_content.decode("utf-8", "replace")
+        except Exception:
+            return False  # binary or an unreadable shape — do not second-guess it
+        if _significant(before) != _significant(f.get("content") or ""):
+            return False
+    return True
+
+
 def _find_by_name(repo, name: str, ref: str) -> str | None:
     """An existing root-level path whose filename is `name`, if there is one.
 
@@ -323,6 +366,16 @@ async def github_pr(args: dict) -> dict:
                          f"would delete code that is already there — {'; '.join(dropped)}. "
                          "Read the file, apply your change to it, and send the complete "
                          "file back. Do not send only the part you changed."}
+
+    if _changes_nothing(upstream, files, base_branch):
+        logger.warning("Refusing PR on %s — the content matches what is already there", repo_name)
+        return {"action": "create_pr", "result": None, "url": None, "ok": False,
+                "error": "every file in this request already contains exactly what you are "
+                         "sending, give or take whitespace, so the pull request would change "
+                         "nothing. If you checked the code and it is already correct, say that "
+                         "— that is a complete and successful answer. A goal that asks for a "
+                         "pull request does not require one to exist when there is no fix to "
+                         "make."}
 
     me = g.get_user()
     login = me.login
