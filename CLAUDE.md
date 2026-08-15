@@ -404,6 +404,14 @@ target only from a trigger word ("to Rust", "in Python"), so naming the source l
 does not confuse it, and `Go` is matched only capitalised or as "golang" — a lowercase "go" after
 "to" is the English verb far more often than the language.
 
+`_unrunnable_execution_claim` closes what that exposed. With the language now correct, goal
+`b4d3e69a` submitted real Rust at `auth.rs` — and `output: "Login successful"`, a string lifted out
+of its own source. `tools/code_exec.py` runs `sys.executable -c`, so there is no toolchain for
+anything but Python and that output cannot have come from a run; the Rust did not even compile, its
+first line closing a brace with a paren. Being unable to run something is not a failure and is
+accepted — an `output` saying it was not executed passes. Saying you ran it when you did not is
+refused, because every agent downstream reads that field as evidence the code works.
+
 The forced final gets **one** corrective call with the reason attached, then the task **fails**.
 Running out of iterations is a reason to ask again, not a reason to accept anything: handing a
 self-declared failure downstream is what produced the empty PR #30 and the broken PR #32. Tests:
