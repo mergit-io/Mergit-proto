@@ -128,6 +128,33 @@ def _placeholder_contents(files) -> list[str]:
     return problems
 
 
+#: A function body that exists only to say it was never written. The note "# TODO: fix
+#: this later" is ordinary in working code and is deliberately NOT matched — only a call
+#: that panics or raises the moment it runs.
+_UNIMPLEMENTED = re.compile(r"\b(?:todo!|unimplemented!)\s*\(|"
+                            r"\braise\s+NotImplementedError\b")
+
+
+def _unimplemented_stubs(files) -> list[str]:
+    """Paths whose content leaves functions unimplemented.
+
+    Live failure, PR #39. Forty-seven lines of Rust that compile cleanly and run — the
+    login path works because it never calls the three `todo!()` functions sitting beside
+    it. `hash_password` and `validate_password_strength` are panics, on a goal that asked
+    for the authentication to be made secure.
+
+    Compiling is not the bar; a stub compiles. This is the placeholder guard one level
+    deeper: there, the whole file stood in for content, here a function does.
+    """
+    problems = []
+    for f in files:
+        hits = _UNIMPLEMENTED.findall(f.get("content") or "")
+        if hits:
+            problems.append(f"{f['path']} leaves {len(hits)} function(s) unimplemented "
+                            f"({hits[0].strip()})")
+    return problems
+
+
 def _significant(source: str) -> str:
     """The source with blank lines and trailing whitespace removed.
 
@@ -399,6 +426,15 @@ async def github_pr(args: dict) -> dict:
                 "error": f"{'; '.join(placeholders)}. That is a note describing the content, "
                          "not the content. If you were not given the code to commit, say so "
                          "— do not open a pull request that asks the reader to fill it in."}
+
+    stubs = _unimplemented_stubs(files)
+    if stubs:
+        logger.warning("Refusing PR on %s — unimplemented stubs: %s", repo_name, stubs)
+        return {"action": "create_pr", "result": None, "url": None, "ok": False,
+                "error": f"{'; '.join(stubs)}. A function that panics the moment it is "
+                         "called is not an implementation, and compiling is not the bar — "
+                         "a stub compiles. Write the body, or leave the function out of "
+                         "the pull request entirely."}
 
     wrong_language = _language_mismatches(files)
     if wrong_language:

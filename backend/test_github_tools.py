@@ -1392,3 +1392,75 @@ def test_an_explicit_base_branch_is_respected_too(monkeypatch):
     assert result["ok"] is False
     assert "develop" in result["error"]
     assert repo.created_refs == []
+
+
+# ── Unimplemented stubs are not an implementation ───────────────────────────────
+
+RUST_WITH_TODOS = '''use std::collections::HashMap;
+
+fn authenticate(users: &HashMap<String, String>, username: &str) -> bool {
+    users.contains_key(username)
+}
+
+fn hash_password(password: &str) -> String {
+    todo!("Replace with secure password hashing implementation")
+}
+
+fn validate_password_strength(password: &str) -> bool {
+    todo!("Implement password strength validation")
+}
+'''
+
+
+def test_code_whose_functions_are_unimplemented_is_refused(monkeypatch):
+    """Live failure, PR #39 on the sandbox. 47 lines of Rust that compiles cleanly and
+    runs — because the login path never calls the three `todo!()` functions. The goal
+    asked for the auth to be made secure, and `hash_password` is a panic."""
+    repo = FakeRepo(existing_files=[("auth.py", AUTH_PY)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "feat/auth",
+                                "files": [{"path": "main.rs", "content": RUST_WITH_TODOS}]}))
+
+    assert result["ok"] is False
+    assert "todo!" in result["error"]
+    assert repo.created_refs == [] and repo.created_files == []
+
+
+@pytest.mark.parametrize("stub", [
+    'todo!("later")',
+    "unimplemented!()",
+    "raise NotImplementedError",
+    "raise NotImplementedError('do this')",
+])
+def test_every_unimplemented_marker_is_caught(monkeypatch, stub):
+    repo = FakeRepo(existing_files=[("auth.py", AUTH_PY)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    body = f"def f():\n    {stub}\n" if "raise" in stub else f"fn f() {{ {stub} }}\n"
+    path = "helper.py" if "raise" in stub else "helper.rs"
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "x",
+                                "files": [{"path": path, "content": body}]}))
+
+    assert result["ok"] is False, f"accepted an unimplemented stub: {stub!r}"
+
+
+def test_the_word_todo_in_a_comment_is_still_fine(monkeypatch):
+    """`# TODO` is ordinary in working code. Only an unimplemented CALL is refused —
+    the macro or the raise, not the note."""
+    repo = FakeRepo(existing_files=[("auth.py", AUTH_PY)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    content = ("// TODO: switch to argon2 once the crate is vendored\n"
+               "fn hash_password(p: &str) -> String {\n"
+               "    let mut out = String::new();\n"
+               "    out.push_str(p);\n"
+               "    out\n"
+               "}\n")
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "x",
+                                "files": [{"path": "hash.rs", "content": content}]}))
+
+    assert result["ok"] is True
