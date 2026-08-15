@@ -269,3 +269,36 @@ def test_a_pr_plan_with_no_coder_at_all_is_not_policed():
         _t("t3", "writer", "Report what was opened", {"d": "{{t2.output}}"}, ["t2"]),
     ]
     _validate_plan(PlanSchema(tasks=tasks, terminal="t3", reasoning="r"))
+
+
+def test_referencing_a_coder_without_taking_its_code_is_still_rejected():
+    """Live failure, goal d38a64b8 → PR #36, on the build carrying the first version of
+    this rule. The integrator's only template was:
+
+        "file_path": "{{d38a64b8_t4.output.file_path}}"
+
+    t4 is a coder, so "does it reference a coder task" was satisfied — and the integrator
+    still had no code, and still committed "TODO: replace with actual file content".
+    Pointing at a coder is not the same as being handed what the coder wrote.
+    """
+    tasks = [
+        _t("t1", "coder", "Write the Rust", {"x": 1}),
+        _t("t2", "integrator", "Raise a PR with the Rust",
+           {"repo": "o/r", "file_path": "{{t1.output.file_path}}"}, ["t1"]),
+        _t("t3", "writer", "Report", {"d": "{{t2.output}}"}, ["t2"]),
+    ]
+    with pytest.raises(ValueError) as exc:
+        _validate_plan(PlanSchema(tasks=tasks, terminal="t3", reasoning="r"))
+    assert "code" in str(exc.value).lower()
+
+
+def test_taking_the_path_alongside_the_code_is_fine():
+    """`file_path` is useful — it just cannot be the only thing taken from the coder."""
+    tasks = [
+        _t("t1", "coder", "Write the Rust", {"x": 1}),
+        _t("t2", "integrator", "Raise a PR with the Rust",
+           {"repo": "o/r", "file_path": "{{t1.output.path}}",
+            "fixed_code": "{{t1.output.code}}"}, ["t1"]),
+        _t("t3", "writer", "Report", {"d": "{{t2.output}}"}, ["t2"]),
+    ]
+    _validate_plan(PlanSchema(tasks=tasks, terminal="t3", reasoning="r"))

@@ -266,6 +266,10 @@ async def plan(goal: GoalRow) -> PlanSchema:
 
 _TMPL_DEP = re.compile(r"\{\{(\w+)\.output")
 
+#: Same template, but keeping the field path so a caller can tell `{{t.output.code}}`
+#: from `{{t.output.file_path}}` — one carries the work, the other only names it.
+_TEMPLATE_FIELD = re.compile(r"\{\{(\w+)\.output(?:\.([\w\[\]\.0-9]+))?\}\}")
+
 
 def _extract_template_deps(inputs: dict) -> set[str]:
     """Return task IDs referenced in {{task_id.output...}} templates anywhere in inputs."""
@@ -415,8 +419,15 @@ def _pr_task_without_the_code(p: "PlanSchema") -> str | None:
     for t in p.tasks:
         if t.agent != "integrator" or not _CREATES_A_PR.search(t.description or ""):
             continue
-        referenced = _extract_template_deps(t.inputs or {})
-        if not (referenced & coder_ids):
+        # Pointing AT a coder is not the same as being handed what it wrote. Goal
+        # d38a64b8 passed the first version of this check with a single template,
+        # `{{t4.output.file_path}}` — a coder task, and no code — and committed
+        # "TODO: replace with actual file content" all the same. The reference has to
+        # carry the code: the `code` field, or the whole output object that contains it.
+        if not any(
+            task_id in coder_ids and (not path or path.split(".")[0] == "code")
+            for task_id, path in _TEMPLATE_FIELD.findall(json.dumps(t.inputs or {}))
+        ):
             return (
                 f"task '{t.id}' opens a pull request but was never given the code to put "
                 f"in it — its inputs are {sorted(t.inputs or {})}, none of which reference "
