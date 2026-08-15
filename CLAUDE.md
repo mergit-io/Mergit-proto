@@ -394,6 +394,16 @@ went out. All four now funnel through `_submission_problem()`, which rejects a n
 missing required keys, and a result that contradicts itself (`_self_reported_failure`: `success:
 False`, or an empty required string).
 
+`_wrong_language_for_task` closes the inverse case. `_self_reported_failure` catches an agent that
+ADMITS failure; goal `4ad14cf1` showed the worse shape — asked to migrate `auth.py` to **Rust**, the
+coder (whose only executor is `code_exec`, a **Python** interpreter, so it cannot run Rust at all)
+submitted **Python**, ran it, and set `success: True`. The writer then reported the migration as
+done. `_language_mismatches` would have caught it on the commit path, but that goal never reached an
+integrator, so the claim is now checked where it is made. `language.requested_language` reads a
+target only from a trigger word ("to Rust", "in Python"), so naming the source language in passing
+does not confuse it, and `Go` is matched only capitalised or as "golang" — a lowercase "go" after
+"to" is the English verb far more often than the language.
+
 The forced final gets **one** corrective call with the reason attached, then the task **fails**.
 Running out of iterations is a reason to ask again, not a reason to accept anything: handing a
 self-declared failure downstream is what produced the empty PR #30 and the broken PR #32. Tests:

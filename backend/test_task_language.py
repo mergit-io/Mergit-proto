@@ -1,0 +1,112 @@
+"""A coder asked for one language must not quietly submit another.
+
+Live failure, goal 4ad14cf1 on the deployed build. The task was "Migrate the auth.py file
+to Rust, addressing the TODO comment". The coder's only execution tool is `code_exec`, a
+PYTHON interpreter, so it cannot run Rust and cannot prove Rust works. It wrote Python
+instead, ran that successfully, and submitted:
+
+    {"code": "users = {...}\\n\\ndef login(username, password): ...",
+     "path": "auth.py", "output": "Login successful!", "success": True}
+
+Nothing objected. `_self_reported_failure` catches an agent that ADMITS failure —
+`success: False`, an empty required field. This is the inverse and the more dangerous
+shape: the agent claims success for work it did not do. PR #32 at least told the truth
+about itself.
+
+`_language_mismatches` in `github_pr` would have caught Rust arriving under a `.py` path,
+but it only guards the COMMIT path, and this goal never reached an integrator. The check
+has to happen where the claim is made.
+"""
+import pytest
+
+from agent_registry import AGENT_REGISTRY
+from agent_runner import _submission_problem
+from language import requested_language
+
+CODER_REQUIRED = AGENT_REGISTRY["coder"]["output_schema"]["required"]
+
+PYTHON_AUTH = '''users = {
+    "admin": "1234",
+    "abhinav": "password"
+}
+
+
+def login(username, password):
+    if username in users and users[username] == password:
+        print("Login successful!")
+    else:
+        print("Invalid username or password.")
+'''
+
+RUST_AUTH = '''use std::collections::HashMap;
+
+fn main() {
+    let mut users: HashMap<String, String> = HashMap::new();
+    users.insert("admin".to_string(), "1234".to_string());
+    println!("Login successful!");
+}
+'''
+
+MIGRATE_TO_RUST = "Migrate the auth.py file to Rust, addressing the TODO comment"
+
+
+def _result(code, path="auth.py"):
+    return {"code": code, "path": path, "output": "Login successful!", "success": True}
+
+
+def test_the_exact_submission_that_claimed_a_rust_migration_in_python_is_rejected():
+    problem = _submission_problem(_result(PYTHON_AUTH), CODER_REQUIRED, MIGRATE_TO_RUST)
+    assert problem is not None
+    assert "Rust" in problem and "Python" in problem
+
+
+def test_the_same_task_answered_in_rust_is_accepted():
+    assert _submission_problem(_result(RUST_AUTH, "auth.rs"), CODER_REQUIRED,
+                               MIGRATE_TO_RUST) is None
+
+
+def test_a_task_that_names_no_language_accepts_any_code():
+    assert _submission_problem(_result(PYTHON_AUTH), CODER_REQUIRED,
+                               "Fix the bug in the login check") is None
+
+
+def test_a_task_asking_for_python_accepts_python():
+    assert _submission_problem(_result(PYTHON_AUTH), CODER_REQUIRED,
+                               "Write the login helper in Python") is None
+
+
+def test_code_with_no_language_signal_is_not_second_guessed():
+    """Silence is not evidence. A snippet too small to identify must pass."""
+    assert _submission_problem(_result("# TODO: write this\nX = 1\n"), CODER_REQUIRED,
+                               MIGRATE_TO_RUST) is None
+
+
+def test_a_result_without_a_code_field_is_untouched():
+    """The writer and researcher submit prose. Prose is not source and is never scored."""
+    required = AGENT_REGISTRY["writer"]["output_schema"]["required"]
+    result = {"text": "A report about migrating to Rust.", "title": "Report"}
+    assert _submission_problem(result, required, MIGRATE_TO_RUST) is None
+
+
+def test_the_task_text_is_optional():
+    """Every existing caller passes no task text and must behave exactly as before."""
+    assert _submission_problem(_result(PYTHON_AUTH), CODER_REQUIRED) is None
+
+
+# ── Reading the request out of a task description ──────────────────────────────
+
+@pytest.mark.parametrize("text,expected", [
+    ("Migrate the auth.py file to Rust, addressing the TODO comment", "Rust"),
+    ("Rewrite the parser in Go", "Go"),
+    ("port to golang", "Go"),
+    ("Write the login helper in Python", "Python"),
+    ("Implement the client in JavaScript", "JavaScript"),
+    ("Fix the bug in the login check", None),
+    ("Read the file and go through each function", None),
+    ("Convert the Python module to Rust", "Rust"),
+    ("Rewrite it in Python or in Rust, whichever is cleaner", None),
+])
+def test_requested_language(text, expected):
+    """Only a language introduced by a trigger word counts as the target, so naming the
+    SOURCE language in passing does not confuse it. Two competing targets return None."""
+    assert requested_language(text) == expected
