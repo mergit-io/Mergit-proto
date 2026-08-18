@@ -1252,3 +1252,47 @@ Migration `001_failure_count` applies clean on an empty DB; chain reaches `statu
 
 Conflicts staged as resolved. Still uncommitted and left for review, as the previous block intended;
 `stash@{0}` is deliberately not dropped until that review lands.
+
+---
+
+## 2026-08-18 — Auth audited against its own design: 23 of 24 claims held
+
+Not "do the tests pass" — they did, all 616 — but "does the shipped behaviour match what the design
+says it does". Every claim in the Authentication section was checked twice: read against the code,
+then exercised against a **live server** with real sessions minted in the database, because the suite
+uses `TestClient` and a middleware ordering bug would not necessarily show up there.
+
+**Held, verified live (23):** unauthenticated `/api/` → 401 while `/api/health` stays public; a
+forged session id and an expired one both → 401; `/api/auth/me` returns the session's own CSRF token
+and the right user. Writes: no CSRF header → 403, *another user's* CSRF token → 403, own token → 202,
+reads need none. Origin: a cross-site `Origin` is refused **even carrying a valid CSRF token** — the
+two checks are genuinely independent, not one dressed as two — while the configured frontend origin
+passes. Tenancy: a foreign goal is **404, not 403**, its stream is 404, and it is absent from the
+list. Logout revokes server-side — the captured cookie stops working on the very next request.
+
+**Did not hold (1), and it was not a small one.** `require_admin`'s docstring names "the shared
+provider keys **and the deployment's model config**". It was applied only in `api/keys.py`.
+`api/config.py` and `api/context.py` had no authorization at all beyond the session gate, so **any
+signed-in user could `PUT /api/config/models`** — choosing the model every other user's agents run on
+— and `PUT /api/config/context`, repointing `github_repo`, the repository agents act on when a tool
+call omits one. Both returned 200 to a non-admin.
+
+The gap survived because *authenticated* looks like *authorised* from the outside: the middleware
+really was protecting those routes, and `test_route_coverage.py` — which fails the build on any
+ungated `/api/` path — was satisfied, correctly, because the routes **are** gated. Nothing anywhere
+asserted the admin tier. Fixed: `require_admin` on both writes, reads left open (the Models page
+needs them, and neither leaks a credential).
+
+**A trap in testing it.** `model_config._CONFIG_FILE` and `context.CONTEXT_FILE` are computed at
+import time from `settings.runtime_config_dir`. Registering those routers in the `env` fixture
+without reloading both stores after the settings patch would have pointed the tests at the
+developer's real `model_config.json` and `context.json` and rewritten them. The fixture reloads both;
+confirmed no stray files appear in `backend/` after a run.
+
+620 passed / 35 skipped (four new). The live probe now reports 24/24.
+
+**Not changed, deliberately.** The single-tenant fallback — with Google unconfigured, `require_user`
+returns the legacy owner with `is_admin: True` — is what keeps an existing local deployment working
+after upgrade, and is why the new admin checks do not break `make dev`. Whether a *multi-user*
+deployment should also gate the `GET`s is a product call, not a security one: no key material is in
+those responses.

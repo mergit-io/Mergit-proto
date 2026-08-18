@@ -218,6 +218,20 @@ handed out only by `GET /api/auth/me`, applied unconditionally — SameSite is d
 control. Origin is compared against `frontend_url` ∪ `cors_origin_list()` and **never against `Host`**,
 which is attacker-controlled and would also break the Vite dev proxy's `changeOrigin: true`.
 
+**A session is not an operator.** Three settings are *Mergit's*, not the caller's own — the shared
+provider keys (`model_config.json`), the per-role model choice, and the project context whose
+`github_repo` is the repository agents act on when a tool call omits one. All three are one file for
+the whole deployment, so `require_admin` gates the **writes** (`PUT /api/config/{keys,models,context}`)
+against `ADMIN_EMAILS`, re-derived from config on every login and never "first user wins". Reads stay
+open to any signed-in user because the Models page needs them; `GET /api/config/keys` is the
+exception, admin-only even masked. Admin requires a **verified** email.
+
+> `require_admin` was applied only to `api/keys.py` at first, so any signed-in stranger could
+> `PUT /api/config/models` and choose the model every other user's agents ran on, or repoint
+> `github_repo`. Both returned 200. The gap was invisible because the middleware *did* authenticate
+> those routes — authenticated is not the same as authorised. Regression tests are in the
+> "Deployment-wide settings are not per-user settings" block of `test_auth_tenancy.py`.
+
 **The vault** (`crypto/envelope.py`): AES-256-GCM envelope encryption. **Not Fernet** — Fernet
 exposes no associated data, so a ciphertext is a free-floating blob and an attacker with DB write
 access can move Alice's sealed token into Bob's row and have it decrypt. The AAD binds every

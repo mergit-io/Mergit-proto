@@ -36,7 +36,17 @@ def env(monkeypatch):
     import db as _db
     importlib.reload(_db)
 
+    # Both stores compute their file path at import time from `runtime_config_dir`, so
+    # they are reloaded after the patch above — otherwise these tests would write to the
+    # developer's real model_config.json and context.json.
+    import context as _ctx_store
+    import model_config as _model_config
+    importlib.reload(_model_config)
+    importlib.reload(_ctx_store)
+
     from api import auth as _auth
+    from api import config as _config
+    from api import context as _context
     from api import goals as _goals
     from api import stream as _stream
     from api import tasks as _tasks
@@ -49,7 +59,9 @@ def env(monkeypatch):
     monkeypatch.setattr(_gate, "db", _db, raising=False)
 
     app = FastAPI()
-    for mod in (_auth, _goals, _tasks, _stream):
+    # config/context carry the deployment-wide settings, which is why they are here: the
+    # admin gate on them is part of the auth surface these tests cover.
+    for mod in (_auth, _goals, _tasks, _stream, _config, _context):
         app.include_router(mod.router)
     app.add_middleware(SessionMiddleware, secret_key=SECRET, session_cookie="mergit_oauth")
     app.add_middleware(_gate.SessionGate)
@@ -278,6 +290,45 @@ def test_an_unverified_email_never_becomes_admin(env):
     from auth import oidc
     assert oidc.is_admin({"email": "boss@example.com", "email_verified": False}) is False
     assert oidc.is_admin({"email": "boss@example.com", "email_verified": True}) is True
+
+
+# ── Deployment-wide settings are not per-user settings ──────────────────────────
+#
+# `require_admin` existed and was applied to the provider keys, but the two other files it
+# names — `model_config.json` and `context.json` — were left on the session gate alone. So
+# any signed-in stranger could change what model every other user's agents ran on, and
+# repoint the repository those agents act on by default. Both are one file for the whole
+# deployment; neither is the caller's own setting.
+
+def test_a_signed_in_stranger_cannot_repoint_the_deployments_models(env):
+    plain = sign_in(env, "sub-1", "a@example.com")
+    r = env.put("/api/config/models",
+                json={"models": {"coder": "groq/llama-3.3-70b-versatile"}},
+                cookies=plain["cookies"], headers=plain["headers"])
+    assert r.status_code == 403, r.text
+
+
+def test_an_admin_can_still_set_the_deployments_models(env):
+    boss = sign_in(env, "sub-boss", "boss@example.com")
+    r = env.put("/api/config/models",
+                json={"models": {"coder": "groq/llama-3.3-70b-versatile"}},
+                cookies=boss["cookies"], headers=boss["headers"])
+    assert r.status_code == 200, r.text
+
+
+def test_a_signed_in_stranger_cannot_repoint_the_default_repository(env):
+    """`github_repo` is the repo agents act on when a tool call omits one."""
+    plain = sign_in(env, "sub-1", "a@example.com")
+    r = env.put("/api/config/context", json={"github_repo": "attacker/exfil"},
+                cookies=plain["cookies"], headers=plain["headers"])
+    assert r.status_code == 403, r.text
+
+
+def test_an_admin_can_still_set_the_project_context(env):
+    boss = sign_in(env, "sub-boss", "boss@example.com")
+    r = env.put("/api/config/context", json={"github_repo": "acme/app"},
+                cookies=boss["cookies"], headers=boss["headers"])
+    assert r.status_code == 200, r.text
 
 
 # ── Identity keying ─────────────────────────────────────────────────────────────
