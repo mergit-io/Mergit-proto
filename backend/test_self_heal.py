@@ -35,7 +35,7 @@ BUG = 'File "agent_runner.py", line 88\nKeyError: \'output\''
 
 
 def _goal(ctx, text="do a thing", source="user", heal_depth=0):
-    return asyncio.run(ctx.db.create_goal(text, source=source, heal_depth=heal_depth))
+    return asyncio.run(ctx.db.create_goal(text, user_id="usr_legacy_demo", source=source, heal_depth=heal_depth))
 
 
 def _trigger(ctx, goal, error=BUG, agent="coder", task_id="t1"):

@@ -1,189 +1,150 @@
-import base64
-import hashlib
-import hmac
-import json
-import time
-from urllib.parse import urlencode
+"""Sign in with Google, sign out, and "who am I".
 
-import httpx
-from fastapi import APIRouter, HTTPException, Query, Request
+This replaces a hand-rolled flow that implemented Google *and* GitHub OAuth, had no
+`state`, no PKCE, no `nonce` and no `id_token` validation, threw away every access token
+it obtained, stored nothing, and was called by no one.
+
+GitHub is deliberately **not** an identity provider here. It is a *connection* — see
+`api/connections.py`. Offering "Sign in with GitHub" next to "Sign in with Google" is
+precisely the confusion this design exists to remove: signing in with GitHub grants Mergit
+nothing on GitHub, and a user who did it would reasonably expect otherwise.
+"""
+import logging
+
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
-from config import settings
+import auth.oidc as oidc
+import auth.sessions as sessions
+import db
+from config import auth_enabled, settings
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
-SESSION_COOKIE = "mergit_session"
-SESSION_MAX_AGE = 60 * 60 * 24 * 7
+
+def _client_ip(request: Request) -> str:
+    """Best-effort client address, trusting the proxy chain the app is deployed behind.
+
+    Only ever hashed (`sessions.hash_ip`), never stored or logged raw.
+    """
+    forwarded = request.headers.get("x-forwarded-for", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else ""
 
 
-def _b64(data: bytes) -> str:
-    return base64.urlsafe_b64encode(data).decode().rstrip("=")
+@router.get("/login")
+async def login(request: Request):
+    """Begin sign-in. Authlib stashes state, nonce and the PKCE verifier in the session."""
+    if not auth_enabled():
+        raise HTTPException(
+            status_code=503,
+            detail="Google sign-in is not configured on this deployment "
+                   "(set OAUTH_GOOGLE_CLIENT_ID and OAUTH_GOOGLE_CLIENT_SECRET).",
+        )
+    google = oidc.client().create_client("google")
+    return await google.authorize_redirect(request, oidc.redirect_uri())
 
 
-def _sign(payload: dict) -> str:
-    body = _b64(json.dumps(payload, separators=(",", ":")).encode())
-    sig = _b64(hmac.new(settings.auth_secret_key.encode(), body.encode(), hashlib.sha256).digest())
-    return f"{body}.{sig}"
+@router.get("/callback")
+async def callback(request: Request):
+    """Complete sign-in and start a session.
 
+    `authorize_access_token` is where the safety lives: it checks `state` against the
+    value stored at /login, exchanges the code with the PKCE verifier, then validates the
+    ID token's signature against Google's JWKS along with `iss`, `aud`, `exp` and `nonce`.
+    A failure of any of those raises, and we send the user back to /login with a reason
+    rather than signing anybody in.
+    """
+    if not auth_enabled():
+        raise HTTPException(status_code=503, detail="Google sign-in is not configured")
 
-def _unsign(token: str) -> dict | None:
+    google = oidc.client().create_client("google")
     try:
-        body, sig = token.split(".", 1)
-        expected = _b64(hmac.new(settings.auth_secret_key.encode(), body.encode(), hashlib.sha256).digest())
-        if not hmac.compare_digest(sig, expected):
-            return None
-        payload_raw = base64.urlsafe_b64decode(body + "=" * (-len(body) % 4))
-        payload = json.loads(payload_raw.decode())
-        if int(payload.get("exp", 0)) < int(time.time()):
-            return None
-        return payload
-    except Exception:
-        return None
+        token = await google.authorize_access_token(request)
+    except Exception as e:
+        # Includes a mismatched state — i.e. a login-CSRF attempt, or simply a stale tab.
+        logger.warning("OAuth callback rejected: %s", e)
+        return RedirectResponse(f"{settings.frontend_url}/login?auth=failed")
 
+    claims = token.get("userinfo")
+    if not claims or not claims.get("sub"):
+        logger.warning("OAuth callback returned no verified id_token claims")
+        return RedirectResponse(f"{settings.frontend_url}/login?auth=no_identity")
 
-def _set_session_cookie(resp: RedirectResponse, payload: dict) -> None:
-    resp.set_cookie(
-        key=SESSION_COOKIE,
-        value=_sign(payload),
-        max_age=SESSION_MAX_AGE,
-        httponly=True,
-        secure=settings.cookie_secure,
-        samesite="lax",
-        path="/",
+    profile = oidc.profile_from_claims(claims)
+    user = await db.upsert_user(
+        google_sub=profile["google_sub"],
+        email=profile["email"],
+        email_verified=profile["email_verified"],
+        name=profile["name"],
+        picture=profile["picture"],
+        is_admin=oidc.is_admin(profile),
     )
 
-
-@router.get("/google/login")
-async def google_login() -> RedirectResponse:
-    if not settings.oauth_google_client_id:
-        raise HTTPException(status_code=500, detail="Missing OAUTH_GOOGLE_CLIENT_ID")
-    query = urlencode(
-        {
-            "client_id": settings.oauth_google_client_id,
-            "redirect_uri": settings.oauth_google_redirect_uri,
-            "response_type": "code",
-            "scope": "openid email profile",
-            "access_type": "offline",
-            "prompt": "consent",
-        }
+    session_id, _csrf = await sessions.start(
+        user["id"],
+        user_agent=request.headers.get("user-agent", ""),
+        ip=_client_ip(request),
     )
-    return RedirectResponse(f"https://accounts.google.com/o/oauth2/v2/auth?{query}")
 
-
-@router.get("/github/login")
-async def github_login() -> RedirectResponse:
-    if not settings.oauth_github_client_id:
-        raise HTTPException(status_code=500, detail="Missing OAUTH_GITHUB_CLIENT_ID")
-    query = urlencode(
-        {
-            "client_id": settings.oauth_github_client_id,
-            "redirect_uri": settings.oauth_github_redirect_uri,
-            "scope": "read:user user:email",
-        }
-    )
-    return RedirectResponse(f"https://github.com/login/oauth/authorize?{query}")
-
-
-@router.get("/google/callback")
-async def google_callback(code: str = Query(default="")) -> RedirectResponse:
-    if not code:
-        return RedirectResponse(f"{settings.frontend_url}/login?auth=google_failed")
-    if not settings.oauth_google_client_secret:
-        raise HTTPException(status_code=500, detail="Missing OAUTH_GOOGLE_CLIENT_SECRET")
-
-    async with httpx.AsyncClient(timeout=15) as client:
-        token_res = await client.post(
-            "https://oauth2.googleapis.com/token",
-            data={
-                "code": code,
-                "client_id": settings.oauth_google_client_id,
-                "client_secret": settings.oauth_google_client_secret,
-                "redirect_uri": settings.oauth_google_redirect_uri,
-                "grant_type": "authorization_code",
-            },
-        )
-        if token_res.status_code >= 400:
-            return RedirectResponse(f"{settings.frontend_url}/login?auth=google_token_failed")
-        access_token = token_res.json().get("access_token")
-        if not access_token:
-            return RedirectResponse(f"{settings.frontend_url}/login?auth=google_token_failed")
-        user_res = await client.get(
-            "https://www.googleapis.com/oauth2/v2/userinfo",
-            headers={"Authorization": f"Bearer {access_token}"},
-        )
-        if user_res.status_code >= 400:
-            return RedirectResponse(f"{settings.frontend_url}/login?auth=google_user_failed")
-        user = user_res.json()
-
-    payload = {
-        "provider": "google",
-        "email": user.get("email", ""),
-        "name": user.get("name", ""),
-        "picture": user.get("picture", ""),
-        "exp": int(time.time()) + SESSION_MAX_AGE,
-    }
-    resp = RedirectResponse(f"{settings.frontend_url}/app")
-    _set_session_cookie(resp, payload)
-    return resp
-
-
-@router.get("/github/callback")
-async def github_callback(code: str = Query(default="")) -> RedirectResponse:
-    if not code:
-        return RedirectResponse(f"{settings.frontend_url}/login?auth=github_failed")
-    if not settings.oauth_github_client_secret:
-        raise HTTPException(status_code=500, detail="Missing OAUTH_GITHUB_CLIENT_SECRET")
-
-    async with httpx.AsyncClient(timeout=15) as client:
-        token_res = await client.post(
-            "https://github.com/login/oauth/access_token",
-            headers={"Accept": "application/json"},
-            data={
-                "code": code,
-                "client_id": settings.oauth_github_client_id,
-                "client_secret": settings.oauth_github_client_secret,
-                "redirect_uri": settings.oauth_github_redirect_uri,
-            },
-        )
-        if token_res.status_code >= 400:
-            return RedirectResponse(f"{settings.frontend_url}/login?auth=github_token_failed")
-        access_token = token_res.json().get("access_token")
-        if not access_token:
-            return RedirectResponse(f"{settings.frontend_url}/login?auth=github_token_failed")
-        user_res = await client.get(
-            "https://api.github.com/user",
-            headers={"Authorization": f"Bearer {access_token}", "Accept": "application/vnd.github+json"},
-        )
-        if user_res.status_code >= 400:
-            return RedirectResponse(f"{settings.frontend_url}/login?auth=github_user_failed")
-        user = user_res.json()
-
-    payload = {
-        "provider": "github",
-        "email": user.get("email", ""),
-        "name": user.get("name") or user.get("login", ""),
-        "picture": user.get("avatar_url", ""),
-        "exp": int(time.time()) + SESSION_MAX_AGE,
-    }
-    resp = RedirectResponse(f"{settings.frontend_url}/app")
-    _set_session_cookie(resp, payload)
-    return resp
+    # Absolute, from config — NOT a relative "/app". A relative redirect resolves against
+    # the callback's own origin, which in development is the backend on :8000, where the
+    # SPA is not served and the developer lands on a 404 at their first ever login.
+    response = RedirectResponse(f"{settings.frontend_url}/app")
+    sessions.attach(response, session_id)
+    logger.info("signed in user=%s admin=%s", user["id"], user["is_admin"])
+    return response
 
 
 @router.get("/me")
 async def me(request: Request) -> JSONResponse:
-    token = request.cookies.get(SESSION_COOKIE)
-    if not token:
-        return JSONResponse({"authenticated": False}, status_code=401)
-    payload = _unsign(token)
-    if not payload:
-        return JSONResponse({"authenticated": False}, status_code=401)
-    return JSONResponse({"authenticated": True, "user": payload})
+    """The signed-in user, and the CSRF token the SPA must echo on unsafe requests.
+
+    Handing the token out here rather than in a JS-readable cookie is what makes it a
+    synchronizer token: a cross-site page can cause a request to be *sent* with the
+    session cookie attached, but it cannot read this response to learn the token.
+    """
+    if not auth_enabled():
+        # No login is possible, so report the single-tenant local mode honestly instead of
+        # a 401 the SPA would bounce to a login page that cannot work.
+        return JSONResponse({
+            "authenticated": True,
+            "auth_configured": False,
+            "user": {"id": db.LEGACY_USER_ID, "email": "", "name": "Local",
+                     "picture": "", "is_admin": True},
+            "csrf_token": "",
+        })
+
+    session = await sessions.load(request.cookies.get(sessions.cookie_name()))
+    if not session:
+        return JSONResponse({"authenticated": False, "auth_configured": True}, status_code=401)
+
+    return JSONResponse({
+        "authenticated": True,
+        "auth_configured": True,
+        "user": {
+            "id": session["id"],
+            "email": session["email"],
+            "name": session["name"],
+            "picture": session["picture"],
+            "is_admin": session["is_admin"],
+        },
+        "csrf_token": session["csrf_token"],
+    })
 
 
 @router.post("/logout")
-async def logout() -> JSONResponse:
-    resp = JSONResponse({"ok": True})
-    resp.delete_cookie(SESSION_COOKIE, path="/")
-    return resp
+async def logout(request: Request) -> JSONResponse:
+    """End the session server-side, then clear the cookie.
+
+    Order matters. The old implementation only deleted the client's copy, so a cookie
+    captured beforehand stayed valid for its full seven days — logout looked like it
+    worked and did nothing an attacker would notice.
+    """
+    session_id = request.cookies.get(sessions.cookie_name())
+    await sessions.end(session_id)
+    response = JSONResponse({"ok": True})
+    sessions.clear(response)
+    return response

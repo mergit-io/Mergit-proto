@@ -1,6 +1,7 @@
 from typing import Any
 
 import model_config as _mc
+from config import settings
 
 
 def get_agent_config(name: str) -> dict[str, Any]:
@@ -8,6 +9,29 @@ def get_agent_config(name: str) -> dict[str, Any]:
     cfg = dict(AGENT_REGISTRY[name])
     cfg["model"] = _mc.get_model(name)
     return cfg
+
+
+def _apply_demo_safe_mode() -> None:
+    """Take `code_exec` off the coder when the deployment must not run agent-authored code.
+
+    The other half of this lives in `tools/__init__.py`, which unregisters the tool. Both
+    are needed and for different reasons: unregistering stops it *executing*, and this
+    stops it being *offered*. `agent_runner._build_tool_defs` builds the schema the model
+    sees from `allowed_tools`, so leaving the name here would show the model a tool that
+    no longer exists — it calls it, gets "Unknown tool: code_exec", and each such failure
+    counts toward the `consecutive_errors` threshold that forces a premature submit.
+    """
+    if not settings.demo_safe_mode:
+        return
+    coder = AGENT_REGISTRY.get("coder")
+    if coder and "code_exec" in coder["allowed_tools"]:
+        coder["allowed_tools"] = [t for t in coder["allowed_tools"] if t != "code_exec"]
+        coder["system_prompt"] = (
+            coder["system_prompt"]
+            + "\n\nNOTE: code execution is disabled on this deployment. You cannot run or "
+              "test code. Write the fix carefully, reason about correctness from the source "
+              "you have read, and say in your result that it was not executed."
+        )
 
 
 AGENT_REGISTRY: dict[str, dict[str, Any]] = {
@@ -201,3 +225,8 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
         "max_iterations": 8,
     },
 }
+
+
+# Applied at import, after AGENT_REGISTRY exists. Paired with the TOOL_REGISTRY.pop in
+# tools/__init__.py — see _apply_demo_safe_mode for why both are required.
+_apply_demo_safe_mode()

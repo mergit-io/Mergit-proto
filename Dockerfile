@@ -1,9 +1,14 @@
+# Litestream, pinned. `latest` would change the binary under a rebuild, and this one
+# is responsible for whether the database survives a redeploy.
+FROM litestream/litestream:0.5.16 AS litestream
+
 FROM node:20-bookworm-slim AS frontend-builder
 
 WORKDIR /app/frontend
-# Demo showcase: bypass Firebase/OAuth login. Baked at frontend build time.
-# Override with `--build-arg VITE_DEMO_MODE=false` (or a Render env var) for real auth.
-ARG VITE_DEMO_MODE=true
+# Defaults to FALSE now that Google sign-in exists. This flag used to default to true
+# and compiled the login out of the production image entirely — the deployed build had
+# no authentication at all. Kept only so a local demo can still bypass login.
+ARG VITE_DEMO_MODE=false
 ENV VITE_DEMO_MODE=$VITE_DEMO_MODE
 COPY frontend/package*.json ./
 RUN npm ci
@@ -48,6 +53,14 @@ RUN mkdir -p /opt/solcx /app/backend/deployments \
     && python -c "from chain import compiler; compiler.compile_all(); print('contracts compiled')" \
     && chown -R mergit:mergit /opt/solcx /app/backend/contracts /app/backend/deployments
 
+# Continuous SQLite replication. Adds ~37 MB to the image and well under 30 MB
+# resident, which matters on a 512 MB free instance already holding litellm and py-evm.
+COPY --from=litestream /usr/local/bin/litestream /usr/local/bin/litestream
+COPY deploy/litestream/litestream.yml  /etc/litestream.yml
+COPY deploy/litestream/entrypoint.sh   /usr/local/bin/entrypoint.sh
+COPY deploy/litestream/run-app.sh      /usr/local/bin/run-app.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/run-app.sh
+
 RUN mkdir -p /data/workspace /data/config /app/backend/logs \
     && chown -R mergit:mergit /data /app/backend/logs
 
@@ -59,4 +72,9 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD sh -c "python -c \"import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/api/health' % os.environ.get('PORT', '8000'), timeout=3).read()\""
 
-CMD ["sh", "-c", "python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --proxy-headers --forwarded-allow-ips '*'"]
+# Exec form, deliberately. Shell form wraps this in `/bin/sh -c`, and that shell does
+# NOT forward SIGTERM to its child — which would silently disable Litestream's final
+# sync and turn every redeploy into a data-loss event that still looks fine in the logs.
+# entrypoint.sh runs uvicorn directly when LITESTREAM_BUCKET is unset, so `make dev`
+# and the test suite are unaffected.
+CMD ["/usr/local/bin/entrypoint.sh"]

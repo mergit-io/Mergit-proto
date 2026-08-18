@@ -24,6 +24,7 @@ def env(monkeypatch):
     tmp = tempfile.mkdtemp()
     monkeypatch.setattr("config.settings.db_path", os.path.join(tmp, "api.db"))
     monkeypatch.setattr("config.settings.runtime_config_dir", tmp)
+    monkeypatch.setenv("GITHUB_WEBHOOK_SECRET", GH_SECRET)
 
     import db as _db
     importlib.reload(_db)
@@ -193,7 +194,7 @@ def test_an_empty_key_is_rejected(env):
 def test_setting_a_key_writes_the_env_file_and_resumes_waiting_tasks(env):
     """The credential-resume side effect is the reason this endpoint exists."""
     async def setup():
-        goal = await env.db.create_goal("needs a token")
+        goal = await env.db.create_goal("needs a token", user_id="usr_legacy_demo")
         await env.db.create_tasks(
             [{"id": "t1", "agent": "integrator", "description": "open a PR",
               "inputs": {}, "depends_on": []}],
@@ -228,7 +229,7 @@ def test_an_unknown_webhook_token_is_a_404(env):
 
 def test_a_webhook_resumes_the_waiting_task(env):
     async def setup():
-        goal = await env.db.create_goal("waits for a callback")
+        goal = await env.db.create_goal("waits for a callback", user_id="usr_legacy_demo")
         await env.db.create_tasks(
             [{"id": "w1", "agent": "integrator", "description": "wait",
               "inputs": {}, "depends_on": []}],
@@ -247,7 +248,7 @@ def test_a_webhook_resumes_the_waiting_task(env):
 
 def test_replaying_a_webhook_does_not_resume_twice(env):
     async def setup():
-        goal = await env.db.create_goal("waits once")
+        goal = await env.db.create_goal("waits once", user_id="usr_legacy_demo")
         await env.db.create_tasks(
             [{"id": "w2", "agent": "integrator", "description": "wait",
               "inputs": {}, "depends_on": []}],
@@ -263,7 +264,7 @@ def test_replaying_a_webhook_does_not_resume_twice(env):
 def test_a_webhook_with_no_body_is_still_accepted(env):
     """Senders that post an empty body must not wedge the task forever."""
     async def setup():
-        goal = await env.db.create_goal("empty callback")
+        goal = await env.db.create_goal("empty callback", user_id="usr_legacy_demo")
         await env.db.create_tasks(
             [{"id": "w3", "agent": "integrator", "description": "wait",
               "inputs": {}, "depends_on": []}],
@@ -295,7 +296,12 @@ PR_EVENT = {
 }
 
 
-def _post_gh(env, payload, event, secret=None):
+#: The receiver fails closed, so every webhook test signs unless it is specifically
+#: testing what happens when it does not. Passing `secret=None` sends it unsigned.
+GH_SECRET = "s3cret"
+
+
+def _post_gh(env, payload, event, secret=GH_SECRET):
     body = json.dumps(payload).encode()
     headers = {"X-GitHub-Event": event, "content-type": "application/json"}
     if secret:
@@ -348,8 +354,13 @@ def test_a_ping_is_acknowledged(env):
 
 
 def test_malformed_json_is_a_400(env):
-    r = env.post("/api/webhooks/github", content=b"{not json",
-                 headers={"X-GitHub-Event": "issues", "content-type": "application/json"})
+    # Signed, so the request gets past verification and fails on the JSON instead — the
+    # signature is over bytes and does not care whether they parse.
+    body = b"{not json"
+    sig = "sha256=" + hmac.new(GH_SECRET.encode(), body, hashlib.sha256).hexdigest()
+    r = env.post("/api/webhooks/github", content=body,
+                 headers={"X-GitHub-Event": "issues", "content-type": "application/json",
+                          "X-Hub-Signature-256": sig})
     assert r.status_code == 400
 
 
@@ -366,7 +377,7 @@ def test_a_bad_signature_is_rejected(env, monkeypatch):
 
 def test_a_missing_signature_is_rejected_when_a_secret_is_set(env, monkeypatch):
     monkeypatch.setenv("GITHUB_WEBHOOK_SECRET", "s3cret")
-    assert _post_gh(env, ISSUE_EVENT, "issues").status_code == 401
+    assert _post_gh(env, ISSUE_EVENT, "issues", secret=None).status_code == 401
 
 
 # ── /api/actions ────────────────────────────────────────────────────────────────
@@ -380,7 +391,11 @@ def test_listing_workflows_passes_the_repo_through(env, monkeypatch):
 
     monkeypatch.setattr(env.mods["actions"], "github_list_workflows", fake)
     body = env.get("/api/actions/workflows?repo=acme/widget").json()
-    assert seen == {"repo": "acme/widget"}
+    # `_user_id` rides along so the credential broker can resolve this caller's
+    # GitHub connection: this route has a session but no goal, so the goal-based
+    # resolver cannot serve it.
+    assert seen["repo"] == "acme/widget"
+    assert seen["_user_id"] == "usr_legacy_demo"
     assert body["workflows"] == [{"name": "ci"}]
 
 
@@ -426,3 +441,60 @@ def test_an_unknown_heal_attempt_is_a_404(env):
 @pytest.mark.parametrize("query", ["limit=-1", "limit=0", "limit=99999"])
 def test_heal_attempts_pagination_is_bounded(env, query):
     assert env.get(f"/api/heal/attempts?{query}").status_code == 422
+
+
+def test_the_secret_is_honoured_when_only_pydantic_settings_knows_about_it(env, monkeypatch):
+    """A secret in backend/.env reaches `settings` but never `os.environ`.
+
+    This is the third time this exact split has bitten this repo: `tools/github_client.py`
+    exists because of it, and the webhook receiver had it too — it read only `os.environ`,
+    so an operator who followed the documented setup got a receiver that silently failed
+    OPEN. Render injects real env vars, which hid it in the one place it mattered most.
+
+    Setting *only* the settings field is the whole point of the test. Using
+    `monkeypatch.setenv` here would pass against the broken implementation.
+    """
+    import config
+    monkeypatch.delenv("GITHUB_WEBHOOK_SECRET", raising=False)
+    monkeypatch.setattr(config.settings, "github_webhook_secret", "from-dotenv")
+
+    assert _post_gh(env, ISSUE_EVENT, "issues", secret=None).status_code == 401
+    assert _post_gh(env, ISSUE_EVENT, "issues", secret="wrong").status_code == 401
+    assert _post_gh(env, ISSUE_EVENT, "issues", secret="from-dotenv").status_code == 200
+
+
+def test_an_unset_secret_rejects_in_production_and_allows_in_debug(env, monkeypatch):
+    """Fail closed is the whole point; DEBUG is the documented escape hatch for a laptop."""
+    import config
+    monkeypatch.delenv("GITHUB_WEBHOOK_SECRET", raising=False)
+    monkeypatch.setattr(config.settings, "github_webhook_secret", "")
+
+    monkeypatch.setattr(config.settings, "debug", False)
+    assert _post_gh(env, ISSUE_EVENT, "issues", secret=None).status_code == 401
+    assert asyncio.run(env.db.list_goals()) == [], "an unsigned webhook created a goal"
+
+    monkeypatch.setattr(config.settings, "debug", True)
+    assert _post_gh(env, ISSUE_EVENT, "issues", secret=None).status_code == 200
+
+
+def test_simulating_an_issue_does_not_go_through_the_webhook(env):
+    """The Automate page's Simulate button has its own route, and it must keep working.
+
+    Fail-closing the receiver without moving this would have broken the deployed demo:
+    `frontend/src/pages/Webhooks.tsx` posted a hand-built payload at /api/webhooks/github
+    with no signature at all. The goal text is built by the same function the real
+    receiver uses, so the two paths cannot drift.
+    """
+    r = env.post("/api/actions/simulate-issue", json={
+        "repo": "acme/widget", "title": "calculate() returns None for zero",
+        "body": "It should return 0.", "issue_number": 7,
+    })
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["ok"] is True and body["simulated"] is True
+
+    goals = asyncio.run(env.db.list_goals())
+    assert len(goals) == 1
+    text = goals[0].goal_text
+    assert "acme/widget" in text and "Issue #7" in text
+    assert "calculate() returns None for zero" in text

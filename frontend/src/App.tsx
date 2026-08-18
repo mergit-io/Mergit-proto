@@ -10,11 +10,18 @@ import { Actions } from "./pages/Actions";
 import { Economy } from "./pages/Economy";
 import { AgentDetail } from "./pages/AgentDetail";
 import { SelfHeal } from "./pages/SelfHeal";
+import { Connections } from "./pages/Connections";
+import { Approvals } from "./pages/Approvals";
+import { AuthProvider } from "./lib/auth";
 import "./index.css";
 
 export default function App() {
   return (
-    <BrowserRouter>
+    /* AuthProvider wraps the router so /login can read auth state too: it needs to
+       know whether sign-in is even configured, and to bounce an already-signed-in
+       user straight to /app. */
+    <AuthProvider>
+      <BrowserRouter>
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
@@ -82,7 +89,24 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/app/connections"
+          element={
+            <ProtectedRoute>
+              <Connections />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/approvals"
+          element={
+            <ProtectedRoute>
+              <Approvals />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
-    </BrowserRouter>
+      </BrowserRouter>
+    </AuthProvider>
   );
 }

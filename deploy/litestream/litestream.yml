@@ -1,0 +1,57 @@
+# Litestream 0.5.x — continuous SQLite replication to object storage.
+#
+# WHY THE NON-DEFAULT TIMINGS
+# ---------------------------
+# Litestream's compaction monitors fire on their own timers regardless of whether
+# the database was written to. On stock defaults (levels 30s/5m/1h) a completely
+# IDLE database still produced ~480 PUT/hour on Cloudflare R2 — 345,600/month,
+# i.e. 35% of R2's free Class A quota burned doing nothing at all.
+#   https://github.com/benbjohnson/litestream/issues/1171   (open; PR #1211 unmerged as of 2026-08-15)
+#
+# Mergit's 1 Hz worker polling contributes ZERO to this: claim_new_goal,
+# claim_ready_task and reclaim_expired_leases are all `UPDATE ... WHERE <no match>`,
+# which dirties no page and appends no WAL frame. Measured: 2,000 no-op claim+COMMIT
+# cycles grew the WAL by 0 bytes; one real write grew it by 4,152.
+#
+# So the bill is set by the compaction timers, not by the workload. Lengthening the
+# levels below drops the idle floor by roughly an order of magnitude. Re-check the
+# real number in the R2/B2 dashboard after 24h and tune from there.
+
+# ── Global replica defaults (0.5.x feature) ────────────────────────────────────
+access-key-id:     ${LITESTREAM_ACCESS_KEY_ID}
+secret-access-key: ${LITESTREAM_SECRET_ACCESS_KEY}
+
+# 10s instead of the 1s default. RPO on an ungraceful SIGKILL becomes ~10s instead
+# of ~1s, and write-burst PUT volume drops ~10x. On a graceful shutdown (which is
+# what a Render redeploy is: SIGTERM, then SIGKILL 30s later) Litestream performs a
+# final sync in Close(), so the graceful RPO is 0 regardless of this value.
+sync-interval: 10s
+
+# L1/L2/L3 compaction. Defaults are 30s/5m/1h; these are 10x longer.
+levels:
+  - interval: 5m    # L1
+  - interval: 1h    # L2
+  - interval: 6h    # L3
+
+snapshot:
+  interval: 24h
+  retention: 72h    # 3 days of point-in-time recovery. ~4 MB DB => tens of MB total.
+
+l0-retention: 30m
+
+dbs:
+  - path: ${DB_PATH}
+    checkpoint-interval: 5m
+    replica:
+      type: s3
+      bucket:   ${LITESTREAM_BUCKET}
+      path:     mergit
+      endpoint: ${LITESTREAM_ENDPOINT}
+      region:   ${LITESTREAM_REGION}
+      # force-path-style is auto-detected for B2 and R2 endpoints in 0.5.0+.
+      #
+      # Endpoint / region by provider:
+      #   Cloudflare R2  endpoint: https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+      #                  region:   auto
+      #   Backblaze B2   endpoint: https://s3.us-west-004.backblazeb2.com
+      #                  region:   us-west-004

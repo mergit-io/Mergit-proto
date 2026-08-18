@@ -1,226 +1,100 @@
-import { Eye, EyeOff, Globe, Mail } from "lucide-react";
+import { useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { AppBackground } from "../components/AppBackground";
-import { useState } from "react";
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
-import { useNavigate } from "react-router-dom";
-import { auth, githubProvider, googleProvider } from "../lib/firebase";
-import { useChainBadge } from "../hooks/useChainBadge";
+import { useAuth } from "../lib/auth";
 
+/**
+ * One way in: Google.
+ *
+ * The page this replaces offered Google, GitHub and email/password, all through Firebase.
+ * GitHub is deliberately gone from here, and that is a product decision rather than a
+ * simplification: signing in *with* GitHub grants Mergit nothing *on* GitHub. A user who
+ * clicked it would reasonably assume otherwise, and would then be confused about why
+ * Mergit still asks them to connect GitHub afterwards. GitHub lives on the Connections
+ * page, where it means what it looks like it means.
+ *
+ * Email/password is gone for a duller reason: it is a password to store, reset, breach and
+ * support, in exchange for nothing this product needs.
+ */
 export function Login() {
-  const chainBadge = useChainBadge();
+  const { user, authConfigured, loading } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [remember, setRemember] = useState(true);
-  const [oauthLoading, setOauthLoading] = useState<"google" | "github" | null>(null);
-  const [signingIn, setSigningIn] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [isSignUpMode, setIsSignUpMode] = useState(false);
+  const [params] = useSearchParams();
 
-  const startOAuth = async (provider: "google" | "github") => {
-    try {
-      setErrorMessage("");
-      setOauthLoading(provider);
-      const selectedProvider = provider === "google" ? googleProvider : githubProvider;
-      // null when no Firebase project is configured — a demo build, where this page is
-      // unreachable anyway. Guarded so a misconfigured build shows a message, not a crash.
-      if (!auth || !selectedProvider) {
-        setErrorMessage("Authentication is not configured for this deployment.");
-        setOauthLoading(null);
-        return;
-      }
-      await signInWithPopup(auth, selectedProvider);
-      navigate("/app");
-    } catch (error) {
-      console.error(`${provider} sign-in failed`, error);
-      setErrorMessage("Social sign in failed. Please try again.");
-      setOauthLoading(null);
-    }
-  };
+  useEffect(() => {
+    if (!loading && user) navigate("/app", { replace: true });
+  }, [loading, user, navigate]);
 
-  const handleEmailAuth = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    try {
-      setErrorMessage("");
-      setSigningIn(true);
-      if (!auth) {
-        setErrorMessage("Authentication is not configured for this deployment.");
-        setSigningIn(false);
-        return;
-      }
-      if (isSignUpMode) {
-        await createUserWithEmailAndPassword(auth, email.trim(), password);
-      } else {
-        await signInWithEmailAndPassword(auth, email.trim(), password);
-      }
-      navigate("/app");
-    } catch (error: unknown) {
-      console.error("Email sign in failed", error);
-      setErrorMessage(
-        isSignUpMode
-          ? "Could not create account. Check email/password and try again."
-          : "Invalid email or password. Please check and try again."
-      );
-      setSigningIn(false);
-    }
-  };
+  const notice = params.get("auth") ?? (params.get("expired") ? "expired" : "");
 
   return (
-    <main className="min-h-screen bg-bg text-white relative overflow-hidden">
+    <div className="relative min-h-screen" style={{ background: "#000" }}>
       <AppBackground />
-
-      <div className="relative z-10 max-w-7xl mx-auto px-6 py-8 min-h-screen">
-        <header className="glass-card rounded-3xl px-8 py-4 flex items-center justify-between">
-          <a href="/" className="flex items-center gap-3">
-            <svg viewBox="0 0 32 32" fill="none" className="w-8 h-8">
-              <defs>
-                <linearGradient id="login-logo" x1="4" y1="10" x2="28" y2="10" gradientUnits="userSpaceOnUse">
-                  <stop stopColor="#6d4aff" />
-                  <stop offset="1" stopColor="#22d3ee" />
-                </linearGradient>
-              </defs>
-              <circle cx="8" cy="8" r="4" fill="#6d4aff" />
-              <circle cx="24" cy="8" r="4" fill="#22d3ee" />
-              <path
-                d="M8 12 C8 18, 16 16, 16 22 M24 12 C24 18, 16 16, 16 22"
-                stroke="url(#login-logo)"
-                strokeWidth="1.75"
-                strokeLinecap="round"
-              />
-              <circle cx="16" cy="24.5" r="4.5" fill="#2eff9e" />
-            </svg>
-            <span className="font-display font-semibold text-3xl leading-none tracking-tight">Merg<span className="text-gradient-blue">it</span></span>
-          </a>
-          <button
-            type="button"
-            onClick={() => {
-              setIsSignUpMode((v) => !v);
-              setErrorMessage("");
-            }}
-            className="text-sm text-white/70 hover:text-white transition-colors"
-          >
-            {isSignUpMode ? "Already have an account? Sign in →" : "Need an account? Create one →"}
-          </button>
-        </header>
-
-        <section className="relative min-h-[calc(100vh-120px)] grid lg:grid-cols-2 gap-10 items-center py-10">
-          <div className="w-full text-center lg:text-left">
-            <p className="inline-flex items-center gap-2 px-5 py-2 rounded-full border border-white/10 bg-white/5 text-accent font-semibold tracking-[0.16em] text-xs uppercase mb-6">
-              <span className="w-2 h-2 rounded-full bg-accent" /> {chainBadge.label}
-            </p>
-            <h1 className="font-display font-bold leading-[0.95] text-white text-[clamp(2.4rem,5.8vw,4.8rem)]">
-              The AI Agent Economy
-            </h1>
-            <h2 className="font-display font-bold leading-[0.95] text-[clamp(2rem,5.2vw,4.3rem)] text-gradient-blue mt-2">
-              Runs on Proof of Work
-            </h2>
-            <p className="mt-6 text-[clamp(0.95rem,1.25vw,1.15rem)] text-white/60 max-w-xl mx-auto lg:mx-0">
-              Delegate any goal. Mergit decomposes it into a precise task graph, spins up specialized agents, invokes real tools, and delivers results end-to-end.
+      <div className="relative z-10 min-h-screen flex items-center justify-center px-6">
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-8">
+            <h1 className="text-2xl font-semibold text-white tracking-tight">Mergit</h1>
+            <p className="mt-2 text-sm text-white/50">
+              Sign in to run agents on your own repositories.
             </p>
           </div>
 
-          <div className="w-full max-w-xl mx-auto lg:mx-0 glass-card rounded-3xl p-8 md:p-10">
-            <h1 className="font-display text-5xl font-semibold leading-tight mb-2">
-              {isSignUpMode ? "Create account." : "Welcome back."}
-            </h1>
-            <p className="text-text-muted mb-8">
-              {isSignUpMode ? "Create your account to start delegating goals." : "Sign in to keep an eye on your agents."}
-            </p>
+          {notice && (
+            <div className="mb-5 rounded-xl border border-amber-400/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-200/90">
+              {notice === "expired"
+                ? "Your session expired. Sign in again to continue."
+                : "That sign-in did not complete. Please try again."}
+            </div>
+          )}
 
-            <form className="space-y-5" onSubmit={handleEmailAuth}>
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-xs text-text-muted">Email</label>
-                  <div className="border-b border-white/15 focus-within:border-white/35 transition-colors">
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@company.com"
-                      className="w-full bg-transparent py-2.5 outline-none text-white placeholder:text-white/35"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs text-text-muted">Password</label>
-                  <div className="border-b border-white/15 focus-within:border-white/35 transition-colors flex items-center gap-2">
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="w-full bg-transparent py-2.5 outline-none text-white placeholder:text-white/35"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((v) => !v)}
-                      className="text-white/45 hover:text-white/80 transition-colors"
-                      aria-label="Toggle password visibility"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between text-sm">
-                <label className="inline-flex items-center gap-2.5 cursor-pointer text-text-muted hover:text-white/85 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={remember}
-                    onChange={(e) => setRemember(e.target.checked)}
-                    className="accent-white"
-                  />
-                  Remember me
-                </label>
-                <a href="#" className="text-text-muted hover:text-white/85 transition-colors">Forgot?</a>
-              </div>
-
-              <button
-                type="submit"
-                disabled={signingIn || oauthLoading !== null}
-                className="w-full rounded-full h-12 flex items-center justify-center gap-2 disabled:opacity-60 bg-gradient-to-r from-accent to-purple text-white shadow-[0_0_32px_rgba(109,74,255,0.35)]"
+          {!authConfigured ? (
+            // Fail loudly rather than showing a button that cannot work. The instinct is
+            // inherited from the page this replaces, and it was the right one.
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5 text-sm text-white/60 space-y-2">
+              <p className="text-white/85 font-medium">Sign-in is not configured</p>
+              <p>
+                Set <code className="text-white/80">OAUTH_GOOGLE_CLIENT_ID</code> and{" "}
+                <code className="text-white/80">OAUTH_GOOGLE_CLIENT_SECRET</code> on the
+                backend. Until then Mergit runs in single-tenant mode and{" "}
+                <a href="/app" className="text-white underline underline-offset-2">
+                  the app is open
+                </a>
+                .
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* A plain link, not fetch(). The OAuth flow is a full-page redirect to
+                  Google — an XHR cannot follow it, and the state/nonce Authlib stores on
+                  this response has to reach the browser as a real navigation. */}
+              <a
+                href="/api/auth/login"
+                className="flex items-center justify-center gap-3 w-full rounded-xl bg-white px-4 py-3
+                           text-sm font-medium text-black transition-all hover:bg-white/90"
               >
-                <Mail className="w-4 h-4" />
-                <span className="font-medium">
-                  {signingIn ? (isSignUpMode ? "Creating account..." : "Signing in...") : (isSignUpMode ? "Create account" : "Sign in")}
-                </span>
-              </button>
+                <GoogleMark />
+                Continue with Google
+              </a>
 
-              {errorMessage ? (
-                <p className="text-xs text-red-300">{errorMessage}</p>
-              ) : null}
-
-              <div className="flex items-center gap-3 py-1">
-                <div className="h-px flex-1 bg-white/10" />
-                <span className="text-[11px] text-text-muted">or</span>
-                <div className="h-px flex-1 bg-white/10" />
-              </div>
-
-              <div className="grid sm:grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => startOAuth("google")}
-                  disabled={oauthLoading !== null}
-                  className="btn-glass rounded-lg h-11 text-sm font-medium disabled:opacity-60"
-                >
-                  {oauthLoading === "google" ? "Redirecting..." : "Continue with Google"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => startOAuth("github")}
-                  disabled={oauthLoading !== null}
-                  className="btn-glass rounded-lg h-11 text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-60"
-                >
-                  <Globe className="w-4 h-4" />
-                  {oauthLoading === "github" ? "Redirecting..." : "Continue with GitHub"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </section>
+              <p className="mt-5 text-center text-xs leading-relaxed text-white/35">
+                Mergit only uses Google to identify you. Connecting GitHub or Slack is a
+                separate step, and you choose exactly what each one may do.
+              </p>
+            </>
+          )}
+        </div>
       </div>
-    </main>
+    </div>
+  );
+}
+
+function GoogleMark() {
+  return (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true">
+      <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5a5.6 5.6 0 0 1-2.4 3.7v3h3.9c2.3-2.1 3.5-5.2 3.5-8.9z" />
+      <path fill="#34A853" d="M12 24c3.2 0 5.9-1.1 7.9-2.9l-3.9-3c-1.1.7-2.4 1.2-4 1.2-3.1 0-5.7-2.1-6.6-4.9H1.4v3.1A12 12 0 0 0 12 24z" />
+      <path fill="#FBBC05" d="M5.4 14.4a7.2 7.2 0 0 1 0-4.6V6.7H1.4a12 12 0 0 0 0 10.8l4-3.1z" />
+      <path fill="#EA4335" d="M12 4.8c1.8 0 3.3.6 4.6 1.8l3.4-3.4A12 12 0 0 0 1.4 6.7l4 3.1C6.3 6.9 8.9 4.8 12 4.8z" />
+    </svg>
   );
 }

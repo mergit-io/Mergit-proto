@@ -6,26 +6,23 @@ import { AppBackground } from "../components/AppBackground";
 import { useNavigate } from "react-router-dom";
 
 const api = {
+  // Posts at /api/actions/simulate-issue, NOT at the webhook receiver.
+  //
+  // This used to hand-build a GitHub payload and POST it to /api/webhooks/github with no
+  // signature, which worked only because that endpoint failed *open*. It now fails closed
+  // — a forged issues.opened carries an attacker-controlled repository.full_name and would
+  // point the agent pipeline at any repo — so simulation has its own route, and the server
+  // builds the goal text with the same function the real webhook uses.
   async simulateIssue(repo: string, issueTitle: string, issueBody: string) {
-    const payload = {
-      action: "opened",
-      issue: {
-        number: Math.floor(Math.random() * 9000) + 1000,
+    const res = await fetch("/api/actions/simulate-issue", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        repo,
         title: issueTitle,
         body: issueBody,
-        html_url: `https://github.com/${repo}/issues/1`,
-        user: { login: "demo-user", type: "User" },
-        labels: [],
-      },
-      repository: {
-        full_name: repo,
-        default_branch: "main",
-      },
-    };
-    const res = await fetch("/api/webhooks/github", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Github-Event": "issues" },
-      body: JSON.stringify(payload),
+        issue_number: Math.floor(Math.random() * 9000) + 1000,
+      }),
     });
     return res.json();
   },

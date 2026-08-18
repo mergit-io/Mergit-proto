@@ -105,7 +105,7 @@ def _coder_task():
     import db as _db
 
     async def build():
-        goal = await _db.create_goal("Fix the login helper")
+        goal = await _db.create_goal("Fix the login helper", user_id="usr_legacy_demo")
         tasks = await _db.create_tasks(
             # Deliberately names no language. These tests are about WHERE a result may
             # be returned from, not what is in it; a task that asked for Rust would also

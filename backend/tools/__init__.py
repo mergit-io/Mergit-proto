@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from config import settings
+
 from tools.code_exec import code_exec
 from tools.code_exec import SCHEMA as CODE_EXEC_SCHEMA
 from tools.spawn_goal import spawn_goal
@@ -72,3 +74,17 @@ TOOL_REGISTRY: dict[str, ToolEntry] = {
     "code_exec":           ToolEntry(fn=code_exec, schema=CODE_EXEC_SCHEMA),
     "wait_webhook":        ToolEntry(fn=wait_webhook, schema=WAIT_WEBHOOK_SCHEMA),
 }
+
+
+# `code_exec` runs model-authored Python in a subprocess of the API server. That is
+# acceptable on a laptop and not acceptable on a public URL where `POST /api/goals` is
+# reachable by anyone, so a public deployment sets DEMO_SAFE_MODE and the tool ceases to
+# exist. Unregistering is done here, at import, rather than checked per call — a tool that
+# is absent cannot be reached by any path, including a replayed `tool_calls` row.
+#
+# `agent_registry` performs the matching half: it removes `code_exec` from the coder's
+# allowed_tools under the same flag. Both are required. Unregistering alone leaves the
+# tool in the schema the model is shown, so it calls a tool that no longer exists, gets
+# "Unknown tool: code_exec", and spends its `consecutive_errors` budget discovering that.
+if settings.demo_safe_mode:
+    TOOL_REGISTRY.pop("code_exec", None)

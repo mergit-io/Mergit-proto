@@ -1,11 +1,12 @@
 import asyncio
 import json
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from sse_starlette.sse import EventSourceResponse
 
 import db
 import events
+from auth.gate import require_user
 
 router = APIRouter(prefix="/api/goals", tags=["stream"])
 
@@ -39,8 +40,16 @@ def _terminal_frame(goal) -> dict:
 
 
 @router.get("/{goal_id}/stream")
-async def stream_goal(goal_id: str):
-    goal = await db.get_goal(goal_id)
+async def stream_goal(goal_id: str, request: Request):
+    # Checked BEFORE subscribing. This endpoint is the easiest one to leave open — it is
+    # not CRUD-shaped, so it does not look like a read — and it streams raw tool results,
+    # agent reasoning and goal output to anyone holding a goal id.
+    #
+    # The cookie arrives by itself: `lib/sse.ts` opens a relative URL, so the browser
+    # attaches it same-origin. That is precisely why the session lives in a cookie rather
+    # than an Authorization header, which EventSource cannot set.
+    user = require_user(request)
+    goal = await db.get_goal(goal_id, user_id=user["id"])
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
 

@@ -18,6 +18,13 @@ class GoalRow:
     # Provenance — "user" or "self_heal". heal_depth guards against heal loops.
     source: str = "user"
     heal_depth: int = 0
+    #: The owner. Every read path that serves an HTTP request must filter on it.
+    #: Defaults to the legacy sentinel so a row predating the migration has an owner
+    #: rather than a None that a forgotten filter would happily match.
+    user_id: str = "usr_legacy_demo"
+    #: Demo-seeded goals are synthetic and visible to everyone, so the proof ledger is
+    #: never empty for a new user. Nothing a real user creates sets this.
+    is_public: bool = False
 
 
 @dataclass
@@ -32,6 +39,10 @@ class TaskRow:
     output: Any
     error: str | None
     attempt_count: int
+    #: Claims that ended in a real exception. The retry budget checked against
+    #: `max_attempts` — unlike `attempt_count`, parking on a credential or a webhook does
+    #: not move it.
+    failure_count: int
     max_attempts: int
     worker_id: str | None
     lease_expires_at: int | None

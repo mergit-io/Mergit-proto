@@ -187,8 +187,13 @@ async def _execute_task(task: Any) -> None:
             return
 
         logger.error("Task %s FAILED: %s", task.id, e)
+        # Spend a retry here, and only here. Parking on a credential or a webhook leaves
+        # through the WaitingCredentialSignal / WaitingWebhookSignal branches above and
+        # never reaches this line, which is the whole point of `failure_count` existing
+        # separately from `attempt_count`.
+        failures = await db.record_failure(task.id)
         fresh = await db.get_task(task.id)
-        if fresh and fresh.attempt_count >= fresh.max_attempts:
+        if fresh and failures >= fresh.max_attempts:
             await db.settle_task(task.id, TaskStatus.FAILED, error=str(e), worker_id=lease_holder)
             events.emit(goal_id, "task_update", {"task_id": task.id, "status": TaskStatus.FAILED, "error": str(e)})
             # Before giving up, try to dynamically replan around the failure

@@ -1,0 +1,99 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# Changes to the existing /Dockerfile to add Litestream replication.
+# Everything else in the Dockerfile stays exactly as it is.
+# Verified against litestream v0.5.16 (released 2026-08-05).
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ── 1. NEW STAGE, at the very top of the file (before frontend-builder) ────────
+# The official image exists purely to be copied from; it is never run.
+# Pin the tag — `latest` would silently change the binary under a rebuild.
+FROM litestream/litestream:0.5.16 AS litestream
+
+
+# ── 2. INSIDE the `runtime` stage, anywhere after `WORKDIR /app` and BEFORE the
+#      `USER mergit` line (these need to be written as root) ───────────────────
+COPY --from=litestream /usr/local/bin/litestream /usr/local/bin/litestream
+COPY deploy/litestream/litestream.yml  /etc/litestream.yml
+COPY deploy/litestream/entrypoint.sh   /usr/local/bin/entrypoint.sh
+COPY deploy/litestream/run-app.sh      /usr/local/bin/run-app.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/run-app.sh
+
+# Adds ~37 MB to the image. Resident memory of the litestream process is well under
+# 30 MB, which matters: a Render free instance has 512 MB total and Mergit already
+# loads litellm + web3 + py-evm into it.
+
+
+# ── 3. REPLACE the final CMD line ─────────────────────────────────────────────
+# BEFORE:
+#   CMD ["sh", "-c", "python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --proxy-headers --forwarded-allow-ips '*'"]
+#
+# AFTER — exec form, so entrypoint.sh is PID 1 and receives Render's SIGTERM
+# directly. Shell form (`CMD foo`) wraps the command in `/bin/sh -c`, and that
+# shell does NOT forward SIGTERM to its child, which would silently disable the
+# final sync and turn every redeploy into a data-loss event.
+CMD ["/usr/local/bin/entrypoint.sh"]
+
+
+# ── 4. HEALTHCHECK — no change needed ─────────────────────────────────────────
+# It curls 127.0.0.1:$PORT/api/health, which uvicorn still serves. Litestream
+# being PID 1 is invisible to it.
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# render.yaml — add these six env vars. Mark all of them `sync: false` so the
+# credentials live only in the Render dashboard and never in git.
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+#      - key: LITESTREAM_BUCKET            # e.g. mergit-db
+#        sync: false
+#      - key: LITESTREAM_ENDPOINT          # https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+#        sync: false
+#      - key: LITESTREAM_REGION            # "auto" for R2
+#        value: auto
+#      - key: LITESTREAM_ACCESS_KEY_ID
+#        sync: false
+#      - key: LITESTREAM_SECRET_ACCESS_KEY
+#        sync: false
+#
+# Also flip SEED_DEMO to "false" once replication is live — it exists only because
+# the database used to be empty on every boot, and it would now inject a canned goal
+# into a database that has real user data in it.
+#
+#      - key: SEED_DEMO
+#        value: "false"
+#
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+# BUCKET SETUP — the two settings that are easy to miss
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Cloudflare R2:
+#   - Create the bucket PRIVATE (the default). Never enable a public r2.dev domain.
+#   - Create an R2 API token scoped to Object Read & Write on THIS BUCKET ONLY.
+#   - Requires a payment method on the Cloudflare account even for the free tier.
+#
+# Backblaze B2:
+#   - Create an Application Key restricted to this one bucket. Do NOT use the
+#     master key: it can delete every bucket in the account.
+#   - Set the bucket Lifecycle Rule to "Keep only the last version of the file".
+#     ⚠️ B2 keeps every version by default. Litestream deletes LTX files as it
+#     compacts them, and each delete leaves a hidden version that still bills
+#     against the free 10 GB. Without this rule the bucket grows without bound.
+#
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+# VERIFY IT WORKS — do this before trusting it with a real user's tokens
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+#   1. Deploy. Read the boot log for:
+#          litestream: no replica found — starting from an empty database
+#   2. Submit a goal through the UI. Watch for `ltx file uploaded` in the log.
+#   3. Trigger a manual redeploy. The shutdown log MUST show, in order:
+#          signal received, litestream shutting down   signal=terminated
+#          replica sync ... / ltx file uploaded ...
+#          litestream shut down
+#      If those three lines are absent, signals are not reaching PID 1 — stop and
+#      fix that before going further, because everything depends on it.
+#   4. After the redeploy, confirm the goal from step 2 is still on the dashboard.
+#   5. After 24h, read the bucket's operations metric. Compare it against
+#      1,000,000/month (R2). Measured expectation is well under 100,000.

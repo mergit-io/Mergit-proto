@@ -1,11 +1,44 @@
+import { getCsrfToken } from "./auth";
+
 const BASE = "/api";
 
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const method = (options?.method ?? "GET").toUpperCase();
+
+  // The session cookie rides along because BASE is relative and the SPA is served
+  // same-origin by the same FastAPI app. `same-origin` is fetch's default, but stating it
+  // is worth the two words: if this ever moves to a separate origin, the silent failure
+  // is "every request is anonymous" rather than an error anyone would notice.
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options?.headers as Record<string, string> | undefined),
+  };
+
+  // Unsafe methods carry the synchronizer token from GET /api/auth/me. A cross-site page
+  // can make the browser send this request with the cookie, but cannot read that response
+  // to learn the token.
+  if (!SAFE_METHODS.has(method)) {
+    headers["X-Mergit-CSRF"] = getCsrfToken();
+  }
+
   const res = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...options?.headers },
+    // NOTE: options is spread FIRST, then headers/credentials override it. The original
+    // spread `...options` last, so a caller passing `headers` silently dropped
+    // Content-Type — dormant only because no caller did it yet.
     ...options,
+    method: options?.method,
+    credentials: "same-origin",
+    headers,
   });
+
   if (!res.ok) {
+    // Session gone (expired, revoked, or signed out in another tab). Bounce to login
+    // rather than surfacing "401: {detail: ...}" in a toast the user cannot act on.
+    if (res.status === 401 && !path.startsWith("/auth/")) {
+      window.location.href = "/login?expired=1";
+    }
     const text = await res.text();
     throw new Error(`${res.status}: ${text}`);
   }

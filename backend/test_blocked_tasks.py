@@ -37,7 +37,7 @@ def stack(monkeypatch):
 
 def _plan(db, tasks):
     async def build():
-        goal = await db.create_goal("Migrate auth.py to Rust and raise a PR")
+        goal = await db.create_goal("Migrate auth.py to Rust and raise a PR", user_id="usr_legacy_demo")
         rows = await db.create_tasks(tasks, goal.id, goal.trace_id)
         return goal, rows
 

@@ -15,7 +15,11 @@ async def spawn_goal(args: dict) -> dict:
     reason = args.get("reason", "")
     parent_goal_id = args.get("_goal_id", "")  # injected by agent_runner
 
-    goal = await db.create_goal(goal_text)
+    # Inherit the spawning goal's owner. A sub-goal that loses it is unresumable:
+    # it parks on a credential key with an empty user id, and no connect callback
+    # will ever match that key.
+    owner = await db.goal_owner(parent_goal_id) if parent_goal_id else None
+    goal = await db.create_goal(goal_text, user_id=owner or db.LEGACY_USER_ID)
     logger.info(
         "spawn_goal: new goal %s spawned by parent %s — %s",
         goal.id, parent_goal_id, reason or goal_text[:60],

@@ -1,4 +1,4 @@
-import { LayoutDashboard, ExternalLink, Cpu, GitBranch, Zap, Workflow, Trophy, HeartPulse } from "lucide-react";
+import { LayoutDashboard, ExternalLink, Cpu, GitBranch, Zap, Workflow, Trophy, HeartPulse, Plug, ShieldAlert } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { WalletConnect } from "./WalletConnect";
 
@@ -60,7 +60,9 @@ export function AppNav() {
           {navBtn("/app/webhooks", "Automate", Zap)}
           {navBtn("/app/heal", "Self-Heal", HeartPulse)}
           {navBtn("/app/actions", "Actions", Workflow)}
-          {navBtn("/app/economy", "Economy", Trophy)}
+          {navBtn("/app/connections", "Connections", Plug)}
+        {navBtn("/app/approvals", "Approvals", ShieldAlert)}
+        {navBtn("/app/economy", "Economy", Trophy)}
           <a
             href="/api/docs"
             target="_blank"

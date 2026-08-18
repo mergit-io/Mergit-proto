@@ -17,6 +17,20 @@ web3>=7.0
 py-solc-x
 eth-tester[py-evm]
 
+# Auth. Google OIDC done properly — state, nonce, PKCE S256 and full id_token validation
+# against Google's JWKS — is a state machine worth borrowing rather than hand-rolling.
+# The flow this replaces had none of those four.
+authlib>=1.6,<2
+# Signs the short-lived cookie carrying the OAuth transaction across the redirect, and
+# the connection `state` HMAC.
+itsdangerous>=2,<3
+# Envelope encryption for stored OAuth tokens: AES-256-GCM with associated data binding
+# each ciphertext to (user_id, provider, purpose). Previously present only transitively
+# via httpx/web3 — a credential store must not rest on someone else's transitive dep.
+cryptography>=45,<51
+# RS256 app JWTs, exchanged for GitHub App installation tokens.
+PyJWT[crypto]>=2.9
+
 # Tests. Listed here because scripts/test-local.sh installs from this file and then runs
 # pytest; without it a clean checkout cannot run the suite at all.
 pytest

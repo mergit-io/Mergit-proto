@@ -1,10 +1,11 @@
 import asyncio
 import json
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Request, HTTPException, Query
 from sse_starlette.sse import EventSourceResponse
 
 import db
+from auth.gate import require_user
 import economy
 import events
 from chain.client import get_client
@@ -108,19 +109,24 @@ async def leaderboard():
 async def proofs(
     # Bounded: this reaches `LIMIT ?` directly, and SQLite treats a negative limit as
     # unbounded — ?limit=-1 dumped the entire proof ledger.
+    request: Request,
     limit: int = Query(50, ge=1, le=settings.max_page_size),
     before: int | None = Query(None, ge=0),
 ):
-    return await db.list_proofs(limit=limit, before_block=before)
+    # Own proofs plus the public demo rows — see db._VISIBLE_GOALS for why a strict
+    # per-caller filter would empty the showcase's centrepiece for every real user.
+    user = require_user(request)
+    return await db.list_proofs(limit=limit, before_block=before, user_id=user["id"])
 
 
 @router.get("/agents/{role}")
-async def agent_detail(role: str):
+async def agent_detail(role: str, request: Request):
     passport = await db.get_passport(role)
     if not passport:
         raise HTTPException(status_code=404, detail="Unknown agent")
     rep = await db.get_reputation(role)
-    role_proofs = await db.list_proofs_for_role(role, limit=25)
+    user = require_user(request)
+    role_proofs = await db.list_proofs_for_role(role, limit=25, user_id=user["id"])
     return {"passport": passport, "reputation": rep, "proofs": role_proofs}
 
 

@@ -7,6 +7,8 @@ from typing import AsyncGenerator
 
 import aiosqlite
 
+import migrations
+import redaction
 from config import settings
 from state import GoalRow, GoalStatus, MessageRow, TaskRow, TaskStatus, ToolCallRow
 
@@ -181,6 +183,10 @@ def _row_to_goal(row: aiosqlite.Row) -> GoalRow:
         updated_at=row["updated_at"],
         source=row["source"] if "source" in row.keys() else "user",
         heal_depth=row["heal_depth"] if "heal_depth" in row.keys() else 0,
+        # Defensive `.keys()` probes, matching the existing pattern: a row selected before
+        # the migration ran (or by a test fixture on an older file) has no such column.
+        user_id=row["user_id"] if "user_id" in row.keys() else LEGACY_USER_ID,
+        is_public=bool(row["is_public"]) if "is_public" in row.keys() else False,
     )
 
 
@@ -196,6 +202,7 @@ def _row_to_task(row: aiosqlite.Row) -> TaskRow:
         output=json.loads(row["output"]) if row["output"] else None,
         error=row["error"],
         attempt_count=row["attempt_count"],
+        failure_count=row["failure_count"] if "failure_count" in row.keys() else 0,
         max_attempts=row["max_attempts"],
         worker_id=row["worker_id"],
         lease_expires_at=row["lease_expires_at"],
@@ -248,6 +255,10 @@ async def init_db() -> None:
 
         # Migrate: goal provenance, so a self-heal fix goal can be told apart from a user
         # goal and never trigger another heal cycle.
+        #
+        # These two predate the migration runner and are left in place: deployments that
+        # already ran them have no `schema_migrations` row to prove it, so moving them
+        # would make the runner try to re-add a column that exists.
         for ddl in (
             "ALTER TABLE goals ADD COLUMN source TEXT NOT NULL DEFAULT 'user'",
             "ALTER TABLE goals ADD COLUMN heal_depth INTEGER NOT NULL DEFAULT 0",
@@ -258,10 +269,34 @@ async def init_db() -> None:
             except Exception:
                 pass  # column already exists
 
+        # Everything from `failure_count` onward is ordered and recorded. See migrations.py
+        # for why the try/except-ALTER pattern could not carry the auth work.
+        await migrations.run_migrations(conn)
+
 
 # ── Goals ──────────────────────────────────────────────────────────────────────
 
-async def create_goal(goal_text: str, source: str = "user", heal_depth: int = 0) -> GoalRow:
+async def create_goal(
+    goal_text: str,
+    user_id: str,
+    source: str = "user",
+    heal_depth: int = 0,
+    is_public: bool = False,
+    connection_hint: dict | None = None,
+) -> GoalRow:
+    """Create a goal owned by `user_id`.
+
+    `user_id` is a **required positional argument** on purpose. There are seven call sites
+    — the API, both webhook branches, the actions route, `spawn_goal`, `self_heal` and
+    `demo_seed` — and a goal created without an owner is not merely untidy: after the
+    broker lands it resolves to no connection, parks on the credential key `conn:github:`
+    with an empty user, and no callback will ever release it. It is unresumable *and*
+    invisible, because `list_goals` filters by owner. Making it required turns every
+    missed call site into an import-time TypeError instead.
+
+    Sentinel owners exist for the callers that have no human: `usr_mergit_system` for
+    self-heal, `usr_legacy_demo` for seeded demo data.
+    """
     now = _now()
     goal_id = str(uuid.uuid4())
     trace_id = str(uuid.uuid4())
@@ -269,37 +304,75 @@ async def create_goal(goal_text: str, source: str = "user", heal_depth: int = 0)
     async with get_conn() as conn:
         await conn.execute(
             """INSERT INTO goals
-               (id, title, goal_text, status, trace_id, source, heal_depth, created_at, updated_at)
-               VALUES (?, ?, ?, 'NEW', ?, ?, ?, ?, ?)""",
-            (goal_id, title, goal_text, trace_id, source, heal_depth, now, now),
+               (id, title, goal_text, status, trace_id, source, heal_depth,
+                user_id, is_public, connection_hint, created_at, updated_at)
+               VALUES (?, ?, ?, 'NEW', ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (goal_id, title, goal_text, trace_id, source, heal_depth,
+             user_id, 1 if is_public else 0, json.dumps(connection_hint or {}), now, now),
         )
         await conn.commit()
         row = await (await conn.execute("SELECT * FROM goals WHERE id=?", (goal_id,))).fetchone()
     return _row_to_goal(row)
 
 
-async def get_goal(goal_id: str) -> GoalRow | None:
+async def get_goal(goal_id: str, user_id: str | None = None) -> GoalRow | None:
+    """Fetch a goal, optionally constrained to its owner.
+
+    `user_id=None` means "no ownership check" and is for internal callers — the worker,
+    the economy, self-heal — which operate on behalf of the system rather than a request.
+    Every HTTP handler must pass one. A caller that omits it on a request path turns a
+    404 into a cross-tenant read.
+    """
     async with get_conn() as conn:
-        row = await (await conn.execute("SELECT * FROM goals WHERE id=?", (goal_id,))).fetchone()
+        if user_id is None:
+            row = await (await conn.execute("SELECT * FROM goals WHERE id=?", (goal_id,))).fetchone()
+        else:
+            row = await (
+                await conn.execute(
+                    "SELECT * FROM goals WHERE id=? AND user_id=?", (goal_id, user_id)
+                )
+            ).fetchone()
     return _row_to_goal(row) if row else None
 
 
-async def list_goals(status: str | None = None, limit: int = 20, offset: int = 0) -> list[GoalRow]:
+async def goal_owner(goal_id: str) -> str | None:
+    """The user a goal belongs to. One indexed read, used by the credential broker."""
     async with get_conn() as conn:
-        if status:
-            rows = await (
-                await conn.execute(
-                    "SELECT * FROM goals WHERE status=? ORDER BY created_at DESC LIMIT ? OFFSET ?",
-                    (status, limit, offset),
-                )
-            ).fetchall()
-        else:
-            rows = await (
-                await conn.execute(
-                    "SELECT * FROM goals ORDER BY created_at DESC LIMIT ? OFFSET ?",
-                    (limit, offset),
-                )
-            ).fetchall()
+        row = await (
+            await conn.execute("SELECT user_id FROM goals WHERE id=?", (goal_id,))
+        ).fetchone()
+    return row["user_id"] if row else None
+
+
+async def list_goals(
+    status: str | None = None,
+    limit: int = 20,
+    offset: int = 0,
+    user_id: str | None = None,
+) -> list[GoalRow]:
+    """List goals, optionally scoped to one owner.
+
+    `user_id=None` returns everything and is for internal callers only. `GET /api/goals`
+    used to be exactly this query with no filter, which is why every visitor could read
+    every other visitor's goals — including their goal text and outputs.
+    """
+    clauses, params = [], []
+    if status:
+        clauses.append("status=?")
+        params.append(status)
+    if user_id is not None:
+        clauses.append("user_id=?")
+        params.append(user_id)
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    params.extend([limit, offset])
+
+    async with get_conn() as conn:
+        rows = await (
+            await conn.execute(
+                f"SELECT * FROM goals {where} ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                tuple(params),
+            )
+        ).fetchall()
     return [_row_to_goal(r) for r in rows]
 
 
@@ -529,7 +602,14 @@ async def set_task_waiting_credential(task_id: str, credential_var: str) -> None
 async def find_orphaned_goals() -> list[dict]:
     """
     Return goals in RUNNING/PLANNING state where no task can make further progress
-    (all tasks are DONE/FAILED/WAITING_*) so the goal will never self-resolve.
+    (every task is DONE or FAILED) so the goal will never self-resolve.
+
+    `WAITING_WEBHOOK` and `WAITING_CREDENTIAL` count as progress. They used to count as
+    stalled, which meant a task parked for something the world still owed it — an inbound
+    callback, or a user who had been asked to connect their GitHub account — had its goal
+    swept to FAILED with "All tasks failed — no progress possible" while the person was
+    still reading the prompt. A parked task resumes by design; the only thing it is
+    waiting on is time.
     """
     async with get_conn() as conn:
         rows = await (
@@ -545,7 +625,8 @@ async def find_orphaned_goals() -> list[dict]:
                   AND NOT EXISTS (
                     SELECT 1 FROM tasks sub
                     WHERE sub.goal_id = g.id
-                      AND sub.status IN ('PENDING', 'READY', 'RUNNING')
+                      AND sub.status IN ('PENDING', 'READY', 'RUNNING',
+                                         'WAITING_WEBHOOK', 'WAITING_CREDENTIAL')
                   )
                 """
             )
@@ -588,10 +669,13 @@ async def resume_credential_tasks(env_var: str) -> list[dict]:
 async def save_message(task_id: str, role: str, content: str, sequence: int, tool_call_id: str | None = None) -> None:
     now = _now()
     msg_id = str(uuid.uuid4())
+    body = content if isinstance(content, str) else json.dumps(content)
     async with get_conn() as conn:
         await conn.execute(
             "INSERT INTO messages (id, task_id, role, content, tool_call_id, sequence, created_at) VALUES (?,?,?,?,?,?,?)",
-            (msg_id, task_id, role, content if isinstance(content, str) else json.dumps(content), tool_call_id, sequence, now),
+            # The conversation is replayed and displayed. A credential that reaches it is
+            # in model context and on the goal page for as long as the row lives.
+            (msg_id, task_id, role, redaction.scrub(body), tool_call_id, sequence, now),
         )
         await conn.commit()
 
@@ -630,6 +714,36 @@ async def create_tool_call(task_id: str, tool_name: str, args_json: str, args_ha
         )
         await conn.commit()
     return tc_id
+
+
+async def record_failure(task_id: str) -> int:
+    """Spend one retry. Called only when a task raised — never when it parks.
+
+    Returns the new count so the caller can decide without a re-read.
+    """
+    now = _now()
+    async with get_conn() as conn:
+        row = await (
+            await conn.execute(
+                "UPDATE tasks SET failure_count=failure_count+1, updated_at=? WHERE id=? "
+                "RETURNING failure_count",
+                (now, task_id),
+            )
+        ).fetchone()
+        await conn.commit()
+    return row["failure_count"] if row else 0
+
+
+async def delete_tool_call(ikey: str) -> None:
+    """Forget an invocation entirely, so the next attempt re-executes it.
+
+    Used when a tool parks the task instead of doing its work. The row exists only because
+    `create_tool_call` runs before dispatch; leaving it behind would let the idempotency
+    cache replay a "waiting for a credential" answer after the credential arrived.
+    """
+    async with get_conn() as conn:
+        await conn.execute("DELETE FROM tool_calls WHERE idempotency_key=?", (ikey,))
+        await conn.commit()
 
 
 async def settle_tool_call(ikey: str, result_json: str | None, status: str, error: str | None = None) -> None:
@@ -748,23 +862,58 @@ async def get_proof(task_id):
         return _proof_row(row) if row else None
 
 
-async def list_proofs(limit=50, before_block=None):
+#: The ledger is a two-tier view, not a filter.
+#:
+#: Filtering strictly to the caller looked like the obvious privacy fix and would have
+#: broken the product's most visible page: `demo_seed` mints the only proofs a fresh
+#: instance has, so a newly signed-in user would see an EMPTY Proof Ledger while the
+#: Leaderboard showed non-zero reputation computed from proofs they could not see. The
+#: showcase would render as a bug.
+#:
+#: So: your own proofs, plus anything whose goal is flagged public. Demo-seeded goals are
+#: synthetic by construction and carry `is_public=1`; nothing a real user creates does.
+#: The rule is a column rather than a hardcoded user id, so it stays true if the seeding
+#: strategy changes.
+_VISIBLE_GOALS = """
+    p.goal_id IN (SELECT id FROM goals WHERE user_id = ? OR is_public = 1)
+"""
+
+
+async def list_proofs(limit=50, before_block=None, user_id=None):
     async with get_conn() as conn:
-        if before_block is not None:
+        if user_id is None:
+            # Internal callers (backfill, verification) see everything.
+            if before_block is not None:
+                cur = await conn.execute(
+                    "SELECT * FROM proofs WHERE block_number < ? ORDER BY block_number DESC LIMIT ?",
+                    (before_block, limit))
+            else:
+                cur = await conn.execute(
+                    "SELECT * FROM proofs ORDER BY block_number DESC LIMIT ?", (limit,))
+        elif before_block is not None:
             cur = await conn.execute(
-                "SELECT * FROM proofs WHERE block_number < ? ORDER BY block_number DESC LIMIT ?",
-                (before_block, limit))
+                f"SELECT p.* FROM proofs p WHERE {_VISIBLE_GOALS} AND p.block_number < ? "
+                "ORDER BY p.block_number DESC LIMIT ?",
+                (user_id, before_block, limit))
         else:
             cur = await conn.execute(
-                "SELECT * FROM proofs ORDER BY block_number DESC LIMIT ?", (limit,))
+                f"SELECT p.* FROM proofs p WHERE {_VISIBLE_GOALS} "
+                "ORDER BY p.block_number DESC LIMIT ?",
+                (user_id, limit))
         return [_proof_row(r) for r in await cur.fetchall()]
 
 
-async def list_proofs_for_role(role, limit=20):
+async def list_proofs_for_role(role, limit=20, user_id=None):
     async with get_conn() as conn:
-        cur = await conn.execute(
-            "SELECT * FROM proofs WHERE agent_role=? ORDER BY block_number DESC LIMIT ?",
-            (role, limit))
+        if user_id is None:
+            cur = await conn.execute(
+                "SELECT * FROM proofs WHERE agent_role=? ORDER BY block_number DESC LIMIT ?",
+                (role, limit))
+        else:
+            cur = await conn.execute(
+                f"SELECT p.* FROM proofs p WHERE p.agent_role=? AND {_VISIBLE_GOALS} "
+                "ORDER BY p.block_number DESC LIMIT ?",
+                (role, user_id, limit))
         return [_proof_row(r) for r in await cur.fetchall()]
 
 
@@ -1069,3 +1218,160 @@ async def requeue_proofs_for_chain(chain_id: int) -> int:
         rows = await cur.fetchall()
         await conn.commit()
         return len(rows)
+
+
+# ── Identity: users and sessions ────────────────────────────────────────────────
+
+#: Owns goals that existed before authentication did, and everything `demo_seed` mints.
+LEGACY_USER_ID = "usr_legacy_demo"
+#: Owns Mergit's own self-heal goals. Its GitHub identity is a configured token, not a
+#: broker connection — self-heal files issues on Mergit's repo as Mergit, not as a user.
+SYSTEM_USER_ID = "usr_mergit_system"
+
+
+def _new_id(prefix: str) -> str:
+    return f"{prefix}_{uuid.uuid4().hex[:26]}"
+
+
+async def upsert_user(
+    google_sub: str,
+    email: str,
+    email_verified: bool,
+    name: str = "",
+    picture: str = "",
+    is_admin: bool = False,
+) -> dict:
+    """Find or create the user behind an OIDC `sub`, and refresh their profile.
+
+    Keyed on `google_sub`, never on email. Emails get reassigned inside an organisation
+    and people change theirs; `sub` is the stable, immutable identifier Google promises.
+    Keying on email would let a reassigned address inherit the previous holder's stored
+    GitHub and Slack tokens.
+
+    `is_admin` is recomputed from config on **every** login, so removing an address from
+    ADMIN_EMAILS revokes it at the next sign-in rather than requiring a DB edit.
+    """
+    now = _now()
+    async with get_conn() as conn:
+        row = await (
+            await conn.execute("SELECT * FROM users WHERE google_sub=?", (google_sub,))
+        ).fetchone()
+        if row:
+            await conn.execute(
+                """UPDATE users SET email=?, email_verified=?, name=?, picture=?,
+                                    is_admin=?, last_seen_at=?
+                   WHERE google_sub=?""",
+                (email, int(email_verified), name, picture, int(is_admin), now, google_sub),
+            )
+            await conn.commit()
+            user_id = row["id"]
+        else:
+            user_id = _new_id("usr")
+            await conn.execute(
+                """INSERT INTO users
+                   (id, google_sub, email, email_verified, name, picture, is_admin,
+                    created_at, last_seen_at)
+                   VALUES (?,?,?,?,?,?,?,?,?)""",
+                (user_id, google_sub, email, int(email_verified), name, picture,
+                 int(is_admin), now, now),
+            )
+            await conn.commit()
+        fresh = await (
+            await conn.execute("SELECT * FROM users WHERE id=?", (user_id,))
+        ).fetchone()
+    return _row_to_user(fresh)
+
+
+def _row_to_user(row) -> dict:
+    return {
+        "id": row["id"],
+        "google_sub": row["google_sub"],
+        "email": row["email"],
+        "email_verified": bool(row["email_verified"]),
+        "name": row["name"] or "",
+        "picture": row["picture"] or "",
+        "is_admin": bool(row["is_admin"]),
+        "created_at": row["created_at"],
+        "last_seen_at": row["last_seen_at"],
+    }
+
+
+async def get_user(user_id: str) -> dict | None:
+    async with get_conn() as conn:
+        row = await (await conn.execute("SELECT * FROM users WHERE id=?", (user_id,))).fetchone()
+    return _row_to_user(row) if row else None
+
+
+async def create_session(user_id: str, ttl_seconds: int, user_agent: str = "",
+                         ip_hash: str = "") -> tuple[str, str]:
+    """Mint an opaque session. Returns (session_id, csrf_token).
+
+    The session id IS the cookie value — 32 bytes of `secrets.token_urlsafe`, meaningless
+    on its own and only resolvable against this table. That is the point: a stolen cookie
+    stops working the moment the row is revoked, which a self-contained JWT cannot offer.
+
+    The CSRF token is minted with it and handed to the SPA by `GET /api/auth/me`, never
+    set as a readable cookie.
+    """
+    import secrets
+    now = _now()
+    session_id = secrets.token_urlsafe(32)
+    csrf = secrets.token_urlsafe(32)
+    async with get_conn() as conn:
+        await conn.execute(
+            """INSERT INTO sessions
+               (id, user_id, csrf_token, user_agent, ip_hash, created_at, expires_at)
+               VALUES (?,?,?,?,?,?,?)""",
+            (session_id, user_id, csrf, user_agent[:200], ip_hash, now, now + ttl_seconds),
+        )
+        await conn.commit()
+    return session_id, csrf
+
+
+async def load_session(session_id: str) -> dict | None:
+    """Resolve a cookie to its user, or None. Expired and revoked both read as absent."""
+    now = _now()
+    async with get_conn() as conn:
+        row = await (
+            await conn.execute(
+                """SELECT s.id AS sid, s.csrf_token, s.expires_at, s.revoked_at, u.*
+                   FROM sessions s JOIN users u ON u.id = s.user_id
+                   WHERE s.id=?""",
+                (session_id,),
+            )
+        ).fetchone()
+    if not row or row["revoked_at"] is not None or row["expires_at"] < now:
+        return None
+    user = _row_to_user(row)
+    user["session_id"] = row["sid"]
+    user["csrf_token"] = row["csrf_token"]
+    return user
+
+
+async def revoke_session(session_id: str) -> None:
+    """Logout, server-side. Deleting the client cookie alone leaves a captured copy valid."""
+    async with get_conn() as conn:
+        await conn.execute(
+            "UPDATE sessions SET revoked_at=? WHERE id=? AND revoked_at IS NULL",
+            (_now(), session_id),
+        )
+        await conn.commit()
+
+
+async def revoke_user_sessions(user_id: str) -> int:
+    """Sign a user out everywhere — used when a connection is revoked under suspicion."""
+    async with get_conn() as conn:
+        cur = await conn.execute(
+            "UPDATE sessions SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL",
+            (_now(), user_id),
+        )
+        await conn.commit()
+        return cur.rowcount
+
+
+async def purge_expired_sessions() -> int:
+    """Housekeeping. Rows are kept until expiry so `revoked_at` stays meaningful."""
+    async with get_conn() as conn:
+        cur = await conn.execute("DELETE FROM sessions WHERE expires_at < ?", (_now(),))
+        await conn.commit()
+        return cur.rowcount
