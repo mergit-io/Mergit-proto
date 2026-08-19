@@ -53,6 +53,11 @@ export default {
         "glow-purple":  "0 0 30px rgba(168,85,247,0.35)",
         "glass":        "0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06)",
       },
+      /* The /app header needs 1062px to lay its two groups side by side (measured:
+         651px of destinations + 331px of external links and wallet + 80px padding
+         and gap). `lg` is 1024 and would still collide, so the row gets its own
+         breakpoint rather than a guess that is 38px short. */
+      screens: { nav: "1080px" },
       backdropBlur: { "4xl": "72px" },
       borderRadius: { "4xl": "2rem", "5xl": "2.5rem" },
     },

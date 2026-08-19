@@ -9,8 +9,11 @@ import { WalletConnect } from "./WalletConnect";
  * still work — /app/webhooks, /app/heal and /app/actions are reachable by URL and from the
  * pages that link to them — they are simply not top-level destinations for a first-time user.
  *
- * Below `md` the same destinations move to a scrollable second row rather than being hidden:
- * a nav that collapses to nothing on a phone is not a responsive nav, it is a dead end.
+ * Below the `nav` breakpoint the same destinations move to a scrollable second row rather
+ * than being hidden: a nav that collapses to nothing on a phone is not a responsive nav, it
+ * is a dead end. That breakpoint is 1080px rather than `md` or `lg` because the single-row
+ * layout needs 1062px, and below that it silently drew the destinations on top of the
+ * external links instead of wrapping.
  */
 
 const DESTINATIONS = [
@@ -78,21 +81,21 @@ export function AppNav() {
             <span className="font-sora text-base font-bold tracking-tight text-ink">Mergit</span>
           </button>
 
-          <nav className="hidden items-center gap-1 md:flex">
+          <nav className="hidden min-w-0 items-center gap-1 overflow-x-auto nav:flex [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {DESTINATIONS.map((d) => navBtn(d.to, d.label, d.Icon))}
           </nav>
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
-          <div className="hidden items-center gap-1 md:flex">
+          <div className="hidden items-center gap-1 nav:flex">
             {EXTERNAL.map((e) => extLink(e.href, e.label, e.Icon))}
           </div>
           <WalletConnect />
         </div>
       </div>
 
-      {/* Below md the destinations live here instead of disappearing. */}
-      <nav className="flex items-center gap-1 overflow-x-auto px-4 pb-2.5 md:hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {/* Below the `nav` breakpoint the destinations live here instead of disappearing. */}
+      <nav className="flex items-center gap-1 overflow-x-auto px-4 pb-2.5 nav:hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {DESTINATIONS.map((d) => navBtn(d.to, d.label, d.Icon))}
         {EXTERNAL.map((e) => extLink(e.href, e.label, e.Icon))}
       </nav>
