@@ -23,9 +23,9 @@ const STATUS_META: Record<string, { label: string; className: string }> = {
 };
 
 const OUTCOME_META: Record<string, { label: string; className: string }> = {
-  fixed: { label: "Fixed", className: "text-proof-green border-proof-green/25 bg-proof-green/8" },
+  fixed: { label: "Fixed", className: "text-proof-deep border-proof/25 bg-proof/8" },
   failed: { label: "Fix failed", className: "text-red-400 border-red-400/25 bg-red-400/8" },
-  abandoned: { label: "Abandoned", className: "text-text-muted border-white/12 bg-white/4" },
+  abandoned: { label: "Abandoned", className: "text-ink-muted border-ink/[0.09] bg-white" },
 };
 
 function Chip({ label, className }: { label: string; className: string }) {
@@ -39,8 +39,8 @@ function Chip({ label, className }: { label: string; className: string }) {
 function Stat({ value, label }: { value: number | string; label: string }) {
   return (
     <div className="card px-4 py-3">
-      <p className="font-mono text-xl text-white leading-none">{value}</p>
-      <p className="text-[11px] text-text-muted mt-1.5">{label}</p>
+      <p className="font-mono text-xl text-ink leading-none">{value}</p>
+      <p className="text-[11px] text-ink-muted mt-1.5">{label}</p>
     </div>
   );
 }
@@ -61,7 +61,7 @@ function AttemptRow({ attempt }: { attempt: HealAttempt }) {
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-1.5">
-            <span className="text-xs font-medium text-white capitalize">{attempt.agent_name}</span>
+            <span className="text-xs font-medium text-ink capitalize">{attempt.agent_name}</span>
             {status && <Chip label={status.label} className={status.className} />}
             {outcome && <Chip label={outcome.label} className={outcome.className} />}
             {attempt.recurrence_count > 1 && (
@@ -72,10 +72,10 @@ function AttemptRow({ attempt }: { attempt: HealAttempt }) {
             )}
           </div>
 
-          <p className="font-mono text-[11px] text-text-dim break-all">{attempt.error_summary}</p>
+          <p className="font-mono text-[11px] text-ink-dim break-all">{attempt.error_summary}</p>
 
           <div className="flex items-center gap-3 mt-2 flex-wrap">
-            <span className="font-mono text-[10px] text-text-muted">
+            <span className="font-mono text-[10px] text-ink-muted">
               {attempt.fingerprint.slice(0, 12)}
             </span>
             {attempt.issue_url && (
@@ -99,7 +99,7 @@ function AttemptRow({ attempt }: { attempt: HealAttempt }) {
           </div>
         </div>
 
-        <span className="text-[11px] text-text-muted shrink-0">{timeAgo(attempt.created_at)}</span>
+        <span className="text-[11px] text-ink-muted shrink-0">{timeAgo(attempt.created_at)}</span>
       </div>
     </motion.div>
   );
@@ -114,7 +114,7 @@ export function SelfHeal() {
   });
 
   return (
-    <div className="relative min-h-screen" style={{ background: "#000" }}>
+    <div className="relative min-h-screen" style={{ background: "#FFFDFB" }}>
       <AppBackground />
 
       <div className="relative z-10 flex flex-col min-h-screen">
@@ -128,17 +128,17 @@ export function SelfHeal() {
             className="mb-8"
           >
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-accent/25 bg-accent/8 mb-4">
-              <span className="w-1.5 h-1.5 rounded-full bg-proof-green animate-pulse-ring" />
+              <span className="w-1.5 h-1.5 rounded-full bg-proof animate-pulse-ring" />
               <span className="text-xs font-medium text-accent-2">Autonomous repair</span>
             </div>
 
             <h1
-              className="font-display font-bold text-white mb-3"
+              className="font-display font-bold text-ink mb-3"
               style={{ fontSize: "clamp(1.8rem, 4vw, 2.6rem)" }}
             >
-              Self-<span className="text-gradient-blue">Heal</span>
+              Self-<span className="text-accent">Heal</span>
             </h1>
-            <p className="text-text-dim text-sm max-w-xl leading-relaxed">
+            <p className="text-ink-dim text-sm max-w-xl leading-relaxed">
               When a run fails from a bug in Mergit's own code — not a rate limit or a bad key —
               the system fingerprints the error, files an issue, and spawns an agent pipeline to
               fix itself. Repeat failures deduplicate instead of filing again.
@@ -155,11 +155,11 @@ export function SelfHeal() {
           )}
 
           {!attempts || attempts.length === 0 ? (
-            <div className="card px-6 py-10 text-center text-text-muted text-sm">
+            <div className="card px-6 py-10 text-center text-ink-muted text-sm">
               No bugs detected yet. Developer-side failures appear here automatically.
             </div>
           ) : (
-            <div className="card divide-y divide-white/6 overflow-hidden">
+            <div className="card divide-y divide-ink/[0.08] overflow-hidden">
               {attempts.map((attempt) => (
                 <AttemptRow key={attempt.id} attempt={attempt} />
               ))}

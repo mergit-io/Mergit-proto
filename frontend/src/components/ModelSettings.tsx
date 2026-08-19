@@ -76,7 +76,7 @@ export function ModelSettings({ open, onClose }: Props) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm"
+            className="fixed inset-0 z-50 bg-white backdrop-blur-sm"
             onClick={onClose}
           />
 
@@ -90,18 +90,18 @@ export function ModelSettings({ open, onClose }: Props) {
             className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
           >
             <div
-              className="pointer-events-auto w-full max-w-lg rounded-2xl border border-white/10 bg-[#111] shadow-2xl overflow-hidden"
+              className="pointer-events-auto w-full max-w-lg rounded-2xl border border-ink/[0.09] bg-[#111] shadow-2xl overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-white/8">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-ink/[0.09]">
                 <div>
-                  <h2 className="text-sm font-semibold text-white">Model Settings</h2>
-                  <p className="text-xs text-text-muted mt-0.5">Choose which model each agent role uses</p>
+                  <h2 className="text-sm font-semibold text-ink">Model Settings</h2>
+                  <p className="text-xs text-ink-muted mt-0.5">Choose which model each agent role uses</p>
                 </div>
                 <button
                   onClick={onClose}
-                  className="p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/8 transition-all"
+                  className="p-1.5 rounded-lg text-ink-muted hover:text-white hover:bg-ink/[0.04] transition-all"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -110,19 +110,19 @@ export function ModelSettings({ open, onClose }: Props) {
               {/* Body */}
               <div className="px-6 py-4 max-h-[60vh] overflow-y-auto space-y-3">
                 {!config ? (
-                  <div className="py-8 text-center text-text-muted text-sm">Loading…</div>
+                  <div className="py-8 text-center text-ink-muted text-sm">Loading…</div>
                 ) : (
                   Object.entries(ROLE_META).map(([role, meta]) => {
                     const { label, description, Icon } = meta;
                     const selected = draft[role] || config.defaults[role];
                     return (
-                      <div key={role} className="flex items-center gap-3 p-3 rounded-xl bg-white/3 border border-white/6 hover:border-white/10 transition-all">
-                        <div className="w-8 h-8 rounded-lg bg-white/6 flex items-center justify-center shrink-0">
-                          <Icon className="w-4 h-4 text-text-muted" />
+                      <div key={role} className="flex items-center gap-3 p-3 rounded-xl bg-white border border-ink/[0.09] hover:border-ink/[0.09] transition-all">
+                        <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shrink-0">
+                          <Icon className="w-4 h-4 text-ink-muted" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="text-xs font-medium text-white">{label}</div>
-                          <div className="text-[10px] text-text-muted truncate">{description}</div>
+                          <div className="text-xs font-medium text-ink">{label}</div>
+                          <div className="text-[10px] text-ink-muted truncate">{description}</div>
                         </div>
                         <div className="shrink-0">
                           <ModelSelect
@@ -142,10 +142,10 @@ export function ModelSettings({ open, onClose }: Props) {
               </div>
 
               {/* Footer */}
-              <div className="px-6 py-4 border-t border-white/8 flex items-center justify-between gap-3">
+              <div className="px-6 py-4 border-t border-ink/[0.09] flex items-center justify-between gap-3">
                 <button
                   onClick={() => { setDraft(config?.defaults ?? {}); }}
-                  className="text-xs text-text-muted hover:text-white transition-colors"
+                  className="text-xs text-ink-muted hover:text-ink transition-colors"
                   disabled={!config}
                 >
                   Reset to defaults
@@ -158,7 +158,7 @@ export function ModelSettings({ open, onClose }: Props) {
                       ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
                       : isDirty
                       ? "bg-accent text-white hover:bg-accent/90"
-                      : "bg-white/6 text-text-muted cursor-not-allowed"
+                      : "bg-white text-ink-muted cursor-not-allowed"
                   }`}
                 >
                   {saved ? (
@@ -194,13 +194,13 @@ function ModelSelect({
     <div className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 pl-2.5 pr-2 py-1.5 rounded-lg bg-white/6 border border-white/10 hover:border-white/20 text-xs text-white transition-all min-w-[140px]"
+        className="flex items-center gap-1.5 pl-2.5 pr-2 py-1.5 rounded-lg bg-white border border-ink/[0.09] hover:border-ink/[0.09] text-xs text-ink transition-all min-w-[140px]"
       >
-        <span className={`${PROVIDER_COLORS[selected?.provider ?? ""] ?? "text-white"} font-medium truncate`}>
+        <span className={`${PROVIDER_COLORS[selected?.provider ?? ""] ?? "text-ink"} font-medium truncate`}>
           {selected?.label ?? value}
         </span>
-        <span className="text-[10px] text-text-muted ml-auto">{TIER_LABELS[selected?.tier ?? ""] ?? ""}</span>
-        <ChevronDown className="w-3 h-3 text-text-muted shrink-0" />
+        <span className="text-[10px] text-ink-muted ml-auto">{TIER_LABELS[selected?.tier ?? ""] ?? ""}</span>
+        <ChevronDown className="w-3 h-3 text-ink-muted shrink-0" />
       </button>
 
       <AnimatePresence>
@@ -212,20 +212,20 @@ function ModelSelect({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -4, scale: 0.97 }}
               transition={{ duration: 0.12 }}
-              className="absolute right-0 top-full mt-1 z-20 w-52 rounded-xl border border-white/12 bg-[#1a1a1a] shadow-xl overflow-hidden"
+              className="absolute right-0 top-full mt-1 z-20 w-52 rounded-xl border border-ink/[0.09] bg-[#1a1a1a] shadow-xl overflow-hidden"
             >
               {options.map((opt) => (
                 <button
                   key={opt.id}
                   onClick={() => { onChange(opt.id); setOpen(false); }}
-                  className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/6 transition-colors text-left ${
-                    opt.id === value ? "bg-white/4" : ""
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-ink/[0.04] transition-colors text-left ${
+                    opt.id === value ? "bg-white" : ""
                   }`}
                 >
-                  <span className={`font-medium ${PROVIDER_COLORS[opt.provider] ?? "text-white"}`}>
+                  <span className={`font-medium ${PROVIDER_COLORS[opt.provider] ?? "text-ink"}`}>
                     {opt.label}
                   </span>
-                  <span className="text-text-muted ml-auto">{opt.provider}</span>
+                  <span className="text-ink-muted ml-auto">{opt.provider}</span>
                   {opt.id === value && <Check className="w-3 h-3 text-accent shrink-0" />}
                 </button>
               ))}

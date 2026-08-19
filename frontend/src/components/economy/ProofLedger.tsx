@@ -19,11 +19,11 @@ function timeAgo(ts: number): string {
 function VerifyResult({ result }: { result: ProofVerification }) {
   if (result.verified === true) {
     return (
-      <div className="mt-2 rounded-lg border border-proof-green/25 bg-proof-green/5 px-3 py-2">
-        <p className="text-[11px] text-proof-green font-medium">
+      <div className="mt-2 rounded-lg border border-proof/25 bg-proof/5 px-3 py-2">
+        <p className="text-[11px] text-proof-deep font-medium">
           ✓ Verified — the stored output hashes to exactly what is on chain.
         </p>
-        <p className="font-mono text-[10px] text-text-muted mt-1 break-all">
+        <p className="font-mono text-[10px] text-ink-muted mt-1 break-all">
           sha256 {result.computed_hash}
         </p>
       </div>
@@ -36,7 +36,7 @@ function VerifyResult({ result }: { result: ProofVerification }) {
         <p className="text-[11px] text-red-400 font-medium">
           ✗ Mismatch — the stored output was altered after the proof was recorded.
         </p>
-        <p className="font-mono text-[10px] text-text-muted mt-1 break-all">
+        <p className="font-mono text-[10px] text-ink-muted mt-1 break-all">
           computed {truncateHash(result.computed_hash)} · on-chain{" "}
           {truncateHash(result.onchain_hash ?? "")}
         </p>
@@ -52,9 +52,9 @@ function VerifyResult({ result }: { result: ProofVerification }) {
         : "Nothing on chain to compare against.";
 
   return (
-    <div className="mt-2 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2">
-      <p className="text-[11px] text-text-muted">{reason}</p>
-      <p className="font-mono text-[10px] text-text-muted mt-1 break-all">
+    <div className="mt-2 rounded-lg border border-ink/[0.09] bg-white/[0.02] px-3 py-2">
+      <p className="text-[11px] text-ink-muted">{reason}</p>
+      <p className="font-mono text-[10px] text-ink-muted mt-1 break-all">
         would prove sha256 {truncateHash(result.computed_hash)}
       </p>
     </div>
@@ -85,17 +85,17 @@ export function ProofLedger({
 
   if (proofs.length === 0) {
     return (
-      <div className="card px-6 py-10 text-center text-text-muted text-sm">
+      <div className="card px-6 py-10 text-center text-ink-muted text-sm">
         No proofs minted yet. Every completed task mints one, live.
       </div>
     );
   }
 
   return (
-    <div className="card divide-y divide-white/6 overflow-hidden">
+    <div className="card divide-y divide-ink/[0.08] overflow-hidden">
       {chain && (
         <div className="flex items-center justify-between px-5 py-2.5 bg-white/[0.02]">
-          <span className="text-[11px] text-text-muted">
+          <span className="text-[11px] text-ink-muted">
             {chain.name} · chainId <span className="font-mono text-cyan">{chain.chainId}</span>
           </span>
           {chain.outbox?.pending ? (
@@ -132,16 +132,16 @@ export function ProofLedger({
                         href={explorerUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="font-mono text-xs text-white truncate hover:text-cyan transition-colors"
+                        className="font-mono text-xs text-ink truncate hover:text-cyan transition-colors"
                       >
                         tx {truncateHash(proof.tx_hash)} ↗
                       </a>
                     ) : (
-                      <p className="font-mono text-xs text-white truncate">
+                      <p className="font-mono text-xs text-ink truncate">
                         tx {truncateHash(proof.tx_hash)}
                       </p>
                     )}
-                    <p className="text-[11px] text-text-muted truncate">
+                    <p className="text-[11px] text-ink-muted truncate">
                       <span className="capitalize">{proof.agent_role}</span> · sha256{" "}
                       {truncateHash(proof.result_hash)}
                     </p>
@@ -152,15 +152,15 @@ export function ProofLedger({
                   <button
                     onClick={() => verify(proof.task_id)}
                     disabled={verifying === proof.task_id}
-                    className="text-[11px] px-2.5 py-1 rounded-md border border-white/12
-                               text-text-muted hover:text-white hover:border-white/25
+                    className="text-[11px] px-2.5 py-1 rounded-md border border-ink/[0.09]
+                               text-ink-muted hover:text-ink hover:border-ink/[0.09]
                                disabled:opacity-50 transition-colors"
                   >
                     {verifying === proof.task_id ? "Verifying…" : "Verify"}
                   </button>
                   <span className="text-right">
-                    <span className="w-1.5 h-1.5 rounded-full bg-proof-green inline-block mr-2 align-middle" />
-                    <span className="text-[11px] text-text-muted align-middle">
+                    <span className="w-1.5 h-1.5 rounded-full bg-proof inline-block mr-2 align-middle" />
+                    <span className="text-[11px] text-ink-muted align-middle">
                       {timeAgo(proof.recorded_at)}
                     </span>
                   </span>

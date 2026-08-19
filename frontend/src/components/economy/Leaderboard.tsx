@@ -18,14 +18,14 @@ export function Leaderboard({ entries }: { entries: RepEntry[] }) {
 
   if (entries.length === 0) {
     return (
-      <div className="card px-6 py-10 text-center text-text-muted text-sm">
+      <div className="card px-6 py-10 text-center text-ink-muted text-sm">
         No agents have earned reputation yet. Run a goal to mint the first proof.
       </div>
     );
   }
 
   return (
-    <div className="card divide-y divide-white/6 overflow-hidden">
+    <div className="card divide-y divide-ink/[0.08] overflow-hidden">
       <AnimatePresence initial={false}>
         {entries.map((entry) => (
           <motion.div
@@ -40,12 +40,12 @@ export function Leaderboard({ entries }: { entries: RepEntry[] }) {
           >
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-4 min-w-0">
-                <span className="w-6 text-sm font-mono text-text-muted shrink-0">
+                <span className="w-6 text-sm font-mono text-ink-muted shrink-0">
                   #{entry.rank}
                 </span>
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-white capitalize">{entry.role}</p>
-                  <p className="text-[11px] font-mono text-text-muted">
+                  <p className="text-sm font-medium text-ink capitalize">{entry.role}</p>
+                  <p className="text-[11px] font-mono text-ink-muted">
                     {(entry.success_rate * 100).toFixed(0)}% success · {(entry.speed * 100).toFixed(0)}% speed
                   </p>
                 </div>
@@ -62,7 +62,7 @@ export function Leaderboard({ entries }: { entries: RepEntry[] }) {
               </div>
             </div>
             {/* score bar */}
-            <div className="mt-2.5 h-1 rounded-full bg-white/6 overflow-hidden">
+            <div className="mt-2.5 h-1 rounded-full bg-white overflow-hidden">
               <motion.div
                 layout
                 className="h-full rounded-full bg-gradient-to-r from-accent to-cyan"

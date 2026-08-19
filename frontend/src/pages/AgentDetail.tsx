@@ -16,10 +16,10 @@ function ScoreBar({ label, value }: { label: string; value: number }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <span className="text-[11px] text-text-muted uppercase tracking-wide">{label}</span>
-        <span className="text-[11px] font-mono text-text-dim">{(value * 100).toFixed(0)}%</span>
+        <span className="text-[11px] text-ink-muted uppercase tracking-wide">{label}</span>
+        <span className="text-[11px] font-mono text-ink-dim">{(value * 100).toFixed(0)}%</span>
       </div>
-      <div className="h-1.5 rounded-full bg-white/6 overflow-hidden">
+      <div className="h-1.5 rounded-full bg-white overflow-hidden">
         <motion.div
           className="h-full rounded-full bg-gradient-to-r from-accent to-cyan"
           initial={{ width: 0 }}
@@ -42,17 +42,17 @@ export function AgentDetail() {
   );
 
   return (
-    <div className="relative min-h-screen" style={{ background: "#000" }}>
+    <div className="relative min-h-screen" style={{ background: "#FFFDFB" }}>
       <AppBackground />
 
       <div className="relative z-10 flex flex-col min-h-screen">
         <AppNav />
 
-        <div className="border-b border-white/6 bg-black/40 backdrop-blur-md">
+        <div className="border-b border-ink/[0.09] bg-white backdrop-blur-md">
           <div className="max-w-4xl mx-auto px-6 py-4 flex items-center gap-4">
             <button
               onClick={() => nav("/app/economy")}
-              className="flex items-center gap-1.5 text-text-muted hover:text-white text-xs font-medium transition-colors shrink-0"
+              className="flex items-center gap-1.5 text-ink-muted hover:text-ink text-xs font-medium transition-colors shrink-0"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               Economy
@@ -63,7 +63,7 @@ export function AgentDetail() {
         <main className="flex-1 max-w-4xl mx-auto w-full px-6 py-10">
           {isLoading && (
             <div className="flex items-center justify-center py-20">
-              <div className="w-6 h-6 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+              <div className="w-6 h-6 rounded-full border-2 border-ink/[0.09] border-t-white animate-spin" />
             </div>
           )}
 
@@ -85,12 +85,12 @@ export function AgentDetail() {
                 <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
                   <div>
                     <h1
-                      className="font-display font-bold text-white capitalize mb-1"
+                      className="font-display font-bold text-ink capitalize mb-1"
                       style={{ fontSize: "clamp(1.6rem, 3.5vw, 2.2rem)" }}
                     >
                       {data.passport.role}
                     </h1>
-                    <p className="text-xs font-mono text-text-muted">
+                    <p className="text-xs font-mono text-ink-muted">
                       AgentPassport #{data.passport.token_id} · {truncate(data.passport.owner_address)}
                     </p>
                   </div>
@@ -104,7 +104,7 @@ export function AgentDetail() {
                       <p className="font-mono text-2xl font-bold text-cyan leading-none">
                         {data.reputation?.composite ?? 0}
                       </p>
-                      <p className="text-[10px] text-text-muted uppercase tracking-wide">Composite</p>
+                      <p className="text-[10px] text-ink-muted uppercase tracking-wide">Composite</p>
                     </div>
                   </div>
                 </div>
@@ -115,11 +115,11 @@ export function AgentDetail() {
                   <ScoreBar label="Volume" value={data.reputation?.volume ?? 0} />
                 </div>
 
-                <div className="mt-6 pt-5 border-t border-white/6 flex flex-wrap gap-1.5">
+                <div className="mt-6 pt-5 border-t border-ink/[0.09] flex flex-wrap gap-1.5">
                   {data.passport.capabilities.map((cap) => (
                     <span
                       key={cap}
-                      className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/5 text-text-dim border border-white/8"
+                      className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white text-ink-dim border border-ink/[0.09]"
                     >
                       {cap}
                     </span>
@@ -127,7 +127,7 @@ export function AgentDetail() {
                 </div>
               </motion.div>
 
-              <h2 className="text-sm font-semibold text-white uppercase tracking-widest mb-4">
+              <h2 className="text-sm font-semibold text-ink uppercase tracking-widest mb-4">
                 Proof History
               </h2>
               <ProofLedger proofs={data.proofs ?? []} />

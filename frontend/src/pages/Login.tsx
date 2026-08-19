@@ -28,13 +28,13 @@ export function Login() {
   const notice = params.get("auth") ?? (params.get("expired") ? "expired" : "");
 
   return (
-    <div className="relative min-h-screen" style={{ background: "#000" }}>
+    <div className="relative min-h-screen" style={{ background: "#FFFDFB" }}>
       <AppBackground />
       <div className="relative z-10 min-h-screen flex items-center justify-center px-6">
         <div className="w-full max-w-sm">
           <div className="text-center mb-8">
-            <h1 className="text-2xl font-semibold text-white tracking-tight">Mergit</h1>
-            <p className="mt-2 text-sm text-white/50">
+            <h1 className="text-2xl font-semibold text-ink tracking-tight">Mergit</h1>
+            <p className="mt-2 text-sm text-ink/50">
               Sign in to run agents on your own repositories.
             </p>
           </div>
@@ -50,13 +50,13 @@ export function Login() {
           {!authConfigured ? (
             // Fail loudly rather than showing a button that cannot work. The instinct is
             // inherited from the page this replaces, and it was the right one.
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5 text-sm text-white/60 space-y-2">
-              <p className="text-white/85 font-medium">Sign-in is not configured</p>
+            <div className="rounded-xl border border-ink/[0.09] bg-white/[0.03] p-5 text-sm text-ink/60 space-y-2">
+              <p className="text-ink/85 font-medium">Sign-in is not configured</p>
               <p>
-                Set <code className="text-white/80">OAUTH_GOOGLE_CLIENT_ID</code> and{" "}
-                <code className="text-white/80">OAUTH_GOOGLE_CLIENT_SECRET</code> on the
+                Set <code className="text-ink/80">OAUTH_GOOGLE_CLIENT_ID</code> and{" "}
+                <code className="text-ink/80">OAUTH_GOOGLE_CLIENT_SECRET</code> on the
                 backend. Until then Mergit runs in single-tenant mode and{" "}
-                <a href="/app" className="text-white underline underline-offset-2">
+                <a href="/app" className="text-ink underline underline-offset-2">
                   the app is open
                 </a>
                 .
@@ -70,13 +70,13 @@ export function Login() {
               <a
                 href="/api/auth/login"
                 className="flex items-center justify-center gap-3 w-full rounded-xl bg-white px-4 py-3
-                           text-sm font-medium text-black transition-all hover:bg-white/90"
+                           text-sm font-medium text-black transition-all hover:bg-ink/[0.04]"
               >
                 <GoogleMark />
                 Continue with Google
               </a>
 
-              <p className="mt-5 text-center text-xs leading-relaxed text-white/35">
+              <p className="mt-5 text-center text-xs leading-relaxed text-ink/35">
                 Mergit only uses Google to identify you. Connecting GitHub or Slack is a
                 separate step, and you choose exactly what each one may do.
               </p>

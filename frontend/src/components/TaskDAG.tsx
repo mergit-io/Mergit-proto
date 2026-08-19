@@ -30,7 +30,7 @@ function buildGraph(tasks: TaskDetail[]): { nodes: Node[]; edges: Edge[] } {
     targetPosition: Position.Top,
     data: { label: <TaskNode task={t} /> },
     style: {
-      background: "#111111",
+      background: "#FFFFFF",
       border: `1px solid ${STATUS_EDGE_COLOR[t.status] ?? "#1f1f1f"}`,
       borderRadius: 12,
       padding: 0,
@@ -61,7 +61,7 @@ function TaskNode({ task }: { task: TaskDetail }) {
         <AgentBadge agent={task.agent_name} />
         <StatusBadge status={task.status} size="sm" />
       </div>
-      <p className="text-xs text-gray-300 leading-relaxed line-clamp-2">{task.description}</p>
+      <p className="line-clamp-2 text-xs leading-relaxed text-ink-muted">{task.description}</p>
     </div>
   );
 }
@@ -84,8 +84,8 @@ export function TaskDAG({ tasks }: Props) {
         panOnDrag
         proOptions={{ hideAttribution: true }}
       >
-        <Background color="#1f1f1f" gap={20} size={1} />
-        <Controls showInteractive={false} className="!bg-surface !border-border" />
+        <Background color="#D9D5E4" gap={20} size={1} />
+        <Controls showInteractive={false} className="!border-ink/10 !bg-white !shadow-sm" />
       </ReactFlow>
     </div>
   );

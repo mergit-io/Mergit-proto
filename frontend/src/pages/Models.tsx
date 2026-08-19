@@ -30,7 +30,7 @@ function detectProvider(modelId: string): { name: string; color: string; bg: str
   const id = modelId.toLowerCase();
   if (id.startsWith("groq/"))      return { name: "Groq",      color: "text-emerald-400", bg: "bg-emerald-400/10 border-emerald-400/20" };
   if (id.startsWith("anthropic/")) return { name: "Anthropic", color: "text-violet-400",  bg: "bg-violet-400/10 border-violet-400/20"  };
-  return                                   { name: "Custom",   color: "text-white",        bg: "bg-white/6 border-white/10"             };
+  return                                   { name: "Custom",   color: "text-ink",        bg: "bg-white border-ink/[0.09]"             };
 }
 
 function ProviderBadge({ modelId }: { modelId: string }) {
@@ -52,7 +52,7 @@ const PROVIDER_META: Record<string, { label: string; color: string; bg: string; 
   groq:      { label: "Groq",      color: "text-emerald-400", bg: "bg-emerald-400/8",  border: "border-emerald-400/20" },
   anthropic: { label: "Anthropic", color: "text-violet-400",  bg: "bg-violet-400/8",   border: "border-violet-400/20"  },
   tavily:    { label: "Tavily",    color: "text-cyan-400",    bg: "bg-cyan-400/8",      border: "border-cyan-400/20"    },
-  github:    { label: "GitHub",    color: "text-white",       bg: "bg-white/8",         border: "border-white/20"       },
+  github:    { label: "GitHub",    color: "text-ink",       bg: "bg-white",         border: "border-ink/[0.09]"       },
 };
 
 function ApiKeysSection() {
@@ -101,19 +101,19 @@ function ApiKeysSection() {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.1 }}
-      className="mt-6 rounded-2xl border border-white/10 bg-[#0e0e0e] overflow-hidden"
+      className="mt-6 rounded-2xl border border-ink/[0.09] bg-white overflow-hidden"
     >
-      <div className="px-6 py-4 border-b border-white/6 flex items-center gap-3">
-        <Key className="w-4 h-4 text-text-muted" />
+      <div className="px-6 py-4 border-b border-ink/[0.09] flex items-center gap-3">
+        <Key className="w-4 h-4 text-ink-muted" />
         <div>
-          <h2 className="text-xs font-semibold text-white uppercase tracking-widest">API Keys</h2>
-          <p className="text-[11px] text-text-muted mt-0.5">Keys are saved to backend/.env and take effect immediately</p>
+          <h2 className="text-xs font-semibold text-ink uppercase tracking-widest">API Keys</h2>
+          <p className="text-[11px] text-ink-muted mt-0.5">Keys are saved to backend/.env and take effect immediately</p>
         </div>
       </div>
 
       <div className="divide-y divide-white/4">
         {Object.entries(keys).map(([provider, status]) => {
-          const meta = PROVIDER_META[provider] ?? { label: provider, color: "text-white", bg: "bg-white/6", border: "border-white/10" };
+          const meta = PROVIDER_META[provider] ?? { label: provider, color: "text-ink", bg: "bg-white", border: "border-ink/[0.09]" };
           const isEditing = editing === provider;
           const isSaved = savedKey === provider;
 
@@ -123,7 +123,7 @@ function ApiKeysSection() {
                 <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold border ${meta.bg} ${meta.border} ${meta.color} min-w-[70px] justify-center`}>
                   {meta.label}
                 </span>
-                <code className="text-[11px] text-text-muted font-mono flex-1">{status.env_var}</code>
+                <code className="text-[11px] text-ink-muted font-mono flex-1">{status.env_var}</code>
                 {status.set ? (
                   <span className="flex items-center gap-1 text-[11px] text-emerald-400">
                     <CheckCircle className="w-3 h-3" />
@@ -134,7 +134,7 @@ function ApiKeysSection() {
                 )}
                 <button
                   onClick={() => isEditing ? setEditing(null) : startEdit(provider)}
-                  className="text-[11px] px-2.5 py-1 rounded-lg border border-white/10 text-text-muted hover:text-white hover:border-white/20 transition-all"
+                  className="text-[11px] px-2.5 py-1 rounded-lg border border-ink/[0.09] text-ink-muted hover:text-ink hover:border-ink/[0.09] transition-all"
                 >
                   {isEditing ? "Cancel" : isSaved ? "Saved ✓" : status.set ? "Update" : "Add key"}
                 </button>
@@ -149,7 +149,7 @@ function ApiKeysSection() {
                     className="mt-3 overflow-hidden"
                   >
                     <div className="flex items-center gap-2">
-                      <div className="flex-1 flex items-center gap-2 rounded-xl border border-white/12 bg-white/3 px-3 py-2">
+                      <div className="flex-1 flex items-center gap-2 rounded-xl border border-ink/[0.09] bg-white px-3 py-2">
                         <input
                           type={show ? "text" : "password"}
                           value={inputVal}
@@ -157,9 +157,9 @@ function ApiKeysSection() {
                           onKeyDown={(e) => { if (e.key === "Enter") save(provider); if (e.key === "Escape") setEditing(null); }}
                           placeholder={`Paste your ${meta.label} API key…`}
                           autoFocus
-                          className="flex-1 bg-transparent text-xs text-white font-mono outline-none placeholder:text-text-muted"
+                          className="flex-1 bg-transparent text-xs text-ink font-mono outline-none placeholder:text-ink-muted"
                         />
-                        <button onClick={() => setShow((s) => !s)} className="text-text-muted hover:text-white transition-colors">
+                        <button onClick={() => setShow((s) => !s)} className="text-ink-muted hover:text-ink transition-colors">
                           {show ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                         </button>
                       </div>
@@ -225,13 +225,13 @@ function ProjectContextSection() {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.15 }}
-      className="mt-6 rounded-2xl border border-white/10 bg-[#0e0e0e] overflow-hidden"
+      className="mt-6 rounded-2xl border border-ink/[0.09] bg-white overflow-hidden"
     >
-      <div className="px-6 py-4 border-b border-white/6 flex items-center gap-3">
-        <FolderGit2 className="w-4 h-4 text-text-muted" />
+      <div className="px-6 py-4 border-b border-ink/[0.09] flex items-center gap-3">
+        <FolderGit2 className="w-4 h-4 text-ink-muted" />
         <div>
-          <h2 className="text-xs font-semibold text-white uppercase tracking-widest">Project Context</h2>
-          <p className="text-[11px] text-text-muted mt-0.5">
+          <h2 className="text-xs font-semibold text-ink uppercase tracking-widest">Project Context</h2>
+          <p className="text-[11px] text-ink-muted mt-0.5">
             Injected into the orchestrator and every agent so they understand your project
           </p>
         </div>
@@ -245,7 +245,7 @@ function ProjectContextSection() {
           { key: "notes" as const, label: "Notes for Agents", placeholder: "Any special instructions, conventions, or context…", mono: false },
         ].map(({ key, label, placeholder, mono }) => (
           <div key={key}>
-            <label className="block text-[11px] font-medium text-text-muted mb-1.5 uppercase tracking-widest">
+            <label className="block text-[11px] font-medium text-ink-muted mb-1.5 uppercase tracking-widest">
               {label}
             </label>
             {key === "notes" ? (
@@ -254,7 +254,7 @@ function ProjectContextSection() {
                 onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value }))}
                 placeholder={placeholder}
                 rows={3}
-                className="w-full bg-white/3 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-accent/50 placeholder:text-text-muted resize-none font-sans leading-relaxed"
+                className="w-full bg-white border border-ink/[0.09] rounded-xl px-3 py-2.5 text-xs text-ink outline-none focus:border-accent/50 placeholder:text-ink-muted resize-none font-sans leading-relaxed"
               />
             ) : (
               <input
@@ -262,7 +262,7 @@ function ProjectContextSection() {
                 value={draft[key]}
                 onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value }))}
                 placeholder={placeholder}
-                className={`w-full bg-white/3 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-accent/50 placeholder:text-text-muted ${mono ? "font-mono" : "font-sans"}`}
+                className={`w-full bg-white border border-ink/[0.09] rounded-xl px-3 py-2.5 text-xs text-ink outline-none focus:border-accent/50 placeholder:text-ink-muted ${mono ? "font-mono" : "font-sans"}`}
               />
             )}
           </div>
@@ -283,7 +283,7 @@ function ProjectContextSection() {
                 ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
                 : isDirty
                 ? "bg-accent text-white hover:bg-accent/90 shadow-[0_0_16px_rgba(59,130,246,0.3)]"
-                : "bg-white/6 text-text-muted cursor-not-allowed"
+                : "bg-white text-ink-muted cursor-not-allowed"
             }`}
           >
             {saved ? (
@@ -375,7 +375,7 @@ export function Models() {
   const isDirty = config && JSON.stringify(draft) !== JSON.stringify(config.models);
 
   return (
-    <div className="relative min-h-screen" style={{ background: "#000" }}>
+    <div className="relative min-h-screen" style={{ background: "#FFFDFB" }}>
       <AppBackground />
 
       <div className="relative z-10 flex flex-col min-h-screen">
@@ -394,11 +394,11 @@ export function Models() {
             <Cpu className="w-3.5 h-3.5 text-accent" />
             <span className="text-xs font-medium text-accent">Model Configuration</span>
           </div>
-          <h1 className="font-display font-bold text-white mb-3" style={{ fontSize: "clamp(1.8rem, 4vw, 2.6rem)" }}>
+          <h1 className="font-display font-bold text-ink mb-3" style={{ fontSize: "clamp(1.8rem, 4vw, 2.6rem)" }}>
             Choose your{" "}
-            <span className="text-gradient-blue">AI models</span>
+            <span className="text-accent">AI models</span>
           </h1>
-          <p className="text-text-dim text-sm max-w-xl leading-relaxed">
+          <p className="text-ink-dim text-sm max-w-xl leading-relaxed">
             Assign any LLM to each agent role. Changes take effect on the next goal execution.
           </p>
         </motion.div>
@@ -416,10 +416,10 @@ export function Models() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05 }}
-          className="rounded-2xl border border-white/10 bg-[#0e0e0e] overflow-hidden"
+          className="rounded-2xl border border-ink/[0.09] bg-white overflow-hidden"
         >
           {/* Tab bar */}
-          <div className="flex items-center gap-0 border-b border-white/8 px-6 pt-4">
+          <div className="flex items-center gap-0 border-b border-ink/[0.09] px-6 pt-4">
             {([ ["visual", Layers, "Visual Editor"], ["json", FileJson, "JSON Editor"] ] as const).map(([id, Icon, label]) => (
               <button
                 key={id}
@@ -427,7 +427,7 @@ export function Models() {
                 className={`flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-t-lg border-b-2 transition-all -mb-px ${
                   tab === id
                     ? "border-accent text-accent bg-accent/5"
-                    : "border-transparent text-text-muted hover:text-white"
+                    : "border-transparent text-ink-muted hover:text-ink"
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" />
@@ -448,7 +448,7 @@ export function Models() {
                 className="p-6 space-y-3"
               >
                 {!config ? (
-                  <div className="py-12 text-center text-text-muted text-sm">Loading…</div>
+                  <div className="py-12 text-center text-ink-muted text-sm">Loading…</div>
                 ) : (
                   ROLES.map((role, i) => {
                     const { label, desc, Icon } = ROLE_META[role];
@@ -459,14 +459,14 @@ export function Models() {
                         initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.04 }}
-                        className="flex items-center gap-4 p-4 rounded-xl border bg-white/3 border-white/6 hover:border-white/10 transition-all"
+                        className="flex items-center gap-4 p-4 rounded-xl border bg-white border-ink/[0.09] hover:border-ink/[0.09] transition-all"
                       >
-                        <div className="w-9 h-9 rounded-xl border bg-white/6 border-white/8 flex items-center justify-center shrink-0">
-                          <Icon className="w-4 h-4 text-text-muted" />
+                        <div className="w-9 h-9 rounded-xl border bg-white border-ink/[0.09] flex items-center justify-center shrink-0">
+                          <Icon className="w-4 h-4 text-ink-muted" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-white">{label}</p>
-                          <p className="text-[11px] text-text-muted truncate">{desc}</p>
+                          <p className="text-sm font-medium text-ink">{label}</p>
+                          <p className="text-[11px] text-ink-muted truncate">{desc}</p>
                         </div>
                         <ModelPicker
                           value={value}
@@ -488,14 +488,14 @@ export function Models() {
                 className="p-6"
               >
                 <div className="mb-3 flex items-center justify-between">
-                  <p className="text-xs text-text-muted">
+                  <p className="text-xs text-ink-muted">
                     Edit the role→model mapping directly. Use any LiteLLM-compatible model ID (e.g.{" "}
                     <code className="text-accent/80 bg-accent/5 px-1 rounded">groq/llama-3.3-70b-versatile</code>,{" "}
                     <code className="text-accent/80 bg-accent/5 px-1 rounded">anthropic/claude-sonnet-4-6</code>).
                   </p>
                 </div>
 
-                <div className={`relative rounded-xl border overflow-hidden ${jsonError ? "border-danger/50" : "border-white/10"}`}>
+                <div className={`relative rounded-xl border overflow-hidden ${jsonError ? "border-danger/50" : "border-ink/[0.09]"}`}>
                   {/* Line numbers gutter */}
                   <div className="flex">
                     <LineNumbers text={jsonText} />
@@ -503,7 +503,7 @@ export function Models() {
                       value={jsonText}
                       onChange={(e) => handleJsonChange(e.target.value)}
                       spellCheck={false}
-                      className="flex-1 bg-[#0a0a0a] text-sm font-mono text-white/90 p-4 pl-2 resize-none outline-none leading-6 min-h-[280px]"
+                      className="flex-1 bg-white text-sm font-mono text-ink p-4 pl-2 resize-none outline-none leading-6 min-h-[280px]"
                       style={{ tabSize: 2 }}
                     />
                   </div>
@@ -524,11 +524,11 @@ export function Models() {
                 </AnimatePresence>
 
                 {/* Schema reference */}
-                <div className="mt-4 rounded-xl border border-white/6 bg-white/2 p-4">
-                  <p className="text-[11px] font-medium text-text-muted mb-2 uppercase tracking-widest">Available Roles</p>
+                <div className="mt-4 rounded-xl border border-ink/[0.09] bg-white p-4">
+                  <p className="text-[11px] font-medium text-ink-muted mb-2 uppercase tracking-widest">Available Roles</p>
                   <div className="flex flex-wrap gap-1.5">
                     {ROLES.map((r) => (
-                      <span key={r} className="px-2 py-0.5 rounded bg-white/5 border border-white/8 text-[11px] text-text-muted font-mono">
+                      <span key={r} className="px-2 py-0.5 rounded bg-white border border-ink/[0.09] text-[11px] text-ink-muted font-mono">
                         {r}
                       </span>
                     ))}
@@ -539,12 +539,12 @@ export function Models() {
           </AnimatePresence>
 
           {/* Footer */}
-          <div className="px-6 py-4 border-t border-white/8 flex items-center justify-between gap-3 bg-white/1">
+          <div className="px-6 py-4 border-t border-ink/[0.09] flex items-center justify-between gap-3 bg-white">
             <div className="flex items-center gap-3">
               <button
                 onClick={handleReset}
                 disabled={!config}
-                className="flex items-center gap-1.5 text-xs text-text-muted hover:text-white transition-colors disabled:opacity-40"
+                className="flex items-center gap-1.5 text-xs text-ink-muted hover:text-ink transition-colors disabled:opacity-40"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 Reset to defaults
@@ -564,7 +564,7 @@ export function Models() {
                   ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
                   : isDirty && !jsonError
                   ? "bg-accent text-white hover:bg-accent/90 shadow-[0_0_16px_rgba(59,130,246,0.3)]"
-                  : "bg-white/6 text-text-muted cursor-not-allowed"
+                  : "bg-white text-ink-muted cursor-not-allowed"
               }`}
             >
               {saved ? (
@@ -590,18 +590,18 @@ export function Models() {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15 }}
-            className="mt-6 rounded-2xl border border-white/8 bg-[#0e0e0e] overflow-hidden"
+            className="mt-6 rounded-2xl border border-ink/[0.09] bg-white overflow-hidden"
           >
-            <div className="px-6 py-4 border-b border-white/6">
-              <h2 className="text-xs font-semibold text-white uppercase tracking-widest">Available Models</h2>
-              <p className="text-[11px] text-text-muted mt-0.5">Suggested models — any LiteLLM-compatible ID also works</p>
+            <div className="px-6 py-4 border-b border-ink/[0.09]">
+              <h2 className="text-xs font-semibold text-ink uppercase tracking-widest">Available Models</h2>
+              <p className="text-[11px] text-ink-muted mt-0.5">Suggested models — any LiteLLM-compatible ID also works</p>
             </div>
             <div className="divide-y divide-white/4">
               {config.available.map((m) => (
-                <div key={m.id} className="flex items-center gap-3 px-6 py-3 hover:bg-white/2 transition-colors">
+                <div key={m.id} className="flex items-center gap-3 px-6 py-3 hover:bg-ink/[0.04] transition-colors">
                   <ProviderBadge modelId={m.id} />
-                  <code className="text-xs text-white/80 font-mono flex-1">{m.id}</code>
-                  <span className="text-[11px] text-text-muted">{m.label}</span>
+                  <code className="text-xs text-ink/80 font-mono flex-1">{m.id}</code>
+                  <span className="text-[11px] text-ink-muted">{m.label}</span>
                   <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
                     m.tier === "powerful" ? "text-violet-400 bg-violet-400/8 border-violet-400/20" :
                     m.tier === "instant"  ? "text-emerald-400 bg-emerald-400/8 border-emerald-400/20" :
@@ -610,10 +610,10 @@ export function Models() {
                 </div>
               ))}
               <div className="px-6 py-3 flex items-center gap-3">
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border bg-white/6 border-white/10 text-white">Custom</span>
-                <code className="text-xs text-text-muted font-mono flex-1">provider/model-name</code>
-                <span className="text-[11px] text-text-muted">Any LiteLLM-compatible provider</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded border text-text-muted bg-white/4 border-white/8">any</span>
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border bg-white border-ink/[0.09] text-ink">Custom</span>
+                <code className="text-xs text-ink-muted font-mono flex-1">provider/model-name</code>
+                <span className="text-[11px] text-ink-muted">Any LiteLLM-compatible provider</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded border text-ink-muted bg-white border-ink/[0.09]">any</span>
               </div>
             </div>
           </motion.div>
@@ -667,12 +667,12 @@ function ModelPicker({
             if (e.key === "Escape") { setCustom(false); setCustomVal(""); }
           }}
           placeholder="provider/model-id"
-          className="flex-1 bg-white/6 border border-white/15 text-xs font-mono text-white rounded-lg px-2.5 py-1.5 outline-none focus:border-accent/50 placeholder:text-text-muted"
+          className="flex-1 bg-white border border-ink/[0.09] text-xs font-mono text-ink rounded-lg px-2.5 py-1.5 outline-none focus:border-accent/50 placeholder:text-ink-muted"
         />
         <button onClick={() => commit(customVal)} className="p-1.5 rounded-lg bg-accent/10 text-accent hover:bg-accent/20 transition-all">
           <Check className="w-3.5 h-3.5" />
         </button>
-        <button onClick={() => { setCustom(false); setCustomVal(""); }} className="p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/6 transition-all">
+        <button onClick={() => { setCustom(false); setCustomVal(""); }} className="p-1.5 rounded-lg text-ink-muted hover:text-white hover:bg-ink/[0.04] transition-all">
           <X className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -683,13 +683,13 @@ function ModelPicker({
     <div className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 text-xs text-white transition-all min-w-[200px] group"
+        className="flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-xl bg-white border border-ink/[0.09] hover:border-ink/[0.09] text-xs text-ink transition-all min-w-[200px] group"
       >
         <span className={`${provider.color} font-mono font-medium truncate max-w-[130px]`}>
           {knownOption ? knownOption.label : value}
         </span>
         <ProviderBadge modelId={value} />
-        <ChevronDown className="w-3 h-3 text-text-muted ml-auto shrink-0 group-hover:text-white transition-colors" />
+        <ChevronDown className="w-3 h-3 text-ink-muted ml-auto shrink-0 group-hover:text-ink transition-colors" />
       </button>
 
       <AnimatePresence>
@@ -701,7 +701,7 @@ function ModelPicker({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -6, scale: 0.97 }}
               transition={{ duration: 0.13 }}
-              className="absolute right-0 top-full mt-1.5 z-20 w-64 rounded-2xl border border-white/12 bg-[#161616] shadow-2xl overflow-y-auto max-h-72"
+              className="absolute right-0 top-full mt-1.5 z-20 w-64 rounded-2xl border border-ink/[0.09] bg-white shadow-2xl overflow-y-auto max-h-72"
             >
               {/* Group by provider */}
               {["Groq", "Anthropic", "OpenAI", "Google", "Mistral"].map((prov) => {
@@ -709,12 +709,12 @@ function ModelPicker({
                 if (!group.length) return null;
                 return (
                   <div key={prov}>
-                    <p className="px-3 pt-2.5 pb-1 text-[10px] font-semibold text-text-muted uppercase tracking-widest">{prov}</p>
+                    <p className="px-3 pt-2.5 pb-1 text-[10px] font-semibold text-ink-muted uppercase tracking-widest">{prov}</p>
                     {group.map((opt) => (
                       <button
                         key={opt.id}
                         onClick={() => { onChange(opt.id); setOpen(false); }}
-                        className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/6 transition-colors text-left ${opt.id === value ? "bg-white/4" : ""}`}
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-ink/[0.04] transition-colors text-left ${opt.id === value ? "bg-white" : ""}`}
                       >
                         <span className={`font-medium font-mono ${detectProvider(opt.id).color} flex-1 truncate`}>{opt.label}</span>
                         <span className={`text-[10px] px-1 py-0.5 rounded border ${
@@ -730,10 +730,10 @@ function ModelPicker({
               })}
 
               {/* Custom entry */}
-              <div className="border-t border-white/6 p-2">
+              <div className="border-t border-ink/[0.09] p-2">
                 <button
                   onClick={() => { setOpen(false); setCustomVal(isCustom ? value : ""); setCustom(true); setTimeout(() => inputRef.current?.focus(), 50); }}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-text-muted hover:text-white hover:bg-white/6 transition-colors text-left"
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-ink-muted hover:text-white hover:bg-ink/[0.04] transition-colors text-left"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   Custom model ID…
@@ -752,7 +752,7 @@ function ModelPicker({
 function LineNumbers({ text }: { text: string }) {
   const lines = text.split("\n").length;
   return (
-    <div className="select-none bg-[#0a0a0a] text-right pr-3 pl-4 py-4 text-text-muted font-mono text-sm leading-6 border-r border-white/6 min-w-[3rem]">
+    <div className="select-none bg-paper-2 text-right pr-3 pl-4 py-4 text-ink-muted font-mono text-sm leading-6 border-r border-ink/[0.09] min-w-[3rem]">
       {Array.from({ length: lines }, (_, i) => (
         <div key={i}>{i + 1}</div>
       ))}

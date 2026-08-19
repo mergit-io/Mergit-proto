@@ -128,16 +128,16 @@ export function Connections() {
   const connectionFor = (key: string) => data?.connections.find((c) => c.provider === key);
 
   return (
-    <div className="relative min-h-screen" style={{ background: "#000" }}>
+    <div className="relative min-h-screen" style={{ background: "#FFFDFB" }}>
       <AppBackground />
       <div className="relative z-10 flex flex-col min-h-screen">
         <AppNav />
         <main className="flex-1 max-w-4xl mx-auto w-full px-6 py-10">
           <header className="mb-8">
-            <h1 className="flex items-center gap-2 text-xl font-semibold text-white">
+            <h1 className="flex items-center gap-2 text-xl font-semibold text-ink">
               <Plug className="w-5 h-5" /> Connections
             </h1>
-            <p className="mt-2 text-sm text-white/50 max-w-2xl">
+            <p className="mt-2 text-sm text-ink/50 max-w-2xl">
               Signing in with Google tells Mergit who you are. It does not give Mergit any
               access to GitHub or Slack — each one is its own permission, granted here, and
               revocable here.
@@ -166,10 +166,10 @@ export function Connections() {
             ))}
           </div>
 
-          <p className="mt-8 text-xs text-white/30 leading-relaxed">
+          <p className="mt-8 text-xs text-ink/30 leading-relaxed">
             Mergit records every use of these connections — which agent, which action, and on
             what — on the{" "}
-            <a href="/app/audit" className="text-white/50 underline underline-offset-2">
+            <a href="/app/audit" className="text-ink/50 underline underline-offset-2">
               activity page
             </a>
             .
@@ -218,12 +218,12 @@ function ProviderCard({ meta, connection, repos, available, busy, onConnect, onD
   const needsReauth = connection?.status === "needs_reauth";
 
   return (
-    <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+    <section className="rounded-2xl border border-ink/[0.09] bg-white/[0.03] p-5">
       <div className="flex items-start gap-4">
-        <Icon className="w-5 h-5 mt-0.5 text-white/70 shrink-0" />
+        <Icon className="w-5 h-5 mt-0.5 text-ink/70 shrink-0" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-medium text-white">{meta.label}</h2>
+            <h2 className="text-sm font-medium text-ink">{meta.label}</h2>
             {connected && (
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/15 px-2 py-0.5 text-[11px] text-emerald-300">
                 <Check className="w-3 h-3" /> Connected
@@ -236,27 +236,27 @@ function ProviderCard({ meta, connection, repos, available, busy, onConnect, onD
             )}
           </div>
 
-          <p className="mt-1 text-sm text-white/50">{meta.blurb}</p>
+          <p className="mt-1 text-sm text-ink/50">{meta.blurb}</p>
 
           {connected ? (
-            <div className="mt-3 space-y-2 text-xs text-white/45">
+            <div className="mt-3 space-y-2 text-xs text-ink/45">
               <p>
-                Connected as <span className="text-white/75">{connection!.account}</span>
+                Connected as <span className="text-ink/75">{connection!.account}</span>
                 {connection!.account_type === "Organization" && " (organisation)"}
               </p>
               {meta.key === "github" && (
                 <div>
-                  <p className="text-white/60">Mergit can act on:</p>
+                  <p className="text-ink/60">Mergit can act on:</p>
                   {repos.length ? (
                     <ul className="mt-1 flex flex-wrap gap-1.5">
                       {repos.map((r) => (
-                        <li key={r} className="rounded-md bg-white/[0.06] px-2 py-0.5 font-mono text-[11px] text-white/70">
+                        <li key={r} className="rounded-md bg-white/[0.06] px-2 py-0.5 font-mono text-[11px] text-ink/70">
                           {r}
                         </li>
                       ))}
                     </ul>
                   ) : (
-                    <p className="mt-1 text-white/40">
+                    <p className="mt-1 text-ink/40">
                       Every repository on this account. Narrow it on GitHub if you would rather
                       pick specific ones.
                     </p>
@@ -265,10 +265,10 @@ function ProviderCard({ meta, connection, repos, available, busy, onConnect, onD
               )}
             </div>
           ) : (
-            <ul className="mt-3 space-y-1 text-xs text-white/45">
+            <ul className="mt-3 space-y-1 text-xs text-ink/45">
               {meta.permissions.map((p) => (
                 <li key={p} className="flex gap-2">
-                  <span className="text-white/25">•</span> {p}
+                  <span className="text-ink/25">•</span> {p}
                 </li>
               ))}
             </ul>
@@ -277,13 +277,13 @@ function ProviderCard({ meta, connection, repos, available, busy, onConnect, onD
 
         <div className="shrink-0">
           {!available ? (
-            <span className="text-xs text-white/30">Not configured</span>
+            <span className="text-xs text-ink/30">Not configured</span>
           ) : connected ? (
             <button
               onClick={onDisconnect}
               disabled={busy}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5
-                         text-xs text-white/60 transition-all hover:border-red-400/30 hover:text-red-300"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-ink/[0.09] px-3 py-1.5
+                         text-xs text-ink/60 transition-all hover:border-red-400/30 hover:text-red-300"
             >
               {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
               Disconnect
@@ -293,7 +293,7 @@ function ProviderCard({ meta, connection, repos, available, busy, onConnect, onD
               onClick={onConnect}
               disabled={busy}
               className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5
-                         text-xs font-medium text-black transition-all hover:bg-white/90 disabled:opacity-50"
+                         text-xs font-medium text-black transition-all hover:bg-ink/[0.04] disabled:opacity-50"
             >
               {busy && <Loader2 className="w-3 h-3 animate-spin" />}
               {needsReauth ? "Reconnect" : "Connect"}
@@ -303,14 +303,14 @@ function ProviderCard({ meta, connection, repos, available, busy, onConnect, onD
       </div>
 
       {connected && meta.key === "github" && (
-        <p className="mt-4 border-t border-white/[0.06] pt-3 text-[11px] text-white/30">
+        <p className="mt-4 border-t border-white/[0.06] pt-3 text-[11px] text-ink/30">
           Disconnecting removes Mergit's stored access. The app installation itself lives on
           GitHub — remove it at{" "}
           <a
             href="https://github.com/settings/installations"
             target="_blank"
             rel="noreferrer"
-            className="text-white/50 underline underline-offset-2"
+            className="text-ink/50 underline underline-offset-2"
           >
             github.com/settings/installations
           </a>{" "}

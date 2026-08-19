@@ -1,12 +1,13 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, RefreshCw, AlertCircle, Key, Eye, EyeOff, X } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import useSWR from "swr";
 import { LiveLog } from "../components/LiveLog";
 import { OutputDisplay } from "../components/OutputDisplay";
 import { StatusBadge } from "../components/StatusBadge";
 import { TaskDAG } from "../components/TaskDAG";
+import { RunPipeline } from "../components/RunPipeline";
 import { TaskPanel } from "../components/TaskPanel";
 import { AppNav } from "../components/AppNav";
 import { AppBackground } from "../components/AppBackground";
@@ -16,6 +17,8 @@ import { useSSE } from "../lib/sse";
 
 const ACTIVE_STATUSES = new Set(["NEW", "PLANNING", "RUNNING"]);
 
+type StageView = "flow" | "graph";
+
 interface CredentialRequest {
   task_id: string;
   credential: string;
@@ -23,13 +26,7 @@ interface CredentialRequest {
   message: string;
 }
 
-function CredentialBanner({
-  req,
-  onDismiss,
-}: {
-  req: CredentialRequest;
-  onDismiss: () => void;
-}) {
+function CredentialBanner({ req, onDismiss }: { req: CredentialRequest; onDismiss: () => void }) {
   const [value, setValue] = useState("");
   const [show, setShow] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -54,43 +51,61 @@ function CredentialBanner({
       initial={{ opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
-      className="mx-5 mt-4 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4"
+      className="mx-5 mt-4 rounded-2xl border border-[#EAB308]/30 bg-[#FFF6E8] p-4 sm:mx-8"
     >
       <div className="flex items-start gap-3">
-        <Key className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-amber-300">Credential required</p>
-          <p className="text-xs text-amber-300/70 mt-0.5">{req.message}</p>
-          <div className="flex items-center gap-2 mt-3">
-            <div className="flex-1 flex items-center gap-2 rounded-lg border border-white/12 bg-white/3 px-3 py-2">
+        <Key className="mt-0.5 h-4 w-4 shrink-0 text-[#A16207]" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-[#A16207]">Credential required</p>
+          <p className="mt-0.5 text-xs text-[#A16207]/80">{req.message}</p>
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="flex flex-1 items-center gap-2 rounded-xl border border-ink/12 bg-white px-3 py-2">
               <input
                 type={show ? "text" : "password"}
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") save(); }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") save();
+                }}
                 placeholder={`Paste ${req.credential}…`}
                 autoFocus
-                className="flex-1 bg-transparent text-xs font-mono text-white outline-none placeholder:text-text-muted"
+                className="flex-1 bg-transparent font-mono text-xs text-ink outline-none placeholder:text-ink-dim"
               />
-              <button onClick={() => setShow((s) => !s)} className="text-text-muted hover:text-white transition-colors">
-                {show ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              <button
+                onClick={() => setShow((v) => !v)}
+                className="text-ink-dim transition-colors hover:text-ink"
+                aria-label={show ? "Hide value" : "Show value"}
+              >
+                {show ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
               </button>
             </div>
             <button
               onClick={save}
               disabled={saving || !value.trim()}
-              className="px-4 py-2 rounded-lg text-xs font-semibold bg-amber-500 text-black hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              className="rounded-xl bg-[#A16207] px-4 py-2.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {saving ? "Saving…" : "Save & Resume"}
+              {saving ? "Saving…" : "Save & resume"}
             </button>
           </div>
-          {err && <p className="mt-1.5 text-xs text-danger">{err}</p>}
+          {err && <p className="mt-1.5 text-xs text-[#C2453B]">{err}</p>}
         </div>
-        <button onClick={onDismiss} className="text-text-muted hover:text-white transition-colors shrink-0">
-          <X className="w-4 h-4" />
+        <button onClick={onDismiss} className="shrink-0 text-ink-dim transition-colors hover:text-ink" aria-label="Dismiss">
+          <X className="h-4 w-4" />
         </button>
       </div>
     </motion.div>
+  );
+}
+
+function Shell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="relative min-h-screen bg-paper font-manrope text-ink">
+      <AppBackground />
+      <div className="relative z-10 flex min-h-screen flex-col">
+        <AppNav />
+        {children}
+      </div>
+    </div>
   );
 }
 
@@ -101,185 +116,177 @@ function fetcher(id: string) {
 export function GoalDetail() {
   const { id } = useParams<{ id: string }>();
   const nav = useNavigate();
+  const [view, setView] = useState<StageView>("flow");
   const { data, isLoading, error } = useSWR(
     id ? `/api/goals/${id}` : null,
     () => fetcher(id!),
-    { refreshInterval: (data) => (data && ACTIVE_STATUSES.has(data.status) ? 2000 : 0) }
+    { refreshInterval: (d) => (d && ACTIVE_STATUSES.has(d.status) ? 2000 : 0) }
   );
 
   const isActive = data ? ACTIVE_STATUSES.has(data.status) : false;
   const sseEvents = useSSE(id, isActive);
 
-  const [credRequest, setCredRequest] = useState<CredentialRequest | null>(null);
-
-  useEffect(() => {
-    const last = [...sseEvents].reverse().find((e) => e.event === "credential_request");
-    if (last) {
-      setCredRequest(last.data as unknown as CredentialRequest);
-    }
-  }, [sseEvents]);
+  // Derived from the stream rather than copied into state by an effect: the banner is a pure
+  // function of "latest credential_request, unless the user dismissed that one".
+  const [dismissedTask, setDismissedTask] = useState<string | null>(null);
+  const latestCred = [...sseEvents]
+    .reverse()
+    .find((e) => e.event === "credential_request")?.data as CredentialRequest | undefined;
+  const credRequest = latestCred && latestCred.task_id !== dismissedTask ? latestCred : null;
 
   if (isLoading) {
     return (
-      <div className="relative min-h-screen" style={{ background: "#000" }}>
-        <AppBackground />
-        <div className="relative z-10 flex flex-col min-h-screen">
-          <AppNav />
-          <div className="flex-1 flex items-center justify-center">
-            <div className="flex items-center gap-2.5 text-text-muted">
-              <RefreshCw className="w-4 h-4 animate-spin" />
-              <span className="text-sm">Loading goal…</span>
-            </div>
+      <Shell>
+        <div className="flex flex-1 items-center justify-center">
+          <div className="flex items-center gap-2.5 text-ink-muted">
+            <RefreshCw className="h-4 w-4 animate-spin" />
+            <span className="text-sm">Loading goal…</span>
           </div>
         </div>
-      </div>
+      </Shell>
     );
   }
 
   if (error || !data) {
     return (
-      <div className="relative min-h-screen" style={{ background: "#000" }}>
-        <AppBackground />
-        <div className="relative z-10 flex flex-col min-h-screen">
-          <AppNav />
-          <div className="flex-1 flex items-center justify-center">
-            <div className="flex flex-col items-center gap-3 text-center">
-              <AlertCircle className="w-8 h-8 text-danger/70" />
-              <p className="text-sm text-text-muted">
-                {error ? `Error: ${error.message}` : "Goal not found."}
-              </p>
-              <button
-                onClick={() => nav("/app")}
-                className="text-xs text-accent hover:text-accent/80 transition-colors"
-              >
-                ← Back to Dashboard
-              </button>
-            </div>
+      <Shell>
+        <div className="flex flex-1 items-center justify-center">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <AlertCircle className="h-8 w-8 text-[#E86A5E]" />
+            <p className="text-sm text-ink-muted">{error ? `Error: ${error.message}` : "Goal not found."}</p>
+            <button onClick={() => nav("/app")} className="text-xs font-medium text-accent hover:underline">
+              ← Back to dashboard
+            </button>
           </div>
         </div>
-      </div>
+      </Shell>
     );
   }
 
   const tasks = data.tasks ?? [];
 
+  const viewSwitch = (
+    <div className="flex items-center gap-1 rounded-[11px] bg-white p-1 shadow-sm">
+      {(["flow", "graph"] as const).map((v) => (
+        <button
+          key={v}
+          onClick={() => setView(v)}
+          className={`rounded-lg px-3 py-1.5 font-mono text-[11px] transition-colors ${
+            view === v ? "bg-ink/[0.06] text-ink" : "text-ink-dim hover:text-ink"
+          }`}
+        >
+          {v}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
-    <div className="relative min-h-screen" style={{ background: "#000" }}>
-      <AppBackground />
-
-      <div className="relative z-10 flex flex-col min-h-screen">
-      <AppNav />
-
-      {/* Goal header */}
-      <div className="border-b border-white/6 bg-black/40 backdrop-blur-md">
-        <div className="max-w-none px-6 py-4 flex items-center gap-4">
+    <Shell>
+      {/* goal header */}
+      <div className="border-b border-ink/[0.07] bg-white/80 backdrop-blur-md">
+        <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-3 px-5 py-4 sm:px-8">
           <button
             onClick={() => nav("/app")}
-            className="flex items-center gap-1.5 text-text-muted hover:text-white text-xs font-medium transition-colors shrink-0"
+            className="flex shrink-0 items-center gap-1.5 text-[13px] font-medium text-ink-muted transition-colors hover:text-ink"
           >
-            <ArrowLeft className="w-3.5 h-3.5" />
+            <ArrowLeft className="h-3.5 w-3.5" />
             Dashboard
           </button>
-          <div className="w-px h-4 bg-white/10" />
-          <p className="flex-1 min-w-0 truncate text-sm font-medium text-gray-200">{data.title}</p>
+          <span className="hidden h-4 w-px bg-ink/10 sm:block" />
+          <p className="min-w-0 flex-1 truncate font-sora text-[15px] font-bold text-ink">{data.title}</p>
+          <span className="shrink-0 rounded-lg bg-ink/[0.05] px-2.5 py-1 font-mono text-[11px] text-ink-muted">
+            {tasks.length} task{tasks.length !== 1 ? "s" : ""}
+          </span>
           <StatusBadge status={data.status} />
         </div>
       </div>
 
-      {/* Body */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-        {/* Left: DAG + Tasks */}
-        <div className="flex-1 flex flex-col overflow-hidden border-r border-white/8 bg-black/20 backdrop-blur-sm">
-          {/* DAG */}
-          {tasks.length > 0 && (
-            <div className="h-64 lg:h-80 border-b border-white/6">
-              <TaskDAG tasks={tasks} />
+      <AnimatePresence>
+        {credRequest && <CredentialBanner req={credRequest} onDismiss={() => setDismissedTask(credRequest.task_id)} />}
+      </AnimatePresence>
+
+      {/* run overview */}
+      {tasks.length > 0 && (
+        <div className="border-b border-ink/[0.07] bg-paper-2/60">
+          {view === "flow" ? (
+            <RunPipeline tasks={tasks} goalStatus={data.status} action={viewSwitch} />
+          ) : (
+            <div className="mx-auto w-full max-w-[1400px] px-5 py-6 sm:px-8">
+              <div className="mb-5 flex items-center justify-between gap-3">
+                <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-dim">Run</p>
+                {viewSwitch}
+              </div>
+              <div className="h-[300px] lg:h-[400px]">
+                <TaskDAG tasks={tasks} />
+              </div>
             </div>
           )}
-
-          {/* Credential banner */}
-          <AnimatePresence>
-            {credRequest && (
-              <CredentialBanner
-                req={credRequest}
-                onDismiss={() => setCredRequest(null)}
-              />
-            )}
-          </AnimatePresence>
-
-          {/* Tasks */}
-          <div className="flex-1 overflow-y-auto p-5 space-y-2">
-            <div className="flex items-center gap-2 mb-4">
-              <p className="text-xs text-text-muted uppercase tracking-widest font-semibold">
-                Tasks
-              </p>
-              {tasks.length > 0 && (
-                <span className="px-1.5 py-0.5 rounded-md bg-white/6 text-xs text-text-muted">
-                  {tasks.length}
-                </span>
-              )}
-            </div>
-
-            {tasks.length === 0 && (
-              <div className="flex items-center gap-2 text-text-muted text-sm py-4">
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>Orchestrator is planning tasks…</span>
-              </div>
-            )}
-
-            {tasks.map((t) => (
-              <TaskPanel key={t.id} task={t} />
-            ))}
-
-            {/* Output */}
-            {data.output && (
-              <motion.div
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mt-5"
-              >
-                <p className="text-xs text-text-muted uppercase tracking-widest font-semibold mb-3">
-                  Output
-                </p>
-                <OutputDisplay output={data.output} />
-              </motion.div>
-            )}
-
-            {/* Error */}
-            {data.error && (
-              <div className="rounded-xl border border-danger/30 bg-danger/5 p-4 mt-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <AlertCircle className="w-4 h-4 text-danger" />
-                  <p className="text-sm text-red-400 font-semibold">Goal Failed</p>
-                </div>
-                <p className="text-xs text-red-300 font-mono leading-relaxed">{data.error}</p>
-              </div>
-            )}
-
-            {/* Model error toast */}
-            {data.error && <ModelErrorBanner error={data.error} />}
-          </div>
         </div>
+      )}
 
-        {/* Right: Live Log */}
-        <div className="w-full lg:w-96 flex flex-col border-t lg:border-t-0 border-white/8 bg-black/30 backdrop-blur-sm">
-          <div className="border-b border-white/6 px-5 py-3 flex items-center justify-between">
-            <p className="text-xs text-text-muted uppercase tracking-widest font-semibold">
-              Live Log
-            </p>
-            {isActive && (
-              <span className="flex items-center gap-1.5 text-xs text-accent">
-                <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
-                Streaming
+      {/* body */}
+      <div className="mx-auto grid w-full max-w-[1400px] flex-1 grid-cols-1 gap-0 lg:grid-cols-[1fr_380px]">
+        <div className="border-ink/[0.07] px-5 py-7 sm:px-8 lg:border-r">
+          <div className="mb-4 flex items-center gap-2.5">
+            <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-dim">Tasks</p>
+            {tasks.length > 0 && (
+              <span className="rounded-md bg-ink/[0.05] px-2 py-0.5 font-mono text-[11px] text-ink-muted">
+                {tasks.length}
               </span>
             )}
           </div>
-          <div className="flex-1 overflow-hidden p-4">
+
+          {tasks.length === 0 && (
+            <div className="flex items-center gap-2.5 py-4 text-sm text-ink-muted">
+              <RefreshCw className="h-4 w-4 animate-spin" />
+              <span>Orchestrator is planning tasks…</span>
+            </div>
+          )}
+
+          <div className="space-y-2.5">
+            {tasks.map((t) => (
+              <TaskPanel key={t.id} task={t} />
+            ))}
+          </div>
+
+          {data.output && (
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mt-7">
+              <p className="mb-3 font-mono text-[11px] uppercase tracking-[0.16em] text-ink-dim">Output</p>
+              <OutputDisplay output={data.output} />
+            </motion.div>
+          )}
+
+          {data.error && (
+            <>
+              <div className="mt-5 rounded-2xl border border-[#E86A5E]/25 bg-[#FFF1EF] p-4">
+                <div className="mb-1.5 flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-[#C2453B]" />
+                  <p className="text-sm font-semibold text-[#C2453B]">Goal failed</p>
+                </div>
+                <p className="font-mono text-[11px] leading-relaxed text-[#C2453B]">{data.error}</p>
+              </div>
+              <ModelErrorBanner error={data.error} />
+            </>
+          )}
+        </div>
+
+        {/* live log */}
+        <div className="flex flex-col border-t border-ink/[0.07] bg-paper-2/70 lg:border-t-0">
+          <div className="flex items-center justify-between px-5 py-4 sm:px-6">
+            <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-dim">Live log</p>
+            {isActive && (
+              <span className="flex items-center gap-1.5 font-mono text-[11px] text-accent">
+                <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+                streaming
+              </span>
+            )}
+          </div>
+          <div className="min-h-[240px] flex-1 overflow-hidden px-5 pb-5 sm:px-6">
             <LiveLog events={sseEvents} />
           </div>
         </div>
       </div>
-      </div>
-    </div>
+    </Shell>
   );
 }

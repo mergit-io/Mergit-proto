@@ -13,15 +13,15 @@ export function TaskPanel({ task }: Props) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="rounded-xl border border-border overflow-hidden">
+    <div className="overflow-hidden rounded-[18px] border border-ink/[0.09] bg-white">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-surface hover:bg-white/[0.02] transition-colors text-left"
+        className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-paper-2"
       >
         <div className="flex items-center gap-3 min-w-0">
-          {open ? <ChevronDown className="w-4 h-4 text-text-muted shrink-0" /> : <ChevronRight className="w-4 h-4 text-text-muted shrink-0" />}
+          {open ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-ink-dim" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-ink-dim" />}
           <AgentBadge agent={task.agent_name} />
-          <span className="text-sm text-gray-200 truncate">{task.description}</span>
+          <span className="truncate text-sm text-ink">{task.description}</span>
         </div>
         <StatusBadge status={task.status} size="sm" />
       </button>
@@ -35,12 +35,12 @@ export function TaskPanel({ task }: Props) {
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="px-4 pb-4 pt-2 space-y-3 border-t border-border bg-black/20">
+            <div className="space-y-3 border-t border-ink/[0.07] bg-paper-2/60 px-5 pb-5 pt-3">
               {/* Inputs */}
               {Object.keys(task.inputs).length > 0 && (
                 <div>
-                  <p className="text-xs text-text-muted mb-1 font-medium uppercase tracking-wider">Inputs</p>
-                  <pre className="text-xs text-gray-300 bg-black/30 rounded-lg p-3 overflow-x-auto">
+                  <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-ink-dim">Inputs</p>
+                  <pre className="overflow-x-auto rounded-xl border border-ink/[0.07] bg-white p-3 font-mono text-[11px] text-ink-muted">
                     {JSON.stringify(task.inputs, null, 2)}
                   </pre>
                 </div>
@@ -49,8 +49,8 @@ export function TaskPanel({ task }: Props) {
               {/* Output */}
               {task.output && (
                 <div>
-                  <p className="text-xs text-text-muted mb-1 font-medium uppercase tracking-wider">Output</p>
-                  <pre className="text-xs text-gray-300 bg-black/30 rounded-lg p-3 overflow-x-auto max-h-48">
+                  <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-ink-dim">Output</p>
+                  <pre className="max-h-48 overflow-x-auto rounded-xl border border-ink/[0.07] bg-white p-3 font-mono text-[11px] text-ink-muted">
                     {JSON.stringify(task.output, null, 2)}
                   </pre>
                 </div>
@@ -59,22 +59,22 @@ export function TaskPanel({ task }: Props) {
               {/* Error */}
               {task.error && (
                 <div>
-                  <p className="text-xs text-text-muted mb-1 font-medium uppercase tracking-wider">Error</p>
-                  <p className="text-xs text-red-400 bg-red-400/5 rounded-lg p-3">{task.error}</p>
+                  <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-ink-dim">Error</p>
+                  <p className="rounded-xl border border-[#E86A5E]/25 bg-[#FFF1EF] p-3 font-mono text-[11px] leading-relaxed text-[#C2453B]">{task.error}</p>
                 </div>
               )}
 
               {/* Webhook waiting */}
               {task.wait_token && task.status === "WAITING_WEBHOOK" && (
-                <div className="rounded-lg border border-amber-400/20 bg-amber-400/5 p-3">
-                  <p className="text-xs text-amber-300 font-medium mb-1">Waiting for webhook</p>
-                  <code className="text-xs text-amber-200">
+                <div className="rounded-xl border border-[#EAB308]/30 bg-[#FFF6E8] p-3">
+                  <p className="mb-1 text-xs font-semibold text-[#A16207]">Waiting for webhook</p>
+                  <code className="font-mono text-[11px] text-[#A16207]">
                     POST /api/webhooks/{task.wait_token}
                   </code>
                 </div>
               )}
 
-              <p className="text-xs text-text-muted">Attempts: {task.attempt_count}</p>
+              <p className="font-mono text-[11px] text-ink-dim">Attempts: {task.attempt_count}</p>
             </div>
           </motion.div>
         )}

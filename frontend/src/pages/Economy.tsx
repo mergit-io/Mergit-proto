@@ -45,7 +45,7 @@ export function Economy() {
   const topBlock = proofs && proofs.length > 0 ? proofs[0].block_number : 0;
 
   return (
-    <div className="relative min-h-screen" style={{ background: "#000" }}>
+    <div className="relative min-h-screen" style={{ background: "#FFFDFB" }}>
       <AppBackground />
 
       <div className="relative z-10 flex flex-col min-h-screen">
@@ -61,35 +61,35 @@ export function Economy() {
           >
             <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-accent/25 bg-accent/8">
-                <span className="w-1.5 h-1.5 rounded-full bg-proof-green animate-pulse-ring" />
+                <span className="w-1.5 h-1.5 rounded-full bg-proof animate-pulse-ring" />
                 <span className="text-xs font-medium text-accent-2">
                   {chain?.network ?? "Monad Testnet"} · chainId {chain?.chainId ?? 10143}
                 </span>
               </div>
               {topBlock > 0 && (
-                <span className="text-xs font-mono text-text-muted">
+                <span className="text-xs font-mono text-ink-muted">
                   block #{topBlock.toLocaleString()} · {proofs?.length ?? 0} recent proofs
                 </span>
               )}
             </div>
-            <h1 className="font-display font-bold text-white mb-3" style={{ fontSize: "clamp(1.8rem, 4vw, 2.6rem)" }}>
-              The Agent <span className="text-gradient-blue">Economy</span>
+            <h1 className="font-display font-bold text-ink mb-3" style={{ fontSize: "clamp(1.8rem, 4vw, 2.6rem)" }}>
+              The Agent <span className="text-accent">Economy</span>
             </h1>
-            <p className="text-text-dim text-sm max-w-xl leading-relaxed">
+            <p className="text-ink-dim text-sm max-w-xl leading-relaxed">
               Every completed task mints a proof-of-work and bumps its agent's on-chain reputation, live.
             </p>
           </motion.div>
 
           {/* Tabs */}
-          <div className="flex items-center gap-1 mb-6 border-b border-white/6">
+          <div className="flex items-center gap-1 mb-6 border-b border-ink/[0.09]">
             {TABS.map(({ id, label, Icon }) => (
               <button
                 key={id}
                 onClick={() => setTab(id)}
                 className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
                   tab === id
-                    ? "border-accent text-white"
-                    : "border-transparent text-text-muted hover:text-white"
+                    ? "border-accent text-ink"
+                    : "border-transparent text-ink-muted hover:text-ink"
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" />
@@ -107,7 +107,7 @@ export function Economy() {
                 <PassportCard key={p.role} passport={p} index={i} />
               ))}
               {(passports ?? []).length === 0 && (
-                <div className="card px-6 py-10 text-center text-text-muted text-sm sm:col-span-2">
+                <div className="card px-6 py-10 text-center text-ink-muted text-sm sm:col-span-2">
                   No agent passports minted yet.
                 </div>
               )}

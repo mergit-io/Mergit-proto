@@ -14,7 +14,7 @@ function MermaidDiagram({ code }: { code: string }) {
     let cancelled = false;
     import("mermaid").then((m) => {
       const mermaid = m.default;
-      mermaid.initialize({ startOnLoad: false, theme: "dark", securityLevel: "loose" });
+      mermaid.initialize({ startOnLoad: false, theme: "default", securityLevel: "loose" });
       const id = `mermaid-${Math.random().toString(36).slice(2)}`;
       mermaid.render(id, code).then(({ svg }) => {
         if (!cancelled && ref.current) {
@@ -29,7 +29,7 @@ function MermaidDiagram({ code }: { code: string }) {
 
   if (error) {
     return (
-      <pre className="text-xs text-gray-400 bg-black/30 rounded-lg p-3 overflow-x-auto">
+      <pre className="overflow-x-auto rounded-xl border border-ink/[0.07] bg-white p-3 font-mono text-[11px] text-ink-muted">
         {code}
       </pre>
     );
@@ -38,7 +38,7 @@ function MermaidDiagram({ code }: { code: string }) {
   return (
     <div
       ref={ref}
-      className="my-4 rounded-xl bg-black/20 p-4 overflow-x-auto flex justify-center [&>svg]:max-w-full"
+      className="my-4 flex justify-center overflow-x-auto rounded-2xl border border-ink/[0.07] bg-white p-4 [&>svg]:max-w-full"
     />
   );
 }
@@ -53,7 +53,7 @@ function CodeBlock({ className, children }: { className?: string; children?: Rea
   }
 
   return (
-    <pre className="text-xs text-gray-300 bg-black/30 rounded-lg p-3 overflow-x-auto my-3">
+    <pre className="my-3 overflow-x-auto rounded-xl border border-ink/[0.07] bg-white p-3 font-mono text-[11px] text-ink-muted">
       <code>{code}</code>
     </pre>
   );
@@ -74,10 +74,10 @@ export function OutputDisplay({ output }: Props) {
         <h3 className="text-sm font-semibold text-green-400">Completed</h3>
       </div>
 
-      {title && <p className="text-base font-semibold text-gray-100">{title}</p>}
+      {title && <p className="font-sora text-base font-bold text-ink">{title}</p>}
 
       {text ? (
-        <div className="prose prose-invert prose-sm max-w-none text-gray-300 leading-relaxed">
+        <div className="prose prose-sm max-w-none leading-relaxed text-ink-muted">
           <ReactMarkdown
             components={{
               code: ({ className, children }) => (
@@ -89,7 +89,7 @@ export function OutputDisplay({ output }: Props) {
           </ReactMarkdown>
         </div>
       ) : (
-        <pre className="text-xs text-gray-300 bg-black/30 rounded-lg p-3 overflow-x-auto">
+        <pre className="overflow-x-auto rounded-xl border border-ink/[0.07] bg-white p-3 font-mono text-[11px] text-ink-muted">
           {JSON.stringify(output, null, 2)}
         </pre>
       )}

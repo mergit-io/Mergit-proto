@@ -75,7 +75,7 @@ export function ModelErrorBanner({ error }: { error: string }) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center"
+        className="fixed inset-0 z-[9999] flex items-center justify-center bg-ink/40 backdrop-blur-sm"
         onClick={() => setDismissed(true)}
       >
       {/* Modal */}
@@ -98,12 +98,12 @@ export function ModelErrorBanner({ error }: { error: string }) {
               <AlertTriangle className="w-4.5 h-4.5 text-amber-400" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-white">{title}</p>
-              <p className="text-xs text-text-muted mt-1 leading-relaxed">{body}</p>
+              <p className="text-sm font-semibold text-ink">{title}</p>
+              <p className="mt-1 text-xs leading-relaxed text-ink-muted">{body}</p>
             </div>
             <button
               onClick={() => setDismissed(true)}
-              className="text-text-muted hover:text-white transition-colors shrink-0 mt-0.5"
+              className="mt-0.5 shrink-0 text-ink-dim transition-colors hover:text-ink"
             >
               <X className="w-4 h-4" />
             </button>
@@ -118,7 +118,7 @@ export function ModelErrorBanner({ error }: { error: string }) {
                 exit={{ opacity: 0, height: 0 }}
                 className="mb-3 overflow-hidden"
               >
-                <div className="flex items-center gap-2 rounded-xl border border-white/12 bg-white/3 px-3 py-2">
+                <div className="flex items-center gap-2 rounded-xl border border-ink/12 bg-white px-3 py-2">
                   <input
                     type={showKey ? "text" : "password"}
                     value={keyVal}
@@ -126,9 +126,9 @@ export function ModelErrorBanner({ error }: { error: string }) {
                     onKeyDown={(e) => { if (e.key === "Enter") saveKey(); if (e.key === "Escape") setShowKeyInput(false); }}
                     placeholder={`Paste your ${provider.charAt(0).toUpperCase() + provider.slice(1)} API key…`}
                     autoFocus
-                    className="flex-1 bg-transparent text-xs text-white font-mono outline-none placeholder:text-text-muted"
+                    className="flex-1 bg-transparent font-mono text-xs text-ink outline-none placeholder:text-ink-dim"
                   />
-                  <button onClick={() => setShowKey((s) => !s)} className="text-text-muted hover:text-white">
+                  <button onClick={() => setShowKey((s) => !s)} className="text-ink-dim hover:text-ink">
                     {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                   </button>
                 </div>
@@ -152,14 +152,14 @@ export function ModelErrorBanner({ error }: { error: string }) {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setDismissed(true)}
-              className="flex-1 px-4 py-2 rounded-xl text-xs font-medium text-text-muted hover:text-white border border-white/8 hover:border-white/20 transition-all"
+              className="flex-1 rounded-xl border border-ink/10 px-4 py-2 text-xs font-medium text-ink-muted transition-colors hover:border-ink/20 hover:text-ink"
             >
               Dismiss
             </button>
             {provider && type === "invalid_key" && (
               <button
                 onClick={() => setShowKeyInput((s) => !s)}
-                className="flex-1 px-4 py-2 rounded-xl text-xs font-semibold bg-white/6 hover:bg-white/10 text-white border border-white/10 transition-all flex items-center justify-center gap-1.5"
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-accent px-4 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90"
               >
                 <Key className="w-3.5 h-3.5" />
                 Add API key

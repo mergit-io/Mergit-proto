@@ -45,19 +45,19 @@ const QUICK_ACTIONS = [
 function WorkflowCard({ wf }: { wf: { name: string; path: string; content: string } }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="rounded-xl border border-white/8 bg-white/[0.02] overflow-hidden">
+    <div className="rounded-xl border border-ink/[0.09] bg-white/[0.02] overflow-hidden">
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/4 transition-colors"
+        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-ink/[0.04] transition-colors"
       >
         <Workflow className="w-4 h-4 text-accent shrink-0" />
-        <span className="flex-1 text-sm font-medium text-white truncate">{wf.name}</span>
-        <span className="text-xs text-text-muted font-mono hidden sm:block">{wf.path}</span>
-        {open ? <ChevronDown className="w-4 h-4 text-text-muted ml-1" /> : <ChevronRight className="w-4 h-4 text-text-muted ml-1" />}
+        <span className="flex-1 text-sm font-medium text-ink truncate">{wf.name}</span>
+        <span className="text-xs text-ink-muted font-mono hidden sm:block">{wf.path}</span>
+        {open ? <ChevronDown className="w-4 h-4 text-ink-muted ml-1" /> : <ChevronRight className="w-4 h-4 text-ink-muted ml-1" />}
       </button>
       {open && (
-        <div className="border-t border-white/6 bg-black/30 p-4">
-          <pre className="text-xs text-gray-300 font-mono overflow-x-auto leading-relaxed whitespace-pre-wrap">
+        <div className="border-t border-ink/[0.09] bg-white p-4">
+          <pre className="text-xs text-ink-muted font-mono overflow-x-auto leading-relaxed whitespace-pre-wrap">
             {wf.content}
           </pre>
         </div>
@@ -74,27 +74,27 @@ function ProtectionCard({ data }: { data: { protected: boolean; branch: string; 
   };
 
   const Row = ({ label, value }: { label: string; value: React.ReactNode }) => (
-    <div className="flex items-center justify-between py-2.5 border-b border-white/5 last:border-0">
-      <span className="text-xs text-text-muted">{label}</span>
-      <span className="text-xs text-white font-medium">{value}</span>
+    <div className="flex items-center justify-between py-2.5 border-b border-ink/[0.09] last:border-0">
+      <span className="text-xs text-ink-muted">{label}</span>
+      <span className="text-xs text-ink font-medium">{value}</span>
     </div>
   );
 
   const Bool = ({ v }: { v: boolean }) => v
     ? <span className="flex items-center gap-1 text-success"><CheckCircle className="w-3 h-3" /> Yes</span>
-    : <span className="flex items-center gap-1 text-text-muted"><XCircle className="w-3 h-3" /> No</span>;
+    : <span className="flex items-center gap-1 text-ink-muted"><XCircle className="w-3 h-3" /> No</span>;
 
   return (
-    <div className="rounded-xl border border-white/8 bg-white/[0.02] p-4">
+    <div className="rounded-xl border border-ink/[0.09] bg-white/[0.02] p-4">
       <div className="flex items-center gap-2 mb-3">
         {data.protected
           ? <Lock className="w-4 h-4 text-success" />
-          : <Unlock className="w-4 h-4 text-text-muted" />}
-        <span className="text-sm font-semibold text-white">{data.branch}</span>
+          : <Unlock className="w-4 h-4 text-ink-muted" />}
+        <span className="text-sm font-semibold text-ink">{data.branch}</span>
         <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${
           data.protected
             ? "text-success border-success/30 bg-success/8"
-            : "text-text-muted border-white/10 bg-white/4"
+            : "text-ink-muted border-ink/[0.09] bg-white"
         }`}>
           {data.protected ? "Protected" : "Unprotected"}
         </span>
@@ -120,7 +120,7 @@ function ProtectionCard({ data }: { data: { protected: boolean; branch: string; 
           )}
         </>
       ) : (
-        <p className="text-xs text-text-muted">No branch protection rules configured.</p>
+        <p className="text-xs text-ink-muted">No branch protection rules configured.</p>
       )}
     </div>
   );
@@ -132,7 +132,7 @@ function SectionCard({ delay = 0, children, className = "" }: { delay?: number; 
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-      className={`rounded-2xl border border-white/8 bg-white/[0.02] p-6 backdrop-blur-sm ${className}`}
+      className={`rounded-2xl border border-ink/[0.09] bg-white/[0.02] p-6 backdrop-blur-sm ${className}`}
     >
       {children}
     </motion.div>
@@ -188,7 +188,7 @@ export function Actions() {
   };
 
   return (
-    <div className="relative min-h-screen" style={{ background: "#000" }}>
+    <div className="relative min-h-screen" style={{ background: "#FFFDFB" }}>
       <AppBackground />
       <div className="relative z-10 flex flex-col min-h-screen">
         <AppNav />
@@ -206,11 +206,11 @@ export function Actions() {
               <Zap className="w-3.5 h-3.5 text-accent" />
               <span className="text-xs font-medium text-accent">GitHub Actions & Rulesets</span>
             </div>
-            <h1 className="font-display font-bold text-white mb-3" style={{ fontSize: "clamp(1.8rem, 4vw, 2.6rem)" }}>
+            <h1 className="font-display font-bold text-ink mb-3" style={{ fontSize: "clamp(1.8rem, 4vw, 2.6rem)" }}>
               Automate your CI/CD with{" "}
-              <span className="text-gradient-blue">natural language</span>
+              <span className="text-accent">natural language</span>
             </h1>
-            <p className="text-text-dim text-sm max-w-xl leading-relaxed">
+            <p className="text-ink-dim text-sm max-w-xl leading-relaxed">
               Inspect workflows and branch protection rules. Describe any change — agents will write the config, open a PR, and set the rules.
             </p>
           </motion.div>
@@ -223,7 +223,7 @@ export function Actions() {
                 <div className="w-7 h-7 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center">
                   <GitBranch className="w-3.5 h-3.5 text-accent" />
                 </div>
-                <h2 className="text-sm font-semibold text-white">Repository</h2>
+                <h2 className="text-sm font-semibold text-ink">Repository</h2>
               </div>
               <div className="flex gap-3">
                 <input
@@ -231,7 +231,7 @@ export function Actions() {
                   onChange={e => setRepo(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && load()}
                   placeholder="owner/repo — e.g. MaskedBug601/Nothing"
-                  className="flex-1 rounded-xl border border-white/10 bg-white/4 px-4 py-2.5 text-sm text-white placeholder-text-muted focus:outline-none focus:border-accent/40 focus:bg-white/6 transition-all font-mono"
+                  className="flex-1 rounded-xl border border-ink/[0.09] bg-white px-4 py-2.5 text-sm text-ink placeholder-text-muted focus:outline-none focus:border-accent/40 focus:bg-white transition-all font-mono"
                 />
                 <button
                   onClick={load}
@@ -254,19 +254,19 @@ export function Actions() {
                 className="grid grid-cols-1 lg:grid-cols-2 gap-5"
               >
                 {/* Workflows */}
-                <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-5 backdrop-blur-sm">
+                <div className="rounded-2xl border border-ink/[0.09] bg-white/[0.02] p-5 backdrop-blur-sm">
                   <div className="flex items-center gap-2 mb-4">
                     <div className="w-7 h-7 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center">
                       <Workflow className="w-3.5 h-3.5 text-accent" />
                     </div>
-                    <h2 className="text-sm font-semibold text-white">
-                      Workflows <span className="text-text-muted font-normal">({workflows.length})</span>
+                    <h2 className="text-sm font-semibold text-ink">
+                      Workflows <span className="text-ink-muted font-normal">({workflows.length})</span>
                     </h2>
                   </div>
                   {workflows.length === 0 ? (
-                    <div className="text-center py-8 border border-dashed border-white/10 rounded-xl">
-                      <Workflow className="w-8 h-8 mx-auto mb-2 text-text-muted opacity-40" />
-                      <p className="text-xs text-text-muted">No workflows in .github/workflows/</p>
+                    <div className="text-center py-8 border border-dashed border-ink/[0.09] rounded-xl">
+                      <Workflow className="w-8 h-8 mx-auto mb-2 text-ink-muted opacity-40" />
+                      <p className="text-xs text-ink-muted">No workflows in .github/workflows/</p>
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -276,12 +276,12 @@ export function Actions() {
                 </div>
 
                 {/* Branch protection */}
-                <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-5 backdrop-blur-sm">
+                <div className="rounded-2xl border border-ink/[0.09] bg-white/[0.02] p-5 backdrop-blur-sm">
                   <div className="flex items-center gap-2 mb-4">
                     <div className="w-7 h-7 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center">
                       <Shield className="w-3.5 h-3.5 text-accent" />
                     </div>
-                    <h2 className="text-sm font-semibold text-white">Branch Protection</h2>
+                    <h2 className="text-sm font-semibold text-ink">Branch Protection</h2>
                   </div>
                   <ProtectionCard data={protection} />
                 </div>
@@ -295,10 +295,10 @@ export function Actions() {
                   <Play className="w-3.5 h-3.5 text-purple" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-semibold text-white">
-                    Automate{loadedRepo ? <span className="text-text-muted font-normal"> — {loadedRepo}</span> : ""}
+                  <h2 className="text-sm font-semibold text-ink">
+                    Automate{loadedRepo ? <span className="text-ink-muted font-normal"> — {loadedRepo}</span> : ""}
                   </h2>
-                  {!loadedRepo && <p className="text-xs text-text-muted">Load a repository first, then describe what to change</p>}
+                  {!loadedRepo && <p className="text-xs text-ink-muted">Load a repository first, then describe what to change</p>}
                 </div>
               </div>
 
@@ -311,7 +311,7 @@ export function Actions() {
                     className={`text-xs px-3 py-1.5 rounded-full border transition-all font-medium ${
                       instruction === qa.instruction
                         ? "border-accent/50 bg-accent/12 text-accent"
-                        : "border-white/10 bg-white/[0.03] text-text-muted hover:text-white hover:border-white/20 hover:bg-white/6"
+                        : "border-ink/[0.09] bg-white/[0.03] text-ink-muted hover:text-white hover:border-ink/[0.09] hover:bg-ink/[0.04]"
                     }`}
                   >
                     {qa.label}
@@ -328,14 +328,14 @@ export function Actions() {
                     : "Load a repository above first, then describe what to automate…"
                 }
                 rows={4}
-                className="w-full rounded-xl border border-white/10 bg-white/4 px-4 py-3 text-sm text-white placeholder-text-muted focus:outline-none focus:border-accent/40 focus:bg-white/6 transition-all resize-none mb-4"
+                className="w-full rounded-xl border border-ink/[0.09] bg-white px-4 py-3 text-sm text-ink placeholder-text-muted focus:outline-none focus:border-accent/40 focus:bg-white transition-all resize-none mb-4"
               />
 
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => submit(instruction)}
                   disabled={submitting || !instruction.trim() || !loadedRepo}
-                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold btn-neon text-white disabled:opacity-40 transition-all"
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold bg-accent text-white shadow-[0_16px_30px_-18px_rgba(109,74,255,0.95)] transition-transform hover:-translate-y-0.5 text-white disabled:opacity-40 transition-all"
                 >
                   {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
                   {submitting ? "Delegating…" : "Delegate to Agent →"}
@@ -352,11 +352,11 @@ export function Actions() {
                   <CheckCircle className="w-4 h-4 text-success shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-success font-semibold">Goal created — agents are on it</p>
-                    <p className="text-xs text-text-muted font-mono truncate mt-0.5">{submitted}</p>
+                    <p className="text-xs text-ink-muted font-mono truncate mt-0.5">{submitted}</p>
                   </div>
                   <button
                     onClick={() => nav(`/app/goals/${submitted}`)}
-                    className="shrink-0 text-xs font-medium text-accent hover:text-white transition-colors flex items-center gap-1"
+                    className="shrink-0 text-xs font-medium text-accent hover:text-ink transition-colors flex items-center gap-1"
                   >
                     Watch live →
                   </button>
@@ -378,7 +378,7 @@ export function Actions() {
                     <GitBranch className="w-7 h-7 text-accent opacity-60" />
                   </div>
                 </div>
-                <p className="text-sm text-text-muted max-w-xs leading-relaxed">
+                <p className="text-sm text-ink-muted max-w-xs leading-relaxed">
                   Enter a repository above to inspect its CI/CD workflows and branch protection rules.
                 </p>
               </motion.div>
