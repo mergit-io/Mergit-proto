@@ -1,47 +1,11 @@
-/** Shared fixed background for all /app pages — same dot grid + ambient orbs as Landing. */
+/** Shared fixed background for every /app page — the light Aurora wash. */
 export function AppBackground() {
   return (
-    <div className="fixed inset-0 pointer-events-none z-0" aria-hidden>
-      {/* Base */}
-      <div className="absolute inset-0 bg-black" />
-
-      {/* Dot grid */}
-      <div
-        className="absolute inset-0 opacity-[0.14]"
-        style={{
-          backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.55) 1px, transparent 1px)",
-          backgroundSize: "32px 32px",
-        }}
-      />
-
-      {/* Top-right accent orb */}
-      <div
-        className="absolute -top-32 -right-32 w-[640px] h-[640px] rounded-full opacity-20 animate-glow-pulse"
-        style={{
-          background: "radial-gradient(ellipse at center, rgba(109,74,255,0.4) 0%, rgba(168,85,247,0.18) 45%, transparent 70%)",
-          filter: "blur(90px)",
-        }}
-      />
-
-      {/* Bottom-left purple orb */}
-      <div
-        className="absolute -bottom-40 -left-20 w-[500px] h-[500px] rounded-full opacity-15 animate-glow-pulse"
-        style={{
-          background: "radial-gradient(ellipse at center, rgba(168,85,247,0.45) 0%, transparent 65%)",
-          filter: "blur(100px)",
-          animationDelay: "1.8s",
-        }}
-      />
-
-      {/* Subtle centre wash */}
-      <div
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[400px] rounded-full opacity-[0.06] animate-glow-pulse"
-        style={{
-          background: "radial-gradient(ellipse at center, rgba(109,74,255,0.6) 0%, transparent 70%)",
-          filter: "blur(120px)",
-          animationDelay: "0.9s",
-        }}
-      />
+    <div className="fixed inset-0 -z-10 pointer-events-none" aria-hidden>
+      <div className="absolute inset-0 bg-paper" />
+      <div className="absolute -left-40 -top-52 h-[620px] w-[680px] rounded-full bg-[radial-gradient(circle_at_40%_40%,rgba(228,214,255,0.55),rgba(228,214,255,0)_68%)] blur-2xl" />
+      <div className="absolute -right-40 -top-40 h-[600px] w-[660px] rounded-full bg-[radial-gradient(circle_at_60%_40%,rgba(255,220,198,0.45),rgba(255,220,198,0)_66%)] blur-2xl" />
+      <div className="absolute -bottom-56 left-1/3 h-[560px] w-[720px] rounded-full bg-[radial-gradient(circle_at_50%_50%,rgba(201,243,226,0.4),rgba(201,243,226,0)_66%)] blur-3xl" />
     </div>
   );
 }

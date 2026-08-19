@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Wallet } from "lucide-react";
+import { useChainBadge } from "../hooks/useChainBadge";
 
 const STORAGE_KEY = "mergit_wallet_address";
 
@@ -24,11 +25,10 @@ function truncate(address: string): string {
 }
 
 export function WalletConnect() {
-  const [address, setAddress] = useState<string | null>(null);
-
-  useEffect(() => {
-    setAddress(localStorage.getItem(STORAGE_KEY));
-  }, []);
+  // Read once during the initial render rather than in an effect: localStorage is synchronous,
+  // and seeding state from an effect costs an extra render for no benefit.
+  const [address, setAddress] = useState<string | null>(() => localStorage.getItem(STORAGE_KEY));
+  const chain = useChainBadge();
 
   const connect = () => {
     const generated = deriveFakeAddress("mergit-demo-wallet");
@@ -40,7 +40,7 @@ export function WalletConnect() {
     return (
       <button
         onClick={connect}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/8 text-white hover:bg-white/12 transition-all"
+        className="flex items-center gap-1.5 rounded-[10px] border border-ink/12 bg-white px-3 py-2 text-[13px] font-medium text-ink transition-colors hover:bg-paper-3"
       >
         <Wallet className="w-3.5 h-3.5" />
         Connect Wallet
@@ -49,10 +49,10 @@ export function WalletConnect() {
   }
 
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/6 border border-white/10">
-      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-      <span className="text-text-muted">Monad Testnet</span>
-      <span className="font-mono text-white">{truncate(address)}</span>
+    <div className="flex items-center gap-2 rounded-[10px] border border-ink/10 bg-white px-3 py-2 text-[13px] font-medium">
+      <span className={`h-1.5 w-1.5 rounded-full ${chain.live ? "bg-proof" : "bg-ink-dim"}`} />
+      <span className="text-ink-muted">{chain.label}</span>
+      <span className="font-mono text-ink">{truncate(address)}</span>
     </div>
   );
 }

@@ -1,6 +1,30 @@
-import { LayoutDashboard, ExternalLink, Cpu, GitBranch, Zap, Workflow, Trophy, HeartPulse, Plug, ShieldAlert } from "lucide-react";
+import { LayoutDashboard, ExternalLink, Cpu, GitBranch, Trophy, Plug, ShieldAlert } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { WalletConnect } from "./WalletConnect";
+
+/**
+ * Top navigation for every /app page.
+ *
+ * Automate, Self-Heal and Actions are deliberately not listed. Their routes still exist and
+ * still work — /app/webhooks, /app/heal and /app/actions are reachable by URL and from the
+ * pages that link to them — they are simply not top-level destinations for a first-time user.
+ *
+ * Below `md` the same destinations move to a scrollable second row rather than being hidden:
+ * a nav that collapses to nothing on a phone is not a responsive nav, it is a dead end.
+ */
+
+const DESTINATIONS = [
+  { to: "/app", label: "Dashboard", Icon: LayoutDashboard },
+  { to: "/app/models", label: "Models", Icon: Cpu },
+  { to: "/app/connections", label: "Connections", Icon: Plug },
+  { to: "/app/approvals", label: "Approvals", Icon: ShieldAlert },
+  { to: "/app/economy", label: "Economy", Icon: Trophy },
+];
+
+const EXTERNAL = [
+  { href: "/api/docs", label: "API docs", Icon: ExternalLink },
+  { href: "https://github.com/mergit-io/Mergit-proto", label: "GitHub", Icon: GitBranch },
+];
 
 export function AppNav() {
   const nav = useNavigate();
@@ -10,80 +34,68 @@ export function AppNav() {
     const active = pathname === to;
     return (
       <button
+        key={to}
         onClick={() => nav(to)}
-        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-          active
-            ? "bg-white/8 text-white"
-            : "text-text-muted hover:text-white hover:bg-white/4"
+        className={`flex shrink-0 items-center gap-1.5 rounded-[10px] px-3 py-2 text-[13px] font-medium transition-colors ${
+          active ? "bg-[#F1EBFF] text-[#5B4BA8]" : "text-ink-muted hover:bg-ink/[0.04] hover:text-ink"
         }`}
       >
-        <Icon className="w-3.5 h-3.5" />
+        <Icon className="h-3.5 w-3.5" />
         {label}
       </button>
     );
   };
 
-  return (
-    <header className="sticky top-0 z-40 border-b border-white/6 bg-black/80 backdrop-blur-md">
-      <div className="max-w-4xl mx-auto px-6 h-14 flex items-center justify-between">
-        {/* Logo */}
-        <button
-          onClick={() => nav("/")}
-          className="flex items-center gap-2 group"
-        >
-          <svg viewBox="0 0 32 32" fill="none" className="w-6 h-6">
-            <defs>
-              <linearGradient id="app-nav-logo-line" x1="4" y1="10" x2="28" y2="10" gradientUnits="userSpaceOnUse">
-                <stop stopColor="#6d4aff" />
-                <stop offset="1" stopColor="#22d3ee" />
-              </linearGradient>
-            </defs>
-            <circle cx="8" cy="8" r="4" fill="#6d4aff" />
-            <circle cx="24" cy="8" r="4" fill="#22d3ee" />
-            <path
-              d="M8 12 C8 18, 16 16, 16 22 M24 12 C24 18, 16 16, 16 22"
-              stroke="url(#app-nav-logo-line)"
-              strokeWidth="1.75"
-              strokeLinecap="round"
-            />
-            <circle cx="16" cy="24.5" r="4.5" fill="#2eff9e" />
-          </svg>
-          <span className="font-display font-bold text-base text-white tracking-tight">
-            Merg<span className="text-gradient-blue">it</span>
-          </span>
-        </button>
+  const extLink = (href: string, label: string, Icon: React.ComponentType<{ className?: string }>) => (
+    <a
+      key={href}
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex shrink-0 items-center gap-1.5 rounded-[10px] px-3 py-2 text-[13px] font-medium text-ink-muted transition-colors hover:bg-ink/[0.04] hover:text-ink"
+    >
+      <Icon className="h-3.5 w-3.5" />
+      {label}
+    </a>
+  );
 
-        {/* Nav links */}
-        <nav className="flex items-center gap-1">
-          {navBtn("/app", "Dashboard", LayoutDashboard)}
-          {navBtn("/app/models", "Models", Cpu)}
-          {navBtn("/app/webhooks", "Automate", Zap)}
-          {navBtn("/app/heal", "Self-Heal", HeartPulse)}
-          {navBtn("/app/actions", "Actions", Workflow)}
-          {navBtn("/app/connections", "Connections", Plug)}
-        {navBtn("/app/approvals", "Approvals", ShieldAlert)}
-        {navBtn("/app/economy", "Economy", Trophy)}
-          <a
-            href="/api/docs"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-text-muted hover:text-white hover:bg-white/4 transition-all"
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-            API Docs
-          </a>
-          <a
-            href="https://github.com/mergit-io/Mergit-proto"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-text-muted hover:text-white hover:bg-white/4 transition-all"
-          >
-            <GitBranch className="w-3.5 h-3.5" />
-            GitHub
-          </a>
+  return (
+    <header className="sticky top-0 z-40 border-b border-ink/[0.07] bg-white/85 backdrop-blur-md">
+      <div className="mx-auto flex max-w-[1240px] items-center justify-between gap-4 px-5 py-2.5 sm:px-8">
+        <div className="flex min-w-0 items-center gap-6">
+          <button onClick={() => nav("/")} className="flex shrink-0 items-center gap-2.5">
+            <svg viewBox="0 0 32 32" className="h-[22px] w-[22px]" fill="none" aria-hidden>
+              <circle cx="8" cy="8" r="4" fill="#6D4AFF" />
+              <circle cx="24" cy="8" r="4" fill="#FF8A5C" />
+              <path
+                d="M8 12 C8 18, 16 16, 16 22 M24 12 C24 18, 16 16, 16 22"
+                stroke="#6D4AFF"
+                strokeWidth="1.75"
+                strokeLinecap="round"
+              />
+              <circle cx="16" cy="24.5" r="4.5" fill="#10B981" />
+            </svg>
+            <span className="font-sora text-base font-bold tracking-tight text-ink">Mergit</span>
+          </button>
+
+          <nav className="hidden items-center gap-1 md:flex">
+            {DESTINATIONS.map((d) => navBtn(d.to, d.label, d.Icon))}
+          </nav>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-1">
+          <div className="hidden items-center gap-1 md:flex">
+            {EXTERNAL.map((e) => extLink(e.href, e.label, e.Icon))}
+          </div>
           <WalletConnect />
-        </nav>
+        </div>
       </div>
+
+      {/* Below md the destinations live here instead of disappearing. */}
+      <nav className="flex items-center gap-1 overflow-x-auto px-4 pb-2.5 md:hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {DESTINATIONS.map((d) => navBtn(d.to, d.label, d.Icon))}
+        {EXTERNAL.map((e) => extLink(e.href, e.label, e.Icon))}
+      </nav>
     </header>
   );
 }

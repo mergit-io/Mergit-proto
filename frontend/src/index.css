@@ -26,28 +26,24 @@
 html { scroll-behavior: smooth; }
 
 html, body, #root {
-  background-color: #07060f;
-  color: #f9fafb;
-  font-family: "Inter", system-ui, sans-serif;
+  background-color: #FFFDFB;
+  color: #1A1725;
+  font-family: "Manrope", "Inter", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
 }
 
-::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-track { background: #07060f; }
-::-webkit-scrollbar-thumb { background: #241f3d; border-radius: 2px; }
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(26,23,37,0.18); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(26,23,37,0.28); }
 
 /* ── Keyframes ───────────────────────────────────────── */
-@keyframes glow-pulse {
-  0%, 100% { opacity: 0.45; transform: scale(1); }
-  50%       { opacity: 0.85; transform: scale(1.1); }
-}
 @keyframes pulse-ring {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.3; }
 }
 
-.animate-glow-pulse      { animation: glow-pulse 3.5s ease-in-out infinite; }
 .animate-pulse-ring      { animation: pulse-ring 1.5s ease-in-out infinite; }
 
 /* ── Typography ──────────────────────────────────────── */

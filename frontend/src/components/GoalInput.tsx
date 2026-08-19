@@ -45,12 +45,11 @@ export function GoalInput({ onSubmit, loading }: Props) {
       className="w-full max-w-2xl mx-auto"
     >
       <div
-        className={`relative rounded-2xl border transition-all duration-300 ${
+        className={`relative rounded-[24px] border bg-white transition-all duration-300 ${
           focused
-            ? "border-accent/50 shadow-[0_0_0_3px_rgba(109,74,255,0.08),0_0_30px_rgba(109,74,255,0.06)]"
-            : "border-white/8 hover:border-white/15"
+            ? "border-accent/45 shadow-[0_0_0_3px_rgba(109,74,255,0.10),0_34px_64px_-54px_rgba(26,23,37,0.9)]"
+            : "border-ink/10 shadow-[0_26px_50px_-50px_rgba(26,23,37,0.9)] hover:border-ink/20"
         }`}
-        style={{ background: "rgba(255,255,255,0.025)" }}
       >
         <textarea
           ref={textareaRef}
@@ -61,10 +60,10 @@ export function GoalInput({ onSubmit, loading }: Props) {
           onBlur={() => setFocused(false)}
           rows={3}
           placeholder={PLACEHOLDERS[idx]}
-          className="w-full resize-none bg-transparent px-5 pt-4 pb-14 text-sm text-gray-100 placeholder-text-muted/50 outline-none rounded-2xl leading-relaxed"
+          className="w-full resize-none rounded-[24px] bg-transparent px-6 pb-14 pt-5 text-[15px] leading-relaxed text-ink outline-none placeholder:text-ink-dim"
         />
 
-        <div className="absolute bottom-3 left-4 right-3 flex items-center justify-between">
+        <div className="absolute bottom-3.5 left-6 right-3.5 flex items-center justify-between">
           <AnimatePresence mode="wait">
             <motion.span
               key={idx}
@@ -72,7 +71,7 @@ export function GoalInput({ onSubmit, loading }: Props) {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
               transition={{ duration: 0.2 }}
-              className="text-xs text-text-muted/50 truncate max-w-[280px]"
+              className="max-w-[280px] truncate font-mono text-[11px] text-ink-dim"
             >
               {value.length === 0 ? "⌘ Enter to send" : `${value.length} chars`}
             </motion.span>
@@ -81,7 +80,7 @@ export function GoalInput({ onSubmit, loading }: Props) {
           <button
             onClick={handleSubmit}
             disabled={!value.trim() || loading}
-            className="btn-neon flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200"
+            className="flex items-center gap-2 rounded-[13px] bg-accent px-5 py-2.5 text-[13px] font-semibold text-white shadow-[0_16px_30px_-18px_rgba(109,74,255,0.95)] transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
           >
             {loading ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
