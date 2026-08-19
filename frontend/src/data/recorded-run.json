@@ -1,0 +1,49 @@
+{
+  "_comment": "A real completed run, read from the deployment with scripts/record-run.mjs. Regenerate with: node scripts/record-run.mjs > src/data/recorded-run.json",
+  "source": "https://mergit.onrender.com",
+  "goal_id": "960556b7-62f9-49db-9b61-a523b46ad520",
+  "title": "Replay demo: ship the Mergit agent economy",
+  "chain": {
+    "name": "Local EVM (py-evm)",
+    "chainId": 31337,
+    "proofOfWork": "0xDe09E74d4888Bc4e65F589e8c13Bce9F71DdF4c7"
+  },
+  "tasks": [
+    {
+      "id": "replay_a09a89bf_t1",
+      "role": "researcher",
+      "description": "Research the Mergit agent economy design",
+      "summary": "Located the design in the spec — passports, reputation, proofs.",
+      "resultHash": "68af336ab012749ea6c3c55c1d0703948a589a28e0c7308c8a2a6b27e9432967",
+      "blockNumber": 18100000,
+      "startAt": 2.8,
+      "doneAt": 4.8,
+      "proofAt": 5.4
+    },
+    {
+      "id": "replay_a09a89bf_t2",
+      "role": "coder",
+      "description": "Implement the proof-of-work ledger",
+      "summary": "Implemented the proof-of-work ledger.",
+      "resultHash": "5658683bf5c742cc3b19a1d0c268242ccf6b5f08bbb0c25ed2133d3c46dfc7fe",
+      "blockNumber": 18100001,
+      "startAt": 6.2,
+      "doneAt": 8.4,
+      "proofAt": 9.0
+    },
+    {
+      "id": "replay_a09a89bf_t3",
+      "role": "integrator",
+      "description": "Wire the ledger into the live SSE stream",
+      "summary": "Pull request opened — Mergit-proto #1.",
+      "resultHash": "08ebdf06f068ebe20eb30970f23afce1511f2c9201a98d2b2cdfe210564c2214",
+      "blockNumber": 18100002,
+      "startAt": 9.8,
+      "doneAt": 11.8,
+      "proofAt": 12.4
+    }
+  ],
+  "result": "Pull request opened — mergit-io/Mergit-proto #1",
+  "loopSeconds": 16,
+  "pacing": "authored"
+}
