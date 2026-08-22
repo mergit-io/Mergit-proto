@@ -1320,8 +1320,9 @@ def test_a_comment_whose_placeholder_is_uppercase_is_refused(monkeypatch):
 
 def test_an_ordinary_comment_is_posted(monkeypatch):
     """Angle brackets are normal in prose, code and markdown. Only a blank-shaped one is
-    refused: lowercase snake_case with an underscore. CamelCase generics, HTML tags and
-    autolinks all read as ordinary text and must post."""
+    refused: snake_case with an underscore, in any casing. The underscore is what draws
+    the line — CamelCase generics, HTML tags and autolinks have none, read as ordinary
+    text, and must post."""
     from tools import github_ops as gops
 
     posted = []
