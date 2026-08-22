@@ -50,6 +50,10 @@ no keys, no tokens, no network, nothing to fund. Point `CHAIN_TARGET` at `monad-
 
 ![Mergit dashboard: goal input, run counters, recent goals and the agent roster](docs/assets/dashboard.png)
 
+**A run** — the task graph the orchestrator drew, each node's agent and state, with the live log alongside.
+
+![Mergit run page: a three-node task graph, researcher to coder to integrator, all done](docs/assets/run.png)
+
 **The proof ledger** — every settled task, its real block and transaction, each one re-checkable.
 
 ![Mergit proof ledger: three proofs settled on chainId 31337 at blocks 7, 9 and 11](docs/assets/proof-ledger.png)

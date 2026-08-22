@@ -324,19 +324,26 @@ html.reveal-ready [data-reveal].is-in {
 }
 
 /* ── React Flow (task graph) ──────────────────────────────────────────────────
-   React Flow ships its own node styles (white fill, 12px sans, rounded) that load
-   after Tailwind and win on specificity, so the node skin is set here rather than
-   through utility classes on the node. */
+   React Flow ships its own node styles (white fill, dark text, rounded) and its
+   stylesheet lands AFTER this file in the built bundle. Matching its selectors
+   one-for-one therefore loses on source order, which is what put white cards on the
+   dark canvas: `.react-flow__node-default` at two different offsets, same
+   specificity, theirs later.
+
+   So every rule below is deliberately one class more specific than the React Flow
+   rule it replaces. Do not "simplify" these selectors — the redundancy IS the fix,
+   and dev happens to work either way because the import order differs there. */
 .react-flow__node {
   border-radius: 0;
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 11px;
   line-height: 1.45;
 }
-.react-flow__node-default,
-.react-flow__node-input,
-.react-flow__node-output,
-.react-flow__node-group {
+/* Beats `.react-flow__node-default` (0,1,0) with (0,2,0). */
+.react-flow__node.react-flow__node-default,
+.react-flow__node.react-flow__node-input,
+.react-flow__node.react-flow__node-output,
+.react-flow__node.react-flow__node-group {
   background: rgb(var(--c-slab));
   color: rgb(var(--c-text));
   border: 1px solid rgb(var(--c-line));
@@ -344,6 +351,15 @@ html.reveal-ready [data-reveal].is-in {
   padding: 10px 12px;
   box-shadow: none;
   text-align: left;
+}
+/* Beats `.react-flow__node-default.selectable.selected` and `.selectable:hover`
+   (both 0,3,0) with (0,4,0), so the selection ring is violet and not their shadow. */
+.react-flow__node.react-flow__node-default.selectable.selected,
+.react-flow__node.react-flow__node-default.selectable:focus,
+.react-flow__node.react-flow__node-default.selectable:focus-visible,
+.react-flow__node.react-flow__node-default.selectable:hover {
+  border-color: rgb(var(--c-violet));
+  box-shadow: none;
 }
 .react-flow__node.selected,
 .react-flow__node:focus-visible {

@@ -36,7 +36,10 @@ const AGENTS = [
 /* Facts about behaviour under failure. Stated flat, because the claim is the point. */
 const GUARANTEES = [
   ["Crash mid-task", "Resumes from the same step on restart"],
-  ["Lease expires", "Reclaimed within 30 seconds and retried"],
+  // The 30s is the reclaim sweep's interval, not the whole recovery. A stalled task holds
+  // its lease for `lease_seconds` (300) first, so "within 30 seconds" read as if a stuck
+  // task recovered in half a minute when the real worst case is nearer five and a half.
+  ["Lease expires", "Reclaimed within 30 seconds of expiry and retried"],
   ["Tool call repeats", "Hash-matched and served from the stored result"],
   ["Task exhausts retries", "Orchestrator replans an alternative route"],
   ["Mergit's own bug", "Files the issue, then spawns a goal to fix it"],
