@@ -1,13 +1,13 @@
-import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Loader2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { Micro } from "./ui";
 
-const PLACEHOLDERS = [
-  "Research the GitHub repo owner/repo, find the bug in issue #1, open a PR…",
-  "Write and run a Python script to scrape Hacker News top stories…",
-  "Find the top 5 open-source LLM frameworks and write a comparison report…",
-  "Build a Python CLI tool called jsonstats and ship it as a new GitHub repo…",
-  "Search recent LLM reasoning papers and create a structured report…",
+/* Starters are real, submittable goals rather than category names: clicking one
+   loads it into the field so it can be edited before it is sent. */
+const STARTERS = [
+  { label: "Audit a repo", text: "Audit mergit-io/Mergit-proto for security issues and open PRs with fixes" },
+  { label: "Compare frameworks", text: "Find the top 5 open-source LLM frameworks and write a comparison report" },
+  { label: "Fix an issue", text: "Read issue #1 in owner/repo, write the fix, and open a pull request" },
+  { label: "Add CI", text: "Add a pytest GitHub Actions workflow to owner/repo and open a PR" },
 ];
 
 interface Props {
@@ -17,81 +17,54 @@ interface Props {
 
 export function GoalInput({ onSubmit, loading }: Props) {
   const [value, setValue] = useState("");
-  const [idx, setIdx] = useState(0);
-  const [focused, setFocused] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const ref = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => {
-    const t = setInterval(() => setIdx((i) => (i + 1) % PLACEHOLDERS.length), 3500);
-    return () => clearInterval(t);
-  }, []);
-
-  const handleSubmit = () => {
+  const submit = () => {
     const trimmed = value.trim();
     if (!trimmed || loading) return;
     onSubmit(trimmed);
     setValue("");
   };
 
-  const handleKey = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleSubmit();
+  const load = (text: string) => {
+    setValue(text);
+    ref.current?.focus();
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
-      className="w-full max-w-2xl mx-auto"
-    >
-      <div
-        className={`relative rounded-2xl border transition-all duration-300 ${
-          focused
-            ? "border-accent/50 shadow-[0_0_0_3px_rgba(109,74,255,0.08),0_0_30px_rgba(109,74,255,0.06)]"
-            : "border-white/8 hover:border-white/15"
-        }`}
-        style={{ background: "rgba(255,255,255,0.025)" }}
-      >
+    <div>
+      <div className="border border-line bg-slab focus-within:border-violet transition-colors">
         <textarea
-          ref={textareaRef}
+          ref={ref}
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          onKeyDown={handleKey}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit();
+          }}
           rows={3}
-          placeholder={PLACEHOLDERS[idx]}
-          className="w-full resize-none bg-transparent px-5 pt-4 pb-14 text-sm text-gray-100 placeholder-text-muted/50 outline-none rounded-2xl leading-relaxed"
+          aria-label="Describe the goal to delegate"
+          placeholder="Find the top 5 open-source LLM frameworks and write a comparison report…"
+          className="w-full resize-none bg-transparent px-4 py-4 text-sm leading-relaxed outline-none"
         />
-
-        <div className="absolute bottom-3 left-4 right-3 flex items-center justify-between">
-          <AnimatePresence mode="wait">
-            <motion.span
-              key={idx}
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.2 }}
-              className="text-xs text-text-muted/50 truncate max-w-[280px]"
-            >
-              {value.length === 0 ? "⌘ Enter to send" : `${value.length} chars`}
-            </motion.span>
-          </AnimatePresence>
-
-          <button
-            onClick={handleSubmit}
-            disabled={!value.trim() || loading}
-            className="btn-neon flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200"
-          >
-            {loading ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <ArrowRight className="w-3.5 h-3.5" />
-            )}
-            {loading ? "Delegating…" : "Delegate →"}
+        <div className="flex items-center justify-between border-t border-line pl-4">
+          <Micro>{value.length === 0 ? "⌘ + Enter to send" : `${value.length} characters`}</Micro>
+          <button onClick={submit} disabled={!value.trim() || loading} className="btn-primary">
+            {loading ? "Delegating…" : "Delegate goal →"}
           </button>
         </div>
       </div>
-    </motion.div>
+
+      <div className="flex flex-wrap gap-px mt-px">
+        {STARTERS.map((s) => (
+          <button
+            key={s.label}
+            onClick={() => load(s.text)}
+            className="border border-line px-3 h-8 font-mono text-micro uppercase text-dim hover:text-text hover:border-faint transition-colors"
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

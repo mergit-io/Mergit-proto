@@ -1,194 +1,293 @@
+@import "@fontsource-variable/archivo";
 @import "@fontsource/inter/400.css";
 @import "@fontsource/inter/500.css";
 @import "@fontsource/inter/600.css";
-@import "@fontsource/inter/700.css";
-@import "@fontsource/dm-sans/400.css";
-@import "@fontsource/dm-sans/500.css";
-@import "@fontsource/dm-sans/600.css";
-@import "@fontsource/dm-sans/700.css";
-@import "@fontsource/jetbrains-mono/400.css";
-@import "@fontsource/jetbrains-mono/500.css";
-@import "@fontsource/jetbrains-mono/700.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "@fontsource/ibm-plex-mono/600.css";
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+/* ── Theme ────────────────────────────────────────────────────────────────────
+   Channels, not hex, so tailwind can apply opacity to any token.
+   Dark is the design's home key; light is the same system printed on paper. */
+@layer base {
+  :root,
+  [data-theme="dark"] {
+    --c-ink: 10 9 16;
+    --c-slab: 16 14 26;
+    --c-raise: 23 20 36;
+    --c-line: 38 35 54;
+    --c-line-soft: 27 25 40;
+    --c-text: 244 243 247;
+    --c-dim: 139 135 156;
+    --c-faint: 91 87 112;
+    --c-violet: 109 74 255;
+    --c-violet-hi: 138 109 255;
+    --c-on-violet: 255 255 255;
+    --c-mint: 52 227 160;
+    --c-amber: 245 165 36;
+    --c-red: 255 84 104;
+    --grid-line: rgba(255, 255, 255, 0.028);
+    color-scheme: dark;
+  }
 
-html { scroll-behavior: smooth; }
+  [data-theme="light"] {
+    --c-ink: 242 242 245;
+    --c-slab: 255 255 255;
+    --c-raise: 247 247 250;
+    --c-line: 216 214 226;
+    --c-line-soft: 231 230 238;
+    --c-text: 17 16 25;
+    --c-dim: 99 96 122;
+    --c-faint: 141 138 161;
+    --c-violet: 90 52 245;
+    --c-violet-hi: 74 38 224;
+    --c-on-violet: 255 255 255;
+    --c-mint: 0 155 106;
+    --c-amber: 176 106 0;
+    --c-red: 214 39 61;
+    --grid-line: rgba(17, 16, 25, 0.038);
+    color-scheme: light;
+  }
 
-html, body, #root {
-  background-color: #07060f;
-  color: #f9fafb;
-  font-family: "Inter", system-ui, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border-color: rgb(var(--c-line));
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+    background-color: rgb(var(--c-ink));
+    color: rgb(var(--c-text));
+    font-family: "Inter", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    overflow-x: hidden;
+  }
+
+  /* The console reads as drafting paper: a faint square grid under everything. */
+  #root {
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 64px 64px;
+  }
+
+  ::selection {
+    background: rgb(var(--c-violet));
+    color: rgb(var(--c-on-violet));
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: rgb(var(--c-ink));
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(var(--c-line));
+    border: 3px solid rgb(var(--c-ink));
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--c-faint));
+  }
+
+  :focus-visible {
+    outline: 2px solid rgb(var(--c-violet));
+    outline-offset: 2px;
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: none;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: rgb(var(--c-faint));
+  }
 }
 
-::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-track { background: #07060f; }
-::-webkit-scrollbar-thumb { background: #241f3d; border-radius: 2px; }
+/* ── Components ───────────────────────────────────────────────────────────── */
+@layer components {
+  /* Micro-label — the uppercase mono voice that titles every region and column. */
+  .micro {
+    @apply font-mono text-micro uppercase text-dim;
+  }
 
-/* ── Keyframes ───────────────────────────────────────── */
-@keyframes marquee {
+  /* Panels butt against one another and share a single hairline. */
+  .panel {
+    @apply border border-line bg-slab;
+  }
+
+  /* The signature: a solid violet field that inverts everything inside it.
+     Reserved for on-chain proof — the one thing the product is actually about. */
+  .proof-field {
+    background: rgb(var(--c-violet));
+    color: rgb(var(--c-on-violet));
+    --c-text: var(--c-on-violet);
+    --c-dim: 255 255 255;
+    --c-line: 255 255 255;
+    --c-faint: 255 255 255;
+  }
+  .proof-field .micro,
+  .proof-field .dim-on-violet {
+    color: rgb(255 255 255 / 0.62);
+  }
+  .proof-field hr,
+  .proof-field .rule {
+    border-color: rgb(255 255 255 / 0.22);
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 border px-4 h-9
+           font-mono text-label uppercase transition-colors duration-150;
+  }
+  .btn-primary {
+    @apply btn border-violet bg-violet text-[rgb(var(--c-on-violet))]
+           hover:bg-violet-hi hover:border-violet-hi;
+  }
+  .btn-ghost {
+    @apply btn border-line text-dim hover:text-text hover:border-faint;
+  }
+  .btn:disabled {
+    @apply opacity-40 cursor-not-allowed;
+  }
+
+  .field {
+    @apply w-full bg-transparent border border-line px-3 py-2.5 text-sm
+           text-text transition-colors duration-150
+           focus:border-violet focus:outline-none;
+  }
+
+  /* Dense data table — the console's default way of showing a list. */
+  .dtable {
+    @apply w-full text-sm border-collapse;
+  }
+  .dtable thead th {
+    @apply font-mono text-micro uppercase text-dim text-left font-normal
+           px-4 py-2.5 border-b border-line whitespace-nowrap;
+  }
+  .dtable tbody td {
+    @apply px-4 py-3 border-b border-line-soft align-middle;
+  }
+  .dtable tbody tr:hover td {
+    background: rgb(var(--c-raise));
+  }
+}
+
+@layer utilities {
+  .rule {
+    @apply border-t border-line;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* ── Motion ───────────────────────────────────────────────────────────────── */
+@keyframes rail {
   from { transform: translateX(0); }
   to   { transform: translateX(-50%); }
 }
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50%       { transform: translateY(-14px); }
-}
-@keyframes glow-pulse {
-  0%, 100% { opacity: 0.45; transform: scale(1); }
-  50%       { opacity: 0.85; transform: scale(1.1); }
-}
-@keyframes shimmer {
-  0%   { background-position: -200% center; }
-  100% { background-position: 200% center; }
-}
-@keyframes pulse-ring {
+@keyframes blip {
   0%, 100% { opacity: 1; }
-  50%       { opacity: 0.3; }
+  50%      { opacity: 0.25; }
+}
+@keyframes sweep {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(400%); }
 }
 
-.animate-marquee         { animation: marquee 32s linear infinite; }
-.animate-float           { animation: float 5s ease-in-out infinite; }
-.animate-glow-pulse      { animation: glow-pulse 3.5s ease-in-out infinite; }
-.animate-pulse-ring      { animation: pulse-ring 1.5s ease-in-out infinite; }
+.animate-rail { animation: rail 44s linear infinite; }
+.animate-blip { animation: blip 1.4s ease-in-out infinite; }
 
-/* ── Typography ──────────────────────────────────────── */
-.font-display { font-family: "DM Sans", "Inter", system-ui, sans-serif; }
-
-.text-gradient {
-  background: linear-gradient(135deg, #fff 0%, #fff 45%, #6b7280 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-.text-gradient-blue {
-  background: linear-gradient(135deg, #9c8bff 0%, #6d4aff 50%, #a855f7 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-.shimmer-text {
-  background: linear-gradient(90deg, rgba(255,255,255,0.5) 0%, #fff 40%, rgba(255,255,255,0.5) 80%);
-  background-size: 200% auto;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  animation: shimmer 4s linear infinite;
-}
-
-/* ── Glass card ──────────────────────────────────────── */
-.glass-card {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.08);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-}
-
-/* ── App card (glass surface used across /app pages) ─── */
-.card {
-  background: rgba(255,255,255,0.02);
-  border: 1px solid rgba(255,255,255,0.07);
-  border-radius: 0.75rem;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-}
-
-/* ── Text secondary ──────────────────────────────────── */
-.text-text-secondary { color: #9ca3af; }
-
-/* ── Cursor-tracking glow card ───────────────────────── */
-.glow-card {
+/* An indeterminate bar for work that is running but has no percentage. */
+.bar-indeterminate {
   position: relative;
-  isolation: isolate;
+  overflow: hidden;
 }
-.glow-card::before {
+.bar-indeterminate::after {
   content: "";
   position: absolute;
   inset: 0;
-  border-radius: inherit;
-  opacity: 0;
-  transition: opacity 0.4s;
-  background: radial-gradient(
-    600px circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
-    rgba(109,74,255,0.1), transparent 40%
-  );
-  pointer-events: none;
-  z-index: 1;
-}
-.glow-card:hover::before { opacity: 1; }
-.glow-card::after {
-  content: "";
-  position: absolute;
-  inset: -1px;
-  border-radius: inherit;
-  opacity: 0;
-  transition: opacity 0.4s;
-  background: radial-gradient(
-    300px circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
-    rgba(255,255,255,0.18), transparent 50%
-  );
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  padding: 1px;
-  pointer-events: none;
-  z-index: 2;
-}
-.glow-card:hover::after { opacity: 1; }
-
-/* ── Buttons ─────────────────────────────────────────── */
-.btn-neon {
-  background: linear-gradient(135deg, #6d4aff, #a855f7);
-  box-shadow: 0 0 20px rgba(109,74,255,0.35), 0 0 60px rgba(109,74,255,0.1);
-  transition: box-shadow 0.3s, transform 0.2s;
-}
-.btn-neon:hover {
-  box-shadow: 0 0 32px rgba(109,74,255,0.6), 0 0 90px rgba(109,74,255,0.2);
-  transform: translateY(-2px);
-}
-.btn-glass {
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.14);
-  backdrop-filter: blur(12px);
-  transition: background 0.2s, border-color 0.2s, transform 0.2s;
-}
-.btn-glass:hover {
-  background: rgba(255,255,255,0.08);
-  border-color: rgba(255,255,255,0.26);
-  transform: translateY(-2px);
+  width: 25%;
+  background: rgb(var(--c-violet));
+  animation: sweep 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
-/* ── Nav links ───────────────────────────────────────── */
-.nav-link { position: relative; }
-.nav-link::after {
-  content: "";
-  position: absolute;
-  bottom: -3px; left: 0;
-  width: 0; height: 1px;
-  background: linear-gradient(90deg, #6d4aff, #a855f7);
-  transition: width 0.3s;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
-.nav-link:hover::after { width: 100%; }
 
-/* ── Step number (outline only) ──────────────────────── */
-.step-number {
-  font-family: "DM Sans", sans-serif;
-  font-weight: 700;
-  font-size: 5rem;
-  line-height: 1;
-  -webkit-text-stroke: 1px rgba(255,255,255,0.12);
-  color: transparent;
-  user-select: none;
-  transition: -webkit-text-stroke-color 0.3s;
+/* ── React Flow (task graph) ──────────────────────────────────────────────────
+   React Flow ships its own node styles (white fill, 12px sans, rounded) that load
+   after Tailwind and win on specificity, so the node skin is set here rather than
+   through utility classes on the node. */
+.react-flow__node {
+  border-radius: 0;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 11px;
+  line-height: 1.45;
 }
-.glow-card:hover .step-number { -webkit-text-stroke-color: rgba(109,74,255,0.45); }
-
-/* ── React Flow (dashboard) ──────────────────────────── */
-.react-flow__node { border-radius: 8px; }
-.react-flow__background { background-color: #0b0917; }
-.react-flow__edge-path { stroke: #3a3550; stroke-width: 1.5; }
+.react-flow__node-default,
+.react-flow__node-input,
+.react-flow__node-output,
+.react-flow__node-group {
+  background: rgb(var(--c-slab));
+  color: rgb(var(--c-text));
+  border: 1px solid rgb(var(--c-line));
+  border-radius: 0;
+  padding: 10px 12px;
+  box-shadow: none;
+  text-align: left;
+}
+.react-flow__node.selected,
+.react-flow__node:focus-visible {
+  border-color: rgb(var(--c-violet));
+  box-shadow: none;
+}
+.react-flow__handle {
+  background: rgb(var(--c-faint));
+  border: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 0;
+}
+.react-flow__background { background-color: transparent; }
+.react-flow__edge-path { stroke: rgb(var(--c-line)); stroke-width: 1.25; }
+.react-flow__edge.animated .react-flow__edge-path { stroke: rgb(var(--c-violet)); }
+.react-flow__attribution { display: none; }
+.react-flow__controls-button {
+  background: rgb(var(--c-slab));
+  border-bottom: 1px solid rgb(var(--c-line));
+  fill: rgb(var(--c-dim));
+}
+.react-flow__controls-button:hover { background: rgb(var(--c-raise)); }

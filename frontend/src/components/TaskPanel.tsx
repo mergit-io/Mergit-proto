@@ -1,9 +1,8 @@
 import { useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 import type { TaskDetail } from "../lib/api";
 import { AgentBadge } from "./AgentBadge";
 import { StatusBadge } from "./StatusBadge";
+import { Micro } from "./ui";
 
 interface Props {
   task: TaskDetail;
@@ -13,72 +12,62 @@ export function TaskPanel({ task }: Props) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="rounded-xl border border-border overflow-hidden">
+    <div className="border-b border-line-soft last:border-0">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-surface hover:bg-white/[0.02] transition-colors text-left"
+        className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-raise transition-colors text-left"
       >
         <div className="flex items-center gap-3 min-w-0">
-          {open ? <ChevronDown className="w-4 h-4 text-text-muted shrink-0" /> : <ChevronRight className="w-4 h-4 text-text-muted shrink-0" />}
+          <span className="font-mono text-dim w-3 shrink-0" aria-hidden="true">
+            {open ? "−" : "+"}
+          </span>
           <AgentBadge agent={task.agent_name} />
-          <span className="text-sm text-gray-200 truncate">{task.description}</span>
+          <span className="text-sm text-text truncate">{task.description}</span>
         </div>
         <StatusBadge status={task.status} size="sm" />
       </button>
 
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
-          >
-            <div className="px-4 pb-4 pt-2 space-y-3 border-t border-border bg-black/20">
-              {/* Inputs */}
-              {Object.keys(task.inputs).length > 0 && (
-                <div>
-                  <p className="text-xs text-text-muted mb-1 font-medium uppercase tracking-wider">Inputs</p>
-                  <pre className="text-xs text-gray-300 bg-black/30 rounded-lg p-3 overflow-x-auto">
-                    {JSON.stringify(task.inputs, null, 2)}
-                  </pre>
-                </div>
-              )}
-
-              {/* Output */}
-              {task.output && (
-                <div>
-                  <p className="text-xs text-text-muted mb-1 font-medium uppercase tracking-wider">Output</p>
-                  <pre className="text-xs text-gray-300 bg-black/30 rounded-lg p-3 overflow-x-auto max-h-48">
-                    {JSON.stringify(task.output, null, 2)}
-                  </pre>
-                </div>
-              )}
-
-              {/* Error */}
-              {task.error && (
-                <div>
-                  <p className="text-xs text-text-muted mb-1 font-medium uppercase tracking-wider">Error</p>
-                  <p className="text-xs text-red-400 bg-red-400/5 rounded-lg p-3">{task.error}</p>
-                </div>
-              )}
-
-              {/* Webhook waiting */}
-              {task.wait_token && task.status === "WAITING_WEBHOOK" && (
-                <div className="rounded-lg border border-amber-400/20 bg-amber-400/5 p-3">
-                  <p className="text-xs text-amber-300 font-medium mb-1">Waiting for webhook</p>
-                  <code className="text-xs text-amber-200">
-                    POST /api/webhooks/{task.wait_token}
-                  </code>
-                </div>
-              )}
-
-              <p className="text-xs text-text-muted">Attempts: {task.attempt_count}</p>
+      {open && (
+        <div className="px-4 pb-4 pt-1 space-y-3 bg-raise">
+          {Object.keys(task.inputs).length > 0 && (
+            <div>
+              <Micro className="block mb-1.5">Inputs</Micro>
+              <pre className="font-mono text-xs bg-raise border border-line p-3 overflow-x-auto">
+                {JSON.stringify(task.inputs, null, 2)}
+              </pre>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+
+          {task.output && (
+            <div>
+              <Micro className="block mb-1.5">Output</Micro>
+              <pre className="font-mono text-xs bg-raise border border-line p-3 overflow-x-auto max-h-48">
+                {JSON.stringify(task.output, null, 2)}
+              </pre>
+            </div>
+          )}
+
+          {task.error && (
+            <div>
+              <Micro className="block mb-1.5">Error</Micro>
+              <pre className="font-mono text-xs text-red bg-raise border border-line p-3 overflow-x-auto whitespace-pre-wrap">
+                {task.error}
+              </pre>
+            </div>
+          )}
+
+          {task.wait_token && task.status === "WAITING_WEBHOOK" && (
+            <div className="border border-amber p-3">
+              <Micro className="block mb-1 text-amber">Waiting for webhook</Micro>
+              <code className="font-mono text-xs text-amber">
+                POST /api/webhooks/{task.wait_token}
+              </code>
+            </div>
+          )}
+
+          <p className="font-mono text-micro uppercase text-dim">Attempts: {task.attempt_count}</p>
+        </div>
+      )}
     </div>
   );
 }

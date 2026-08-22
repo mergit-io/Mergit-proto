@@ -1,15 +1,16 @@
-import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import type { RepEntry } from "../../lib/api";
+import { Empty } from "../ui";
 
+/** Badge chip styling — a hairline border tinted by rank, never a filled pill. */
 export function badgeStyle(badge: string): string {
   switch (badge) {
     case "Gold":
-      return "bg-[#f5c54215] text-[#f5c542] border-[#f5c54235]";
+      return "border-amber text-amber";
     case "Silver":
-      return "bg-[#c8d0dc15] text-[#c8d0dc] border-[#c8d0dc35]";
+      return "border-line text-text";
     default:
-      return "bg-[#c67b4615] text-[#d89b6e] border-[#c67b4635]";
+      return "border-line-soft text-dim";
   }
 }
 
@@ -18,62 +19,56 @@ export function Leaderboard({ entries }: { entries: RepEntry[] }) {
 
   if (entries.length === 0) {
     return (
-      <div className="card px-6 py-10 text-center text-text-muted text-sm">
-        No agents have earned reputation yet. Run a goal to mint the first proof.
-      </div>
+      <Empty title="No agents have earned reputation yet">
+        Run a goal to mint the first proof.
+      </Empty>
     );
   }
 
   return (
-    <div className="card divide-y divide-white/6 overflow-hidden">
-      <AnimatePresence initial={false}>
+    <table className="dtable">
+      <thead>
+        <tr>
+          <th>Rank</th>
+          <th>Agent</th>
+          <th>Success</th>
+          <th>Speed</th>
+          <th>Badge</th>
+          <th className="text-right">Composite</th>
+        </tr>
+      </thead>
+      <tbody>
         {entries.map((entry) => (
-          <motion.div
+          <tr
             key={entry.role}
-            layout
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
             onClick={() => nav(`/app/economy/agents/${entry.role}`)}
-            className="px-5 py-3.5 cursor-pointer hover:bg-white/[0.03] transition-colors"
+            className="cursor-pointer"
           >
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-4 min-w-0">
-                <span className="w-6 text-sm font-mono text-text-muted shrink-0">
-                  #{entry.rank}
-                </span>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-white capitalize">{entry.role}</p>
-                  <p className="text-[11px] font-mono text-text-muted">
-                    {(entry.success_rate * 100).toFixed(0)}% success · {(entry.speed * 100).toFixed(0)}% speed
-                  </p>
-                </div>
+            <td className="font-mono text-xs text-dim tabular">#{entry.rank}</td>
+            <td className="font-mono text-micro uppercase">{entry.role}</td>
+            <td className="font-mono text-xs tabular text-dim">
+              {(entry.success_rate * 100).toFixed(0)}%
+            </td>
+            <td className="font-mono text-xs tabular text-dim">
+              {(entry.speed * 100).toFixed(0)}%
+            </td>
+            <td>
+              <span className={`micro border px-2 py-1 ${badgeStyle(entry.badge)}`}>
+                {entry.badge}
+              </span>
+            </td>
+            <td className="text-right">
+              <span className="font-mono text-sm font-semibold tabular">{entry.composite}</span>
+              <div className="h-1 bg-line-soft mt-1.5 w-24 ml-auto">
+                <div
+                  className="h-full bg-violet"
+                  style={{ width: `${Math.min(100, (entry.composite / 1000) * 100)}%` }}
+                />
               </div>
-              <div className="flex items-center gap-4 shrink-0">
-                <span
-                  className={`text-[10px] font-semibold uppercase tracking-widest px-2 py-1 rounded-full border ${badgeStyle(entry.badge)}`}
-                >
-                  {entry.badge}
-                </span>
-                <span className="font-mono text-sm font-semibold text-cyan w-14 text-right">
-                  {entry.composite}
-                </span>
-              </div>
-            </div>
-            {/* score bar */}
-            <div className="mt-2.5 h-1 rounded-full bg-white/6 overflow-hidden">
-              <motion.div
-                layout
-                className="h-full rounded-full bg-gradient-to-r from-accent to-cyan"
-                initial={false}
-                animate={{ width: `${(entry.composite / 1000) * 100}%` }}
-                transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-              />
-            </div>
-          </motion.div>
+            </td>
+          </tr>
         ))}
-      </AnimatePresence>
-    </div>
+      </tbody>
+    </table>
   );
 }
