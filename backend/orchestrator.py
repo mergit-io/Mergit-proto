@@ -127,6 +127,14 @@ Rules:
    it needs no fork task, and writing one wastes a task on work that happens anyway.
    Use the `github_fork` tool only when a fork is the deliverable itself — "fork this repo
    for me", "make me a copy" — with nothing downstream that opens a PR.
+9d. VERIFY BEFORE YOU SHIP, NEVER AFTER. A coder task placed after the task that opens the
+   pull request cannot change anything it finds, and its output is source code — so making
+   it terminal hands the user a file dump as the answer to "fix this". It also reads from
+   the default branch, not from the branch just pushed, so what it reports is the code
+   BEFORE the fix. If the goal asks for proof that a fix works, put the running and
+   checking in the coder task that writes the fix, and let the integrator be terminal. A
+   writer after the integrator is fine — reporting what shipped is not the same as dumping
+   the file.
 10. FOR GITHUB AUTOMATION GOALS: When the goal mentions fixing an issue or reviewing a PR:
     - t1: researcher — reads repo structure, issue details, relevant files
     - t2: coder — writes the fix using the code context from t1, and reports `path`,
@@ -445,6 +453,38 @@ def _pr_task_without_the_code(p: "PlanSchema") -> str | None:
     return None
 
 
+def _coder_terminal_after_a_pull_request(p: "PlanSchema") -> str | None:
+    """The complaint about a plan that verifies after it ships, or None.
+
+    Goal e6b9529c planned researcher -> coder -> integrator(PR) -> coder("run the fixed
+    calc.py to prove the fix works"), with the last coder terminal. Two things follow from
+    putting it there, and both happened:
+
+    - It ran after the pull request was already open, so whatever it found could change
+      nothing. Verification that cannot fail anything is decoration.
+    - It read calc.py from main rather than from the PR branch, so its output was the
+      ORIGINAL buggy source — and being terminal, that became the goal's answer. The run
+      reported COMPLETED and showed the user `biggest = 0`, the bug it had just fixed.
+
+    A coder's output is code. After a PR exists, the answer to "fix this" is the pull
+    request, or prose about it — never a source dump that may not even be the fixed file.
+    """
+    pr_task = next((t for t in p.tasks
+                    if t.agent == "integrator" and _CREATES_A_PR.search(t.description or "")), None)
+    if pr_task is None or p.terminal == pr_task.id:
+        return None
+    terminal = next((t for t in p.tasks if t.id == p.terminal), None)
+    if terminal is None or terminal.agent != "coder":
+        return None
+    return (
+        f"task '{p.terminal}' is a coder and comes after '{pr_task.id}', which opens the "
+        "pull request — so its output (source code) would become the goal's final answer, "
+        "and anything it discovers arrives too late to change what was shipped. Verify "
+        f"BEFORE opening the pull request, and make '{pr_task.id}' terminal, or add a "
+        "writer after it to report what was done."
+    )
+
+
 def _validate_plan(p: PlanSchema) -> None:
     ids = {t.id for t in p.tasks}
     if p.terminal not in ids:
@@ -461,6 +501,8 @@ def _validate_plan(p: PlanSchema) -> None:
             raise ValueError(f"unknown agent '{t.agent}' in task '{t.id}'")
     if (missing_code := _pr_task_without_the_code(p)):
         raise ValueError(missing_code)
+    if (late_verify := _coder_terminal_after_a_pull_request(p)):
+        raise ValueError(late_verify)
     for t in p.tasks:
         if t.agent == "writer" and _all_references(t.inputs):
             raise ValueError(
