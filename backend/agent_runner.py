@@ -317,6 +317,97 @@ def _fabricated_urls(result: Any, known: set[str]) -> list[str]:
     return [u for u in dict.fromkeys(_collect_urls(result)) if u.rstrip("/.,);") not in seen]
 
 
+#: Actions whose whole point is that GitHub hands back an address. A pull request that
+#: exists has a URL, and so does a posted comment.
+#:
+#: Deliberately narrow. `set_branch_protection` and `merge_pr` produce no URL and are none
+#: of this check's business, and a bare past-tense `"commented"` is not matched either:
+#: it is what an agent writes when summarising, and refusing it costs finished work for a
+#: weak signal. The tool-shaped names below are the ones the live failures used.
+_PRODUCES_A_URL = re.compile(
+    r"create[_ ]?pr|open(?:ed)?[_ ]?(?:a )?pull|pull[_ ]?request"
+    r"|post[_ ]?comment|create[_ ]?repo", re.I)
+
+
+def _claimed_without_artifact(result: Any) -> str | None:
+    """An action that says it produced something addressable, with no address.
+
+    The companion to `_carries_tool_failure`, and the reason it needs one. That guard
+    matched the tool failure ENVELOPE — `{"error": ...}` — so the next run of the same
+    goal simply used a different shape:
+
+        {"action": "create_pr", "result": "Failed to create PR: Repository not found",
+         "url": None}
+
+    Same lie, same COMPLETED, no envelope to match. Reading the prose for words like
+    "failed" would be the third round of the same mistake, so this asks a structural
+    question instead: you say you opened a pull request — where is it? A real one always
+    came back with a URL, because that is what the tool returns.
+    """
+    if not isinstance(result, dict):
+        return None
+    action = result.get("action")
+    if not isinstance(action, str) or not _PRODUCES_A_URL.search(action):
+        return None
+    url = result.get("url")
+    if isinstance(url, str) and url.strip():
+        return None
+    # Anywhere in the submission will do. Agents put the address under `url`, `pr_url`,
+    # `html_url`, or inside whatever the tool handed back, and which key it chose is not
+    # what this is asking about — only whether an address is there at all.
+    if _collect_urls(result):
+        return None
+    return action
+
+
+def _carries_tool_failure(obj: Any, _depth: int = 0) -> str | None:
+    """The tool failure a result is carrying as though it were the outcome, or None.
+
+    Live failure, goal 373874b9. The goal named a repository that does not exist. Every
+    tool said so, and every agent submitted that as its result:
+
+        integrator: {"action": "create_pr",
+                     "result": {"error": "cannot access repo owner/repo: 404 Not Found"},
+                     "url": None}
+
+    Both integrator tasks did this, the goal reported COMPLETED, and its final output was
+    the 404 itself. Nothing objected: the required keys were present and non-empty, no
+    URL was claimed so `_fabricated_urls` had nothing to compare, and `success` was not
+    False because the integrator's schema has no `success`.
+
+    This is the third shape in the same family. `_self_reported_failure` catches an agent
+    that ADMITS failure. `_fabricated_urls` catches one that INVENTS a success.
+    This catches one that hands back the failure itself and lets the pipeline read it as
+    a success — the only one of the three that requires no dishonesty from the model,
+    which is presumably why it survived longest.
+
+    Detection is structural, not semantic: tools in this codebase fail with `ok: False`
+    or an `error` key, so a result carrying that envelope is carrying a tool's refusal.
+    A field that merely mentions an error in prose — the coder's `output` holding
+    "404 Not Found" as text — is not matched, because describing a failure is not the
+    same as submitting one.
+    """
+    if _depth > 6:
+        return None
+    if isinstance(obj, dict):
+        if obj.get("ok") is False:
+            reason = obj.get("error") or obj.get("reason") or "ok=false"
+            return str(reason)[:200]
+        err = obj.get("error")
+        if err not in (None, "", [], {}, False):
+            return str(err)[:200]
+        for v in obj.values():
+            found = _carries_tool_failure(v, _depth + 1)
+            if found:
+                return found
+    elif isinstance(obj, (list, tuple)):
+        for v in obj:
+            found = _carries_tool_failure(v, _depth + 1)
+            if found:
+                return found
+    return None
+
+
 def _submission_problem(result: Any, schema_required: list[str],
                         task_text: str = "",
                         known_urls: set[str] | None = None) -> str | None:
@@ -367,6 +458,27 @@ def _submission_problem(result: Any, schema_required: list[str],
                 "report the URL it returns. If the tool failed or you never called it, say "
                 "that instead — do not describe an outcome that did not happen."
             )
+
+    unaddressed = _claimed_without_artifact(result)
+    if unaddressed:
+        return (
+            f"submit_result rejected — you reported {unaddressed!r} but gave no URL for "
+            "it. A pull request or comment that exists has an address, and the tool "
+            "returns it. Call the tool and report the URL it gives back. If the call "
+            "failed, say what failed and why, in your own words — do not report the "
+            "action as though it happened."
+        )
+
+    carried = _carries_tool_failure(result)
+    if carried:
+        return (
+            f"submit_result rejected — the result you submitted is a tool failure: "
+            f"{carried!r}. That is the tool refusing, not the work being done, and "
+            "handing it back as the outcome records the goal as completed with the error "
+            "inside it. Fix the cause and call the tool again if you can — a wrong "
+            "repository, path or number is usually the reason. If it cannot be fixed, "
+            "say so plainly in your own words rather than submitting the failure."
+        )
 
     not_code = _not_actually_code(result)
     if not_code:
