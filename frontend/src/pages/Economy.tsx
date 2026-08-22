@@ -40,7 +40,11 @@ export function Economy() {
     ECONOMY_KEYS.forEach((key) => mutate(key));
   }, [economyEventCount]);
 
-  const topBlock = proofs && proofs.length > 0 ? proofs[0].block_number : 0;
+  // The highest block the chain actually confirmed. This read proofs[0].block_number,
+  // which is the local ledger counter seeded at 18,100,000 — so the panel reported a
+  // block height of ~18.1M while the chain it names was on block 7.
+  const topBlock = proofs?.reduce((hi, p) => Math.max(hi, p.block_number ?? 0), 0) ?? 0;
+  const settled = proofs?.filter((p) => p.submission_status === "confirmed").length ?? 0;
 
   return (
     <Shell>
@@ -61,13 +65,20 @@ export function Economy() {
         </div>
         <div className="flex border-t sm:border-t-0 sm:border-l border-line/20">
           <div className="px-6 py-6">
+            {/* The window this page fetched, not the lifetime total — `getProofs` caps at 50. */}
             <Micro>Proofs shown</Micro>
             <p className="font-display font-bold tabular text-3xl mt-1.5 leading-none">
               {proofs?.length ?? 0}
             </p>
           </div>
           <div className="px-6 py-6 border-l border-line/20">
-            <Micro>Block height</Micro>
+            <Micro>Settled on chain</Micro>
+            <p className="font-display font-bold tabular text-3xl mt-1.5 leading-none">
+              {settled}
+            </p>
+          </div>
+          <div className="px-6 py-6 border-l border-line/20">
+            <Micro>Latest block</Micro>
             <p className="font-display font-bold tabular text-3xl mt-1.5 leading-none">
               {topBlock > 0 ? `#${topBlock.toLocaleString()}` : "—"}
             </p>

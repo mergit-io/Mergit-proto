@@ -134,14 +134,23 @@ export interface RepEntry {
   did?: string;
 }
 
+/** Queue state of a proof's on-chain submission. `null` = never enqueued. */
+export type SubmissionStatus = "pending" | "submitting" | "confirmed" | "dead_lettered";
+
 export interface Proof {
   task_id: string;
   goal_id: string;
   agent_role: string;
   result_hash: string;
-  tx_hash: string;
-  block_number: number;
   recorded_at: number;
+  /** Position in the local ledger. An ordering key, not a block height. */
+  sequence: number;
+  submission_status: SubmissionStatus | null;
+  /** Real chain values, and null until this proof is confirmed on chain. `tx_hash` stays
+   *  null even when confirmed if the result was already recorded by an earlier tx. */
+  tx_hash: string | null;
+  block_number: number | null;
+  chain_id: number | null;
 }
 
 export interface AgentDetail {

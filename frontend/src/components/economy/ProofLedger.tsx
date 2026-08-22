@@ -1,7 +1,7 @@
 import { Fragment, useState } from "react";
 import { api } from "../../lib/api";
 import type { ChainStatusInfo, Proof, ProofVerification } from "../../lib/api";
-import { Empty, Hash, Micro, Notice } from "../ui";
+import { Empty, Hash, Micro, Notice, settlementLabel } from "../ui";
 
 function timeAgo(ts: number): string {
   const diff = Date.now() / 1000 - ts;
@@ -78,8 +78,9 @@ export function ProofLedger({
     <div>
       {chain && (
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-line-soft">
+          {/* With the chain off both halves are null, and this rendered a bare "· chain id". */}
           <Micro>
-            {chain.name} · chain id {chain.chainId}
+            {chain.chainId ? `${chain.name} · chain id ${chain.chainId}` : "Chain disabled"}
           </Micro>
           {chain.outbox?.pending ? (
             <span className="font-mono text-micro uppercase text-amber">
@@ -102,26 +103,36 @@ export function ProofLedger({
         <tbody>
           {proofs.map((proof) => {
             const result = verifications[proof.task_id];
-            const explorerUrl = chain?.explorer ? `${chain.explorer}/tx/${proof.tx_hash}` : null;
+            // Only a hash the chain actually issued gets a link. The ledger also carries a
+            // locally minted hash so a proof can appear the instant a task finishes, and
+            // linking that produced an explorer page for a transaction that never existed.
+            const explorerUrl =
+              chain?.explorer && proof.tx_hash ? `${chain.explorer}/tx/${proof.tx_hash}` : null;
 
             return (
               <Fragment key={proof.task_id}>
                 <tr>
                   <td className="font-mono text-xs tabular text-dim">
-                    #{proof.block_number.toLocaleString()}
+                    {proof.block_number !== null ? `#${proof.block_number.toLocaleString()}` : "—"}
                   </td>
                   <td>
-                    {explorerUrl ? (
-                      <a
-                        href={explorerUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="hover:text-violet transition-colors"
-                      >
+                    {proof.tx_hash ? (
+                      explorerUrl ? (
+                        <a
+                          href={explorerUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="hover:text-violet transition-colors"
+                        >
+                          <Hash value={proof.tx_hash} />
+                        </a>
+                      ) : (
                         <Hash value={proof.tx_hash} />
-                      </a>
+                      )
                     ) : (
-                      <Hash value={proof.tx_hash} />
+                      <span className="font-mono text-micro uppercase text-dim">
+                        {settlementLabel(proof.submission_status)}
+                      </span>
                     )}
                   </td>
                   <td className="font-mono text-micro uppercase text-dim">{proof.agent_role}</td>
