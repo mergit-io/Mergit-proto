@@ -69,3 +69,7 @@ class HealthResponse(BaseModel):
     # without this a container with a broken chain looks identical to a healthy one.
     chain: str = "unknown"
     chain_id: int | None = None
+    # Which executor is running. Same reason as `chain`: a deployment carrying the loop
+    # code but running the DAG looks identical to one without it, and there was no way to
+    # tell a PR preview apart from prod except by submitting a goal and reading the plan.
+    executor: str = "dag"

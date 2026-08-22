@@ -38,6 +38,18 @@ services:
       # dashboard that always looks populated.
       - key: SEED_DEMO
         value: "true"
+      # Which executor runs a goal. "dag" plans the whole run up front; "loop" runs the
+      # interleaved executor (backend/executor.py) that decides each step from the last
+      # result. Production stays on dag until a loop run mints proofs — `operator` is not
+      # in economy.ROLES, so a loop goal currently settles nothing on chain, and this is
+      # the deployment whose front page says every task does.
+      #
+      # previewValue applies to PR preview environments only, which is exactly where a new
+      # executor should be exercised: real GitHub, real models, no effect on the demo
+      # ledger everyone looks at.
+      - key: EXECUTOR_MODE
+        value: dag
+        previewValue: loop
       # Groq's free-tier rate limits bite long before 0.1 CPU does.
       - key: MAX_CONCURRENT_TASKS
         value: "3"
