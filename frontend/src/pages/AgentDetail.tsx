@@ -37,7 +37,16 @@ export function AgentDetail() {
 
       {isLoading && <Loading label="Loading passport" />}
 
-      {error && <Notice>This agent's passport could not be loaded.</Notice>}
+      {/* SWR keeps the last good `data` when a background refresh fails and sets `error` at
+          the same time, so `error` on its own does not mean the passport is unavailable — it
+          means the newest poll did not land. Rendering this unconditionally put "could not be
+          loaded" directly above a fully populated passport, which was simply untrue. */}
+      {error && !data && <Notice>This agent's passport could not be loaded.</Notice>}
+      {error && data && (
+        <Notice tone="wait">
+          Showing the passport as it was last loaded — the live refresh is not getting through.
+        </Notice>
+      )}
 
       {data && (
         <>
