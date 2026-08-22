@@ -49,7 +49,7 @@ function TaskNode({ task }: { task: TaskDetail }) {
     <div className="px-3 py-2.5 space-y-1.5">
       <div className="flex items-center justify-between gap-2">
         <AgentBadge agent={task.agent_name} />
-        <StatusBadge status={task.status} size="sm" />
+        <StatusBadge status={task.status} />
       </div>
       <p className="font-mono text-xs text-dim leading-relaxed line-clamp-2">{task.description}</p>
     </div>

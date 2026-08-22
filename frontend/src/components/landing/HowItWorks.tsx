@@ -46,7 +46,7 @@ export function HowItWorks() {
               style={{ "--reveal-delay": `${i * 70}ms` } as React.CSSProperties}
               className="panel flex flex-col p-6 lg:p-7 transition-colors duration-300 hover:bg-raise"
             >
-              <span className="font-display font-bold text-5xl leading-none tracking-tightest text-line">
+              <span className="font-display font-bold text-5xl leading-none tracking-tightest text-faint">
                 {String(i + 1).padStart(2, "0")}
               </span>
               <h3 className="font-display font-semibold text-lg tracking-tight mt-6">{s.title}</h3>

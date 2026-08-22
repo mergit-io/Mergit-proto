@@ -29,11 +29,22 @@ type Filter = (typeof FILTERS)[number]["id"];
 
 const ACTIVE = ["NEW", "PLANNING", "RUNNING"];
 
+/** How many receipts this panel has room to list. */
+const RECEIPTS = 4;
+/** The window the economy page reads. Matched deliberately — see below. */
+const PROOF_WINDOW = 50;
+
 /** The signature panel: proof settlement, inverted into a solid violet field. */
 function ProofField() {
-  const { data: proofs } = useSWR("/api/economy/proofs", () => api.getProofs(4), {
-    refreshInterval: 5000,
-  });
+  // SWR caches on the key alone. This asked for 4 under the same key the economy page
+  // uses for 50, so the two clobbered each other and the count read whichever landed
+  // last. Asking for the same window makes the shared cache correct rather than a
+  // collision, and the panel slices what it has room to show.
+  const { data: proofs } = useSWR(
+    "/api/economy/proofs",
+    () => api.getProofs(PROOF_WINDOW),
+    { refreshInterval: 5000 }
+  );
   const { data: chain } = useSWR("/api/economy/chain/status", () => api.getChainStatus(), {
     refreshInterval: 15000,
   });
@@ -73,7 +84,7 @@ function ProofField() {
         </div>
         {proofs && proofs.length > 0 ? (
           <ul className="pb-2">
-            {proofs.map((p) => (
+            {proofs.slice(0, RECEIPTS).map((p) => (
               <li key={p.task_id} className="flex items-center justify-between px-5 py-1.5 text-xs">
                 <Hash value={p.tx_hash} />
                 <span className="font-mono text-micro uppercase opacity-70">{p.agent_role}</span>
@@ -232,6 +243,15 @@ export function Dashboard() {
                 ))}
               </tbody>
             </table>
+          )}
+
+          {/* Without this the list reads as the whole history when it is a page of it. */}
+          {!isLoading && data && data.total > goals.length && (
+            <div className="border-t border-line px-4 py-2.5">
+              <Micro>
+                Showing {goals.length} of {data.total} goals
+              </Micro>
+            </div>
           )}
         </Panel>
 

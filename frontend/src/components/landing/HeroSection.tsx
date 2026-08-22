@@ -45,6 +45,10 @@ function Replay() {
       className="panel"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
+      // Focus holds it too — a keyboard user tabbing the steps had no way to stop the
+      // run moving under them.
+      onFocusCapture={() => setPaused(true)}
+      onBlurCapture={() => setPaused(false)}
     >
       <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
         <Micro>Live run</Micro>
@@ -68,34 +72,46 @@ function Replay() {
           const done = step > i;
           const active = step === i;
           return (
-            <li key={s.agent} className="border-b border-line-soft">
+            <li
+              key={s.agent}
+              className="border-b border-line-soft"
+              aria-current={active ? "step" : undefined}
+            >
+              {/* A button may only contain phrasing content, so the row is spans, and
+                  the dimming sits on an inner wrapper — on the button it also faded the
+                  focus ring, leaving keyboard focus almost invisible on queued steps.
+                  No aria-label: it would replace the whole subtree for a screen reader
+                  and swallow the status, the tool name and the progress. */}
               <button
                 onClick={() => setStep(i)}
-                aria-label={`Jump to step ${i + 1}: ${s.act}`}
-                className={`w-full text-left px-4 py-3 transition-[opacity,background-color] duration-300 hover:bg-raise ${
-                  done || active ? "opacity-100" : "opacity-30"
-                }`}
+                className="w-full text-left px-4 py-3 block transition-colors duration-300 hover:bg-raise"
               >
-              <div className="flex items-center justify-between gap-3">
-                <span className="font-mono text-micro uppercase text-dim">
-                  {String(i + 1).padStart(2, "0")} · {s.agent}
-                </span>
                 <span
-                  className={`font-mono text-micro uppercase ${
-                    done ? "text-mint" : active ? "text-violet" : "text-faint"
+                  className={`block transition-opacity duration-300 ${
+                    done || active ? "opacity-100" : "opacity-40"
                   }`}
                 >
-                  {done ? "Done" : active ? "Running" : "Queued"}
+                  <span className="flex items-center justify-between gap-3">
+                    <span className="font-mono text-micro uppercase text-dim">
+                      {String(i + 1).padStart(2, "0")} · {s.agent}
+                    </span>
+                    <span
+                      className={`font-mono text-micro uppercase ${
+                        done ? "text-mint" : active ? "text-violet" : "text-faint"
+                      }`}
+                    >
+                      {done ? "Done" : active ? "Running" : "Queued"}
+                    </span>
+                  </span>
+                  <span className="block text-sm mt-1.5">{s.act}</span>
+                  <span className="flex items-center gap-3 mt-2">
+                    <code className="font-mono text-micro text-dim">{s.tool}()</code>
+                    <span className="flex-1 h-px bg-line relative overflow-hidden">
+                      {done && <span className="absolute inset-0 bg-mint" />}
+                      {active && <span className="absolute inset-0 bar-indeterminate" />}
+                    </span>
+                  </span>
                 </span>
-              </div>
-              <p className="text-sm mt-1.5">{s.act}</p>
-              <div className="flex items-center gap-3 mt-2">
-                <code className="font-mono text-micro text-dim">{s.tool}()</code>
-                <span className="flex-1 h-px bg-line relative overflow-hidden">
-                  {done && <span className="absolute inset-0 bg-mint" />}
-                  {active && <span className="absolute inset-0 bar-indeterminate" />}
-                </span>
-              </div>
               </button>
             </li>
           );

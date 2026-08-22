@@ -12,6 +12,6 @@ const LABEL: Record<string, string> = {
   WAITING_WEBHOOK: "Waiting",
 };
 
-export function StatusBadge({ status }: { status: string; size?: "sm" | "md" }) {
+export function StatusBadge({ status }: { status: string }) {
   return <Status status={status} label={LABEL[status] ?? status.replace(/_/g, " ")} />;
 }

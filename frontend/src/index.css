@@ -159,14 +159,22 @@
   .proof-field {
     background: rgb(var(--c-violet));
     color: rgb(var(--c-on-violet));
+  }
+  /* The inverted tokens go to the CONTENTS, not to the field itself. Setting them on
+     `.proof-field` meant its own border resolved white too — and an accent Metric inside
+     a `divide-x` row draws its divider against an ordinary sibling, so the metric row
+     came out with one pure-white hairline through it. */
+  .proof-field > * {
     --c-text: var(--c-on-violet);
     --c-dim: 255 255 255;
     --c-line: 255 255 255;
     --c-faint: 255 255 255;
   }
+  /* 0.78, not 0.62. These are 10px uppercase mono labels on a saturated violet, and at
+     0.62 they sat near 2.9:1 — under the 4.5:1 that small text needs. */
   .proof-field .micro,
   .proof-field .dim-on-violet {
-    color: rgb(255 255 255 / 0.62);
+    color: rgb(255 255 255 / 0.78);
   }
   .proof-field hr,
   .proof-field .rule {
@@ -220,12 +228,15 @@
     background: rgb(var(--c-raise));
   }
   /* A clickable row earns a violet edge so the whole row reads as the target,
-     rather than the eye hunting for a link inside it. */
-  .dtable tbody tr[role="link"] td:first-child {
+     rather than the eye hunting for a link inside it. Keyed on a class rather than
+     role="link", because the row keeps its native `row` role and the anchor lives in
+     the first cell, stretched over the row. */
+  .dtable tbody tr.row-link td:first-child {
     box-shadow: inset 2px 0 0 transparent;
     transition: box-shadow 140ms var(--ease), background-color 140ms var(--ease);
   }
-  .dtable tbody tr[role="link"]:hover td:first-child {
+  .dtable tbody tr.row-link:hover td:first-child,
+  .dtable tbody tr.row-link:focus-within td:first-child {
     box-shadow: inset 2px 0 0 rgb(var(--c-violet));
   }
 }

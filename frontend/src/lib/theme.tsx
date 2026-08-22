@@ -9,10 +9,28 @@ const ThemeContext = createContext<{ theme: Theme; toggle: () => void }>({
   toggle: () => {},
 });
 
+/* Storage can throw outright — Safari private mode, cookies disabled, embedded webviews.
+   This runs in the root provider, so an unguarded throw takes the entire app down rather
+   than costing one remembered preference. */
+function read(): Theme | null {
+  try {
+    const stored = localStorage.getItem(KEY);
+    return stored === "dark" || stored === "light" ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
+function write(theme: Theme) {
+  try {
+    localStorage.setItem(KEY, theme);
+  } catch {
+    /* the preference simply will not survive a reload */
+  }
+}
+
 function initial(): Theme {
-  const stored = localStorage.getItem(KEY);
-  if (stored === "dark" || stored === "light") return stored;
-  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  return read() ?? (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
@@ -20,7 +38,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
-    localStorage.setItem(KEY, theme);
+    write(theme);
   }, [theme]);
 
   const toggle = useCallback(() => setTheme((t) => (t === "dark" ? "light" : "dark")), []);

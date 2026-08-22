@@ -28,7 +28,7 @@ export default {
       },
       fontFamily: {
         display: ["Archivo Variable", "Archivo", "Inter", "system-ui", "sans-serif"],
-        sans: ["Inter", "system-ui", "sans-serif"],
+        sans: ["Inter Variable", "Inter", "system-ui", "sans-serif"],
         mono: ["IBM Plex Mono", "ui-monospace", "monospace"],
       },
       fontSize: {
