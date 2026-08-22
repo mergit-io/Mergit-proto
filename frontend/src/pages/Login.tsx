@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { AppBackground } from "../components/AppBackground";
+import { Micro, Notice, Panel, ProofBlock } from "../components/ui";
 import { useAuth } from "../lib/auth";
 
 /**
@@ -28,61 +28,72 @@ export function Login() {
   const notice = params.get("auth") ?? (params.get("expired") ? "expired" : "");
 
   return (
-    <div className="relative min-h-screen" style={{ background: "#000" }}>
-      <AppBackground />
-      <div className="relative z-10 min-h-screen flex items-center justify-center px-6">
-        <div className="w-full max-w-sm">
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-semibold text-white tracking-tight">Mergit</h1>
-            <p className="mt-2 text-sm text-white/50">
-              Sign in to run agents on your own repositories.
+    <div className="min-h-screen flex items-center justify-center px-5 py-16">
+      <div className="w-full max-w-sm">
+        <div className="flex items-center gap-2.5 mb-8">
+          <ProofBlock className="w-4 h-4 text-violet" />
+          <span className="font-display font-bold text-[15px] tracking-tight uppercase">Mergit</span>
+        </div>
+
+        <h1 className="font-display font-bold tracking-tightest leading-[0.95] text-4xl">
+          Sign in to
+          <br />
+          run agents.
+        </h1>
+        <p className="text-sm text-dim mt-4 leading-relaxed">
+          Mergit uses Google only to identify you. Granting access to your repositories is a
+          separate step, and you choose what each connection may do.
+        </p>
+
+        {notice && (
+          <div className="mt-6">
+            <Notice tone="wait">
+              {notice === "expired"
+                ? "Your session ended. Sign in again to pick up where you left off."
+                : "That sign-in did not finish. Start it again."}
+            </Notice>
+          </div>
+        )}
+
+        {!authConfigured ? (
+          // Fail loudly rather than showing a button that cannot work. The instinct is
+          // inherited from the page this replaces, and it was the right one.
+          <div className="mt-6">
+            <Panel title="Sign-in is not configured" bodyClass="px-4 py-4 space-y-3">
+              <p className="text-sm text-dim leading-relaxed">
+                Set{" "}
+                <code className="font-mono text-xs bg-raise px-1.5 py-0.5">
+                  OAUTH_GOOGLE_CLIENT_ID
+                </code>{" "}
+                and{" "}
+                <code className="font-mono text-xs bg-raise px-1.5 py-0.5">
+                  OAUTH_GOOGLE_CLIENT_SECRET
+                </code>{" "}
+                on the backend to turn it on.
+              </p>
+              <p className="text-sm text-dim leading-relaxed">
+                Until then Mergit runs single-tenant and the console is open to anyone who can
+                reach it.
+              </p>
+              <a href="/app" className="btn-primary w-full">
+                Open the console →
+              </a>
+            </Panel>
+          </div>
+        ) : (
+          <div className="mt-8">
+            {/* A plain link, not fetch(). The OAuth flow is a full-page redirect to
+                Google — an XHR cannot follow it, and the state/nonce Authlib stores on
+                this response has to reach the browser as a real navigation. */}
+            <a href="/api/auth/login" className="btn-primary w-full h-11 gap-3">
+              <GoogleMark />
+              Continue with Google
+            </a>
+            <p className="mt-6">
+              <Micro>Connections are granted later, one at a time</Micro>
             </p>
           </div>
-
-          {notice && (
-            <div className="mb-5 rounded-xl border border-amber-400/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-200/90">
-              {notice === "expired"
-                ? "Your session expired. Sign in again to continue."
-                : "That sign-in did not complete. Please try again."}
-            </div>
-          )}
-
-          {!authConfigured ? (
-            // Fail loudly rather than showing a button that cannot work. The instinct is
-            // inherited from the page this replaces, and it was the right one.
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5 text-sm text-white/60 space-y-2">
-              <p className="text-white/85 font-medium">Sign-in is not configured</p>
-              <p>
-                Set <code className="text-white/80">OAUTH_GOOGLE_CLIENT_ID</code> and{" "}
-                <code className="text-white/80">OAUTH_GOOGLE_CLIENT_SECRET</code> on the
-                backend. Until then Mergit runs in single-tenant mode and{" "}
-                <a href="/app" className="text-white underline underline-offset-2">
-                  the app is open
-                </a>
-                .
-              </p>
-            </div>
-          ) : (
-            <>
-              {/* A plain link, not fetch(). The OAuth flow is a full-page redirect to
-                  Google — an XHR cannot follow it, and the state/nonce Authlib stores on
-                  this response has to reach the browser as a real navigation. */}
-              <a
-                href="/api/auth/login"
-                className="flex items-center justify-center gap-3 w-full rounded-xl bg-white px-4 py-3
-                           text-sm font-medium text-black transition-all hover:bg-white/90"
-              >
-                <GoogleMark />
-                Continue with Google
-              </a>
-
-              <p className="mt-5 text-center text-xs leading-relaxed text-white/35">
-                Mergit only uses Google to identify you. Connecting GitHub or Slack is a
-                separate step, and you choose exactly what each one may do.
-              </p>
-            </>
-          )}
-        </div>
+        )}
       </div>
     </div>
   );

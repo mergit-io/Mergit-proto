@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { Wallet } from "lucide-react";
 
 const STORAGE_KEY = "mergit_wallet_address";
 
@@ -20,7 +19,7 @@ function deriveFakeAddress(seed: string): string {
 }
 
 function truncate(address: string): string {
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
 
 export function WalletConnect() {
@@ -38,21 +37,16 @@ export function WalletConnect() {
 
   if (!address) {
     return (
-      <button
-        onClick={connect}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/8 text-white hover:bg-white/12 transition-all"
-      >
-        <Wallet className="w-3.5 h-3.5" />
-        Connect Wallet
+      <button onClick={connect} className="btn-primary">
+        Connect wallet
       </button>
     );
   }
 
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/6 border border-white/10">
-      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-      <span className="text-text-muted">Monad Testnet</span>
-      <span className="font-mono text-white">{truncate(address)}</span>
-    </div>
+    <span className="h-9 px-3 border border-line flex items-center gap-2 font-mono text-micro uppercase tabular">
+      <span className="w-1.5 h-1.5 bg-mint" />
+      {truncate(address)}
+    </span>
   );
 }

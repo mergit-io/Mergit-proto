@@ -1,243 +1,262 @@
-import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import useSWR, { mutate } from "swr";
-import { Bot, ChevronRight, Clock, Sparkles, Zap } from "lucide-react";
 import { api } from "../lib/api";
-import { GoalCard } from "../components/GoalCard";
-import { GoalInput } from "../components/GoalInput";
-import { AppNav } from "../components/AppNav";
-import { AppBackground } from "../components/AppBackground";
 import type { GoalSummary } from "../lib/api";
+import { GoalRow } from "../components/GoalCard";
+import { GoalInput } from "../components/GoalInput";
+import { Shell } from "../components/AppNav";
+import {
+  Empty,
+  Hash,
+  Loading,
+  Metric,
+  MetricRow,
+  Micro,
+  Notice,
+  Panel,
+  ProofBlock,
+  Tabs,
+} from "../components/ui";
 
-const fetcher = () => api.listGoals();
+const FILTERS = [
+  { id: "all", label: "All" },
+  { id: "running", label: "Running" },
+  { id: "done", label: "Done" },
+  { id: "failed", label: "Failed" },
+] as const;
+type Filter = (typeof FILTERS)[number]["id"];
 
-const STATUS_FILTERS = ["All", "RUNNING", "COMPLETED", "FAILED"] as const;
-type Filter = (typeof STATUS_FILTERS)[number];
+const ACTIVE = ["NEW", "PLANNING", "RUNNING"];
 
-function StatsStrip({ goals }: { goals: GoalSummary[] }) {
-  const running = goals.filter((g) => ["NEW", "PLANNING", "RUNNING"].includes(g.status)).length;
-  const done = goals.filter((g) => g.status === "COMPLETED").length;
-  const failed = goals.filter((g) => g.status === "FAILED").length;
+/** How many receipts this panel has room to list. */
+const RECEIPTS = 4;
+/** The window the economy page reads. Matched deliberately — see below. */
+const PROOF_WINDOW = 50;
 
-  const stats = [
-    { label: "Active", value: running, color: "text-accent", bg: "bg-accent/8 border-accent/15" },
-    { label: "Completed", value: done, color: "text-success", bg: "bg-success/8 border-success/15" },
-    { label: "Failed", value: failed, color: "text-danger", bg: "bg-danger/8 border-danger/15" },
-    { label: "Total", value: goals.length, color: "text-white", bg: "bg-white/4 border-white/8" },
-  ];
+/** The signature panel: proof settlement, inverted into a solid violet field. */
+function ProofField() {
+  // SWR caches on the key alone. This asked for 4 under the same key the economy page
+  // uses for 50, so the two clobbered each other and the count read whichever landed
+  // last. Asking for the same window makes the shared cache correct rather than a
+  // collision, and the panel slices what it has room to show.
+  const { data: proofs } = useSWR(
+    "/api/economy/proofs",
+    () => api.getProofs(PROOF_WINDOW),
+    { refreshInterval: 5000 }
+  );
+  const { data: chain } = useSWR("/api/economy/chain/status", () => api.getChainStatus(), {
+    refreshInterval: 15000,
+  });
+
+  const minted = proofs?.length ?? 0;
+  const pending = chain?.outbox?.pending ?? 0;
 
   return (
-    <div className="grid grid-cols-4 gap-3 mb-8">
-      {stats.map(({ label, value, color, bg }) => (
-        <motion.div
-          key={label}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className={`rounded-xl border ${bg} px-4 py-3 text-center`}
-        >
-          <p className={`text-xl font-bold font-display ${color}`}>{value}</p>
-          <p className="text-xs text-text-muted mt-0.5">{label}</p>
-        </motion.div>
-      ))}
+    <div className="proof-field flex flex-col h-full">
+      <div className="px-5 pt-5 pb-6">
+        <Micro>Proof of work</Micro>
+        <p className="font-display font-bold tracking-tightest text-3xl leading-[1.05] mt-3">
+          Every task
+          <br />
+          settles on chain.
+        </p>
+      </div>
+
+      <div className="flex-1 flex items-center justify-center py-6 min-h-[120px]">
+        <ProofBlock className="w-28 h-28 text-on-violet" />
+      </div>
+
+      <div className="grid grid-cols-2 border-t border-line/25">
+        <div className="px-5 py-4 border-r border-line/25">
+          <Micro>Proofs shown</Micro>
+          <p className="font-display font-bold tabular text-3xl mt-1.5 leading-none">{minted}</p>
+        </div>
+        <div className="px-5 py-4">
+          <Micro>Queued</Micro>
+          <p className="font-display font-bold tabular text-3xl mt-1.5 leading-none">{pending}</p>
+        </div>
+      </div>
+
+      <div className="border-t border-line/25">
+        <div className="px-5 py-2.5">
+          <Micro>Latest receipts</Micro>
+        </div>
+        {proofs && proofs.length > 0 ? (
+          <ul className="pb-2">
+            {proofs.slice(0, RECEIPTS).map((p) => (
+              <li key={p.task_id} className="flex items-center justify-between px-5 py-1.5 text-xs">
+                <Hash value={p.tx_hash} />
+                <span className="font-mono text-micro uppercase opacity-70">{p.agent_role}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="px-5 pb-5 text-xs opacity-70">
+            No proofs yet. Completing a task mints the first one.
+          </p>
+        )}
+      </div>
     </div>
   );
 }
 
-function EmptyState() {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="flex flex-col items-center justify-center py-24 text-center"
-    >
-      <div className="relative mb-6">
-        <div className="absolute inset-0 rounded-full bg-accent/20 blur-2xl scale-150" />
-        <div className="relative w-16 h-16 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center">
-          <Bot className="w-8 h-8 text-accent" />
-        </div>
-      </div>
-      <h3 className="text-lg font-semibold text-white mb-2">No goals yet</h3>
-      <p className="text-sm text-text-muted max-w-xs leading-relaxed">
-        Describe any goal above. Claude will decompose it into tasks and agents will execute it automatically.
-      </p>
-      <div className="mt-6 flex items-center gap-2 text-xs text-text-muted">
-        <Sparkles className="w-3.5 h-3.5 text-accent" />
-        <span>Try: "Fix the bug in MaskedBug601/Nothing issue #1 and open a pull request"</span>
-      </div>
-    </motion.div>
-  );
-}
+/** Who is available to take work, and how well each has performed so far. */
+function Roster() {
+  const { data } = useSWR("/api/economy/leaderboard", () => api.getLeaderboard(), {
+    refreshInterval: 10000,
+  });
 
-function SkeletonCard() {
   return (
-    <div className="h-14 rounded-xl bg-surface border border-border animate-pulse" />
+    <Panel
+      title="Agent roster"
+      right={
+        <Link to="/app/economy" className="micro hover:text-text transition-colors">
+          Economy →
+        </Link>
+      }
+    >
+      {data && data.length > 0 ? (
+        <ul>
+          {data.map((a) => (
+            <li
+              key={a.role}
+              className="flex items-center justify-between px-4 py-2.5 border-b border-line-soft last:border-0"
+            >
+              <span className="font-mono text-micro uppercase">{a.role}</span>
+              <span className="font-mono text-micro uppercase text-dim tabular">
+                {Math.round(a.composite)} rep
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="px-4 py-5 text-xs text-dim">
+          Agents register a passport the first time they finish a task.
+        </p>
+      )}
+    </Panel>
   );
 }
 
 export function Dashboard() {
   const nav = useNavigate();
-  const { data, isLoading } = useSWR("/api/goals", fetcher, { refreshInterval: 3000 });
+  const { data, isLoading } = useSWR("/api/goals", () => api.listGoals(), {
+    refreshInterval: 3000,
+  });
   const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<Filter>("All");
+  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<Filter>("all");
 
-  const handleSubmit = async (goal: string) => {
+  const submit = async (goal: string) => {
     setSubmitting(true);
-    setSubmitError(null);
+    setError(null);
     try {
       const res = await api.submitGoal(goal);
       await mutate("/api/goals");
       nav(`/app/goals/${res.goal_id}`);
     } catch (e) {
-      setSubmitError(e instanceof Error ? e.message : "Failed to submit goal");
+      setError(e instanceof Error ? e.message : "The goal could not be submitted. Try again.");
     } finally {
       setSubmitting(false);
     }
   };
 
-  const allGoals = data?.goals ?? [];
-  const filtered = filter === "All"
-    ? allGoals
-    : allGoals.filter((g) =>
-        filter === "RUNNING"
-          ? ["NEW", "PLANNING", "RUNNING"].includes(g.status)
-          : g.status === filter
-      );
+  const goals: GoalSummary[] = data?.goals ?? [];
+  const running = goals.filter((g) => ACTIVE.includes(g.status)).length;
+  const done = goals.filter((g) => g.status === "COMPLETED").length;
+  const failed = goals.filter((g) => g.status === "FAILED").length;
+
+  const shown = goals.filter((g) => {
+    if (filter === "all") return true;
+    if (filter === "running") return ACTIVE.includes(g.status);
+    if (filter === "done") return g.status === "COMPLETED";
+    return g.status === "FAILED";
+  });
 
   return (
-    <div className="relative min-h-screen" style={{ background: "#000" }}>
-      <AppBackground />
-
-      <div className="relative z-10 flex flex-col min-h-screen">
-      <AppNav />
-
-      {/* Main content */}
-      <main className="flex-1 max-w-4xl mx-auto w-full px-6 py-10">
-
-        {/* Hero section */}
-        <motion.div
-          initial={{ opacity: 0, y: -12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-          className="text-center mb-10"
-        >
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-accent/20 bg-accent/5 mb-5">
-            <Zap className="w-3.5 h-3.5 text-accent" />
-            <span className="text-xs font-medium text-accent">Multi-Agent Execution</span>
-          </div>
-          <h1 className="font-display font-bold text-white mb-3" style={{ fontSize: "clamp(1.8rem, 4vw, 2.8rem)" }}>
-            What do you want to{" "}
-            <span className="text-gradient">accomplish?</span>
+    <Shell wide>
+      {/* Delegate console — the page's single job, stated at full size. */}
+      <div className="grid lg:grid-cols-[1fr_360px] gap-px mb-px">
+        <div className="panel px-6 py-8 lg:px-10 lg:py-12">
+          <Micro>Step 01 — Delegate</Micro>
+          <h1 className="font-display font-bold tracking-tightest leading-[0.92] mt-4 mb-4 text-[clamp(2.25rem,5vw,3.75rem)]">
+            What should the
+            <br />
+            swarm do?
           </h1>
-          <p className="text-text-dim text-sm max-w-md mx-auto leading-relaxed">
-            Describe any goal in natural language. Claude orchestrates specialized agents to plan and execute it end-to-end.
+          <p className="text-sm text-dim max-w-md leading-relaxed mb-8">
+            One sentence is enough. Mergit decomposes it into a task graph, assigns specialised
+            agents, and mints a proof for every completed step.
           </p>
-        </motion.div>
 
-        {/* Input */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-          className="mb-3"
-        >
-          <GoalInput onSubmit={handleSubmit} loading={submitting} />
-        </motion.div>
+          <GoalInput onSubmit={submit} loading={submitting} />
 
-        {/* Submit error */}
-        <AnimatePresence>
-          {submitError && (
-            <motion.div
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="mb-6 rounded-xl border border-danger/30 bg-danger/5 px-4 py-3 flex items-center gap-2"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-danger shrink-0" />
-              <p className="text-sm text-red-400">{submitError}</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Stats */}
-        {!isLoading && allGoals.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.2 }}
-          >
-            <StatsStrip goals={allGoals} />
-          </motion.div>
-        )}
-
-        {/* Goals list */}
-        <div>
-          {/* Header + filter */}
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Clock className="w-3.5 h-3.5 text-text-muted" />
-              <h2 className="text-xs font-semibold text-text-muted uppercase tracking-widest">Recent Goals</h2>
+          {error && (
+            <div className="mt-4">
+              <Notice onDismiss={() => setError(null)}>{error}</Notice>
             </div>
-            <div className="flex items-center gap-1 rounded-lg border border-white/8 bg-black/30 backdrop-blur-sm p-0.5">
-              {STATUS_FILTERS.map((f) => (
-                <button
-                  key={f}
-                  onClick={() => setFilter(f)}
-                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all duration-150 ${
-                    filter === f
-                      ? "bg-accent text-white"
-                      : "text-text-muted hover:text-white"
-                  }`}
-                >
-                  {f === "All" ? "All" : f.charAt(0) + f.slice(1).toLowerCase()}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Loading skeleton */}
-          {isLoading && (
-            <div className="space-y-2">
-              {[...Array(4)].map((_, i) => <SkeletonCard key={i} />)}
-            </div>
-          )}
-
-          {/* Empty state */}
-          {!isLoading && filtered.length === 0 && allGoals.length === 0 && <EmptyState />}
-          {!isLoading && filtered.length === 0 && allGoals.length > 0 && (
-            <p className="text-center text-sm text-text-muted py-12">No goals match this filter.</p>
-          )}
-
-          {/* Goal cards */}
-          <AnimatePresence mode="popLayout">
-            <div className="space-y-2">
-              {filtered.map((g, i) => (
-                <GoalCard key={g.goal_id} goal={g} index={i} />
-              ))}
-            </div>
-          </AnimatePresence>
-
-          {/* Load more hint */}
-          {!isLoading && filtered.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.4 }}
-              className="mt-4 flex items-center justify-center gap-1.5 text-xs text-text-muted"
-            >
-              <span>Showing {filtered.length} goal{filtered.length !== 1 ? "s" : ""}</span>
-              {data && data.total > allGoals.length && (
-                <>
-                  <ChevronRight className="w-3 h-3" />
-                  <span>{data.total - allGoals.length} more not loaded</span>
-                </>
-              )}
-            </motion.div>
           )}
         </div>
-      </main>
+
+        <ProofField />
       </div>
-    </div>
+
+      <MetricRow>
+        <Metric label="Active" value={running} />
+        <Metric label="Completed" value={done} />
+        <Metric label="Failed" value={failed} />
+        <Metric label="Total goals" value={goals.length} accent />
+      </MetricRow>
+
+      <div className="grid lg:grid-cols-[1fr_320px] gap-6 mt-6 items-start">
+        <Panel
+          title="Recent goals"
+          right={<Tabs value={filter} onChange={setFilter} options={FILTERS} />}
+        >
+          {isLoading && <Loading label="Loading goals" />}
+
+          {!isLoading && goals.length === 0 && (
+            <Empty title="No goals yet">
+              Describe an outcome above. The orchestrator plans the steps, so you never write them
+              out yourself.
+            </Empty>
+          )}
+
+          {!isLoading && goals.length > 0 && shown.length === 0 && (
+            <Empty title={`Nothing ${filter}`}>Switch the filter to see the other goals.</Empty>
+          )}
+
+          {shown.length > 0 && (
+            <table className="dtable">
+              <thead>
+                <tr>
+                  <th>Goal</th>
+                  <th>Submitted</th>
+                  <th>ID</th>
+                  <th className="text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map((g) => (
+                  <GoalRow key={g.goal_id} goal={g} />
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {/* Without this the list reads as the whole history when it is a page of it. */}
+          {!isLoading && data && data.total > goals.length && (
+            <div className="border-t border-line px-4 py-2.5">
+              <Micro>
+                Showing {goals.length} of {data.total} goals
+              </Micro>
+            </div>
+          )}
+        </Panel>
+
+        <Roster />
+      </div>
+    </Shell>
   );
 }

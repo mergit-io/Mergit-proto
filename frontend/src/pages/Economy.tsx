@@ -1,21 +1,19 @@
 import { useEffect, useState } from "react";
 import useSWR, { mutate } from "swr";
-import { motion } from "framer-motion";
-import { Trophy, Wallet, ScrollText } from "lucide-react";
-import { AppNav } from "../components/AppNav";
-import { AppBackground } from "../components/AppBackground";
+import { Shell } from "../components/AppNav";
 import { api } from "../lib/api";
 import { useEconomySSE } from "../lib/sse";
 import { Leaderboard } from "../components/economy/Leaderboard";
 import { PassportCard } from "../components/economy/PassportCard";
 import { ProofLedger } from "../components/economy/ProofLedger";
+import { Empty, Micro, PageHead, Panel, ProofBlock, Tabs } from "../components/ui";
 
 type Tab = "leaderboard" | "passports" | "ledger";
 
-const TABS: { id: Tab; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
-  { id: "leaderboard", label: "Leaderboard", Icon: Trophy },
-  { id: "passports", label: "Passports", Icon: Wallet },
-  { id: "ledger", label: "Proof Ledger", Icon: ScrollText },
+const TABS: { id: Tab; label: string }[] = [
+  { id: "leaderboard", label: "Leaderboard" },
+  { id: "passports", label: "Passports" },
+  { id: "ledger", label: "Proof ledger" },
 ];
 
 const ECONOMY_KEYS = [
@@ -45,78 +43,68 @@ export function Economy() {
   const topBlock = proofs && proofs.length > 0 ? proofs[0].block_number : 0;
 
   return (
-    <div className="relative min-h-screen" style={{ background: "#000" }}>
-      <AppBackground />
+    <Shell>
+      <PageHead marker="ECONOMY — AGENT LEDGER" title="The agent economy">
+        Every completed task mints a proof of work and bumps its agent's on-chain reputation, live.
+      </PageHead>
 
-      <div className="relative z-10 flex flex-col min-h-screen">
-        <AppNav />
-
-        <main className="flex-1 max-w-4xl mx-auto w-full px-6 py-10">
-          {/* Page header */}
-          <motion.div
-            initial={{ opacity: 0, y: -12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-            className="mb-8"
-          >
-            <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-accent/25 bg-accent/8">
-                <span className="w-1.5 h-1.5 rounded-full bg-proof-green animate-pulse-ring" />
-                <span className="text-xs font-medium text-accent-2">
-                  {chain?.network ?? "Monad Testnet"} · chainId {chain?.chainId ?? 10143}
-                </span>
-              </div>
-              {topBlock > 0 && (
-                <span className="text-xs font-mono text-text-muted">
-                  block #{topBlock.toLocaleString()} · {proofs?.length ?? 0} recent proofs
-                </span>
-              )}
-            </div>
-            <h1 className="font-display font-bold text-white mb-3" style={{ fontSize: "clamp(1.8rem, 4vw, 2.6rem)" }}>
-              The Agent <span className="text-gradient-blue">Economy</span>
-            </h1>
-            <p className="text-text-dim text-sm max-w-xl leading-relaxed">
-              Every completed task mints a proof-of-work and bumps its agent's on-chain reputation, live.
+      {/* The signature: on-chain proof, stated once, inverted into a solid violet field. */}
+      <div className="proof-field flex flex-col sm:flex-row sm:items-stretch mb-8">
+        <div className="flex items-center gap-6 px-6 py-6 flex-1">
+          <ProofBlock className="w-16 h-16 shrink-0 text-on-violet" />
+          <div>
+            <Micro>{chain?.network ?? "Chain"}</Micro>
+            <p className="font-display font-bold tracking-tightest text-2xl mt-1.5 leading-none">
+              Chain ID {chain?.chainId ?? "—"}
             </p>
-          </motion.div>
+          </div>
+        </div>
+        <div className="flex border-t sm:border-t-0 sm:border-l border-line/20">
+          <div className="px-6 py-6">
+            <Micro>Proofs shown</Micro>
+            <p className="font-display font-bold tabular text-3xl mt-1.5 leading-none">
+              {proofs?.length ?? 0}
+            </p>
+          </div>
+          <div className="px-6 py-6 border-l border-line/20">
+            <Micro>Block height</Micro>
+            <p className="font-display font-bold tabular text-3xl mt-1.5 leading-none">
+              {topBlock > 0 ? `#${topBlock.toLocaleString()}` : "—"}
+            </p>
+          </div>
+        </div>
+      </div>
 
-          {/* Tabs */}
-          <div className="flex items-center gap-1 mb-6 border-b border-white/6">
-            {TABS.map(({ id, label, Icon }) => (
-              <button
-                key={id}
-                onClick={() => setTab(id)}
-                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
-                  tab === id
-                    ? "border-accent text-white"
-                    : "border-transparent text-text-muted hover:text-white"
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                {label}
-              </button>
+      <div className="mb-6 border-b border-line">
+        <Tabs value={tab} onChange={setTab} options={TABS} />
+      </div>
+
+      {tab === "leaderboard" && (
+        <Panel title="Agent leaderboard">
+          <Leaderboard entries={leaderboard ?? []} />
+        </Panel>
+      )}
+
+      {tab === "passports" &&
+        (passports && passports.length > 0 ? (
+          <div className="grid sm:grid-cols-2 gap-4">
+            {passports.map((p) => (
+              <PassportCard key={p.role} passport={p} />
             ))}
           </div>
+        ) : (
+          <Panel>
+            <Empty title="No passports minted yet">
+              Completing a task mints an agent's first passport.
+            </Empty>
+          </Panel>
+        ))}
 
-          {/* Tab content */}
-          {tab === "leaderboard" && <Leaderboard entries={leaderboard ?? []} />}
-
-          {tab === "passports" && (
-            <div className="grid sm:grid-cols-2 gap-4">
-              {(passports ?? []).map((p, i) => (
-                <PassportCard key={p.role} passport={p} index={i} />
-              ))}
-              {(passports ?? []).length === 0 && (
-                <div className="card px-6 py-10 text-center text-text-muted text-sm sm:col-span-2">
-                  No agent passports minted yet.
-                </div>
-              )}
-            </div>
-          )}
-
-          {tab === "ledger" && <ProofLedger proofs={proofs ?? []} chain={chainStatus} />}
-        </main>
-      </div>
-    </div>
+      {tab === "ledger" && (
+        <Panel title="Proof ledger">
+          <ProofLedger proofs={proofs ?? []} chain={chainStatus} />
+        </Panel>
+      )}
+    </Shell>
   );
 }

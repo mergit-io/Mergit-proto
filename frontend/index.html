@@ -5,6 +5,23 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Mergit — The AI Agent Economy</title>
+    <script>
+      // Stamp the theme before the first paint. React applies it in an effect, and the
+      // stylesheet serves the dark palette from bare :root, so a light-theme user was
+      // shown a full dark page on every load before the bundle caught up.
+      // Kept in sync with lib/theme.tsx — same key, same fallback.
+      (function () {
+        try {
+          var t = localStorage.getItem("mergit-theme");
+          if (t !== "dark" && t !== "light") {
+            t = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+          }
+          document.documentElement.setAttribute("data-theme", t);
+        } catch (e) {
+          document.documentElement.setAttribute("data-theme", "dark");
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
