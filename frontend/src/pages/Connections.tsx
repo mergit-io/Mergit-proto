@@ -160,13 +160,12 @@ export function Connections() {
         ))}
       </div>
 
+      {/* This linked to /app/audit, which is not a route and never was — the link rendered
+          a blank page, and the sentence promised somewhere to read the log that does not
+          exist. The recording is real (`GET /api/connections/audit`); the page is not, so
+          the copy now claims only the part that is true. */}
       <p className="mt-8 text-xs text-dim leading-relaxed">
-        Mergit records every use of these connections — which agent, which action, and on what —
-        on the{" "}
-        <a href="/app/audit" className="text-dim hover:text-text underline underline-offset-2 transition-colors">
-          activity page
-        </a>
-        .
+        Mergit records every use of these connections — which agent, which action, and on what.
       </p>
     </Shell>
   );
