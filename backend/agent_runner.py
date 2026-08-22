@@ -272,9 +272,18 @@ def _not_actually_code(result: dict) -> str | None:
 #: A claim to have PRODUCED something on GitHub: a pull request, or a posted comment.
 #: Deliberately not every GitHub URL — a researcher assembling a blob or repository link
 #: is doing its job, while "here is the PR I opened" is an assertion about the world.
+#:
+#: The identifier is a number OR an unfilled blank. It was `\d+` alone, and on 2026-08-22
+#: the integrator submitted `.../pull/<PR_NUMBER>` for issue #25 of the sandbox repo: it
+#: never called github_pr, wrote the tool's arguments into submit_result, and reported
+#: "action": "opened PR". No pull request existed. The guard read straight past it,
+#: because a template blank is not `\d+` — so the most brazen version of the very lie
+#: this pattern exists to catch was the one shape it could not see.
+_PLACEHOLDER_ID = r"<[^>\s]+>|\{\{?[^}\s]+\}?\}"
 _CLAIMED_URL = re.compile(
     r"https?://(?:www\.)?github\.com/[\w.-]+/[\w.-]+/"
-    r"(?:pull/\d+|issues/\d+#issuecomment-\d+)", re.I)
+    rf"(?:pull/(?:\d+|{_PLACEHOLDER_ID})"
+    rf"|issues/\d+#issuecomment-(?:\d+|{_PLACEHOLDER_ID}))", re.I)
 
 
 def _collect_urls(obj: Any) -> list[str]:

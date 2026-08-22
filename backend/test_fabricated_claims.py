@@ -84,6 +84,54 @@ def test_an_issue_comment_url_is_policed_too():
     assert _fabricated_urls(result, known=set()) == [comment]
 
 
+# ── The blank that was never filled in ─────────────────────────────────────────
+#
+# Live failure, goal e554d269, 2026-08-22, on the deployed preview. Asked to fix issue
+# #25 of the sandbox repo, the integrator never called github_pr. It wrote the tool's
+# ARGUMENTS into submit_result — title, body, head_branch, the file content — set
+# "action": "opened PR", and reported
+#
+#     url: "https://github.com/OfficialAbhinavSingh/mergit-e2e-sandbox/pull/<PR_NUMBER>"
+#
+# No pull request was created; the newest is #41. The goal reported COMPLETED and a
+# public comment went onto the issue reading "Fixed in PR #<PR_NUMBER>".
+#
+# Both guards that exist to stop exactly this read straight past it. `_CLAIMED_URL`
+# required `pull/\d+`, and a template blank is not a number. `_PLACEHOLDER` required
+# lowercase, and the model wrote SCREAMING_SNAKE. The most brazen form of the lie was
+# the one shape neither pattern could see.
+
+PLACEHOLDER_PR = "https://github.com/OfficialAbhinavSingh/mergit-e2e-sandbox/pull/<PR_NUMBER>"
+
+
+def test_the_exact_integrator_result_that_left_the_pr_number_unfilled_is_rejected():
+    result = {"action": "opened PR",
+              "result": {"title": "fix: issue #25", "head_branch": "fix-issue-25"},
+              "url": PLACEHOLDER_PR}
+    assert _fabricated_urls(result, known=set()) == [PLACEHOLDER_PR]
+
+
+def test_a_placeholder_pr_url_is_rejected_in_any_casing():
+    for blank in ("<PR_NUMBER>", "<pr_number>", "<Pr_Number>"):
+        url = f"https://github.com/o/r/pull/{blank}"
+        assert _fabricated_urls({"url": url}, known=set()) == [url], blank
+
+
+def test_an_interpolation_template_that_outlived_its_task_is_rejected():
+    url = "https://github.com/o/r/pull/{{t3.output.pr_number}}"
+    assert _fabricated_urls({"url": url}, known=set()) == [url]
+
+
+def test_a_placeholder_comment_url_is_rejected_too():
+    url = "https://github.com/o/r/issues/25#issuecomment-<comment_id>"
+    assert _fabricated_urls({"url": url}, known=set()) == [url]
+
+
+def test_a_real_pull_request_url_is_still_accepted():
+    """The widened pattern must not start rejecting the tool's own output."""
+    assert _fabricated_urls({"url": REAL}, known={REAL}) == []
+
+
 def test_urls_are_found_however_deeply_they_are_nested():
     result = {"action": "a", "result": {"steps": [{"pr": {"url": PHANTOM}}]}}
     assert _fabricated_urls(result, known=set()) == [PHANTOM]
