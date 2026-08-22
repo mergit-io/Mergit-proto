@@ -55,6 +55,9 @@ AVAILABLE_MODELS = [
 #: split is by what the role actually does: planning, code and outside-world writes get
 #: the full model, reading and prose get mini at a fifth of the price.
 DEFAULTS: dict[str, str] = {
+    # The interleaved executor. It runs the whole goal in one context and needs the
+    # strongest tool use of any role, so it never gets the mini tier.
+    "operator":     "openrouter/openai/gpt-4.1",
     "orchestrator": "openrouter/openai/gpt-4.1",       # plan quality decides everything after it
     "researcher":   "openrouter/openai/gpt-4.1-mini",  # many cheap tool calls
     "writer":       "openrouter/openai/gpt-4.1-mini",  # prose, no tools to speak of

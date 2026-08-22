@@ -35,6 +35,30 @@ def _apply_demo_safe_mode() -> None:
 
 
 AGENT_REGISTRY: dict[str, dict[str, Any]] = {
+    # The interleaved executor (executor.py), used when EXECUTOR_MODE=loop. It is an agent
+    # only so that a loop run is an ordinary task row and inherits leases, the reclaim
+    # sweep, retries, idempotency and proof minting from the same machinery as every other
+    # task. Its prompt, tools and stopping rule all live in executor.py; the fields here
+    # exist because agent_runner reads them for any task it is handed.
+    "operator": {
+        "name": "operator",
+        "model": "openrouter/openai/gpt-4.1",
+        "system_prompt": "See executor.SYSTEM_PROMPT — the loop builds its own context.",
+        # Every registered tool. The whole point is that the loop is not told in advance
+        # which ones this goal will need.
+        # Filled in at import from the live tool registry — see _grant_operator_every_tool.
+        # The loop is deliberately not told in advance which tools a goal needs, but the
+        # list still has to name tools that exist: a "*" wildcard here was caught by
+        # test_every_tool_an_agent_may_call_actually_exists.
+        "allowed_tools": [],
+        "output_schema": {
+            "type": "object",
+            "properties": {"summary": {"type": "string"}, "url": {"type": ["string", "null"]}},
+            "required": ["summary"],
+        },
+        # Unused: the loop bounds itself by turns and wall-clock, not by this.
+        "max_iterations": 1,
+    },
     "researcher": {
         "name": "researcher",
         "model": "groq/llama-3.3-70b-versatile",
@@ -238,3 +262,18 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
 # Applied at import, after AGENT_REGISTRY exists. Paired with the TOOL_REGISTRY.pop in
 # tools/__init__.py — see _apply_demo_safe_mode for why both are required.
 _apply_demo_safe_mode()
+
+
+def _grant_operator_every_tool() -> None:
+    """Give the interleaved executor whatever is actually registered.
+
+    Read from TOOL_REGISTRY rather than written by hand so the list cannot drift from
+    reality, and so demo_safe_mode is honoured for free: it unregisters `code_exec` before
+    this runs, so a deployment that must not execute agent-authored code does not offer
+    it to the loop either.
+    """
+    from tools import TOOL_REGISTRY
+    AGENT_REGISTRY["operator"]["allowed_tools"] = sorted(TOOL_REGISTRY)
+
+
+_grant_operator_every_tool()
