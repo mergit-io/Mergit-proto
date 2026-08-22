@@ -11,12 +11,36 @@ const LINKS = [
 
 export function Navbar() {
   const [stuck, setStuck] = useState(false);
+  const [active, setActive] = useState("");
 
   useEffect(() => {
     const onScroll = () => setStuck(window.scrollY > 8);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Which section is being read, so the header says where you are.
+  useEffect(() => {
+    const sections = LINKS.map((l) => document.querySelector(l.href)).filter(
+      (el): el is Element => Boolean(el)
+    );
+    if (!sections.length) return;
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        const seen = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+        if (seen?.target.id) setActive(`#${seen.target.id}`);
+      },
+      // Only the band just under the header counts as "current", so the active
+      // link changes once per section instead of flickering between two.
+      { rootMargin: "-20% 0px -70% 0px", threshold: 0 }
+    );
+
+    sections.forEach((s) => io.observe(s));
+    return () => io.disconnect();
   }, []);
 
   return (
@@ -33,9 +57,17 @@ export function Navbar() {
             <a
               key={l.href}
               href={l.href}
-              className="font-mono text-micro uppercase text-dim hover:text-text transition-colors"
+              aria-current={active === l.href ? "true" : undefined}
+              className={`relative font-mono text-micro uppercase font-medium transition-colors duration-200 py-1 ${
+                active === l.href ? "text-text" : "text-dim hover:text-text"
+              }`}
             >
               {l.label}
+              <span
+                className={`absolute left-0 -bottom-0.5 h-px bg-violet transition-all duration-300 ${
+                  active === l.href ? "w-full" : "w-0"
+                }`}
+              />
             </a>
           ))}
         </nav>

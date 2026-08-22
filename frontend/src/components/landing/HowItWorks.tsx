@@ -29,7 +29,7 @@ export function HowItWorks() {
   return (
     <section id="run" className="border-t border-line">
       <div className="max-w-[1400px] mx-auto px-5 py-20 lg:py-28">
-        <div className="max-w-2xl mb-14">
+        <div className="max-w-2xl mb-14" data-reveal>
           <Micro>The run</Micro>
           <h2 className="font-display font-bold tracking-tightest leading-[0.95] mt-4 text-[clamp(2rem,4.5vw,3.5rem)]">
             From one sentence
@@ -40,7 +40,12 @@ export function HowItWorks() {
 
         <ol className="grid md:grid-cols-2 xl:grid-cols-4 gap-px">
           {STAGES.map((s, i) => (
-            <li key={s.title} className="panel flex flex-col p-6 lg:p-7">
+            <li
+              key={s.title}
+              data-reveal
+              style={{ "--reveal-delay": `${i * 70}ms` } as React.CSSProperties}
+              className="panel flex flex-col p-6 lg:p-7 transition-colors duration-300 hover:bg-raise"
+            >
               <span className="font-display font-bold text-5xl leading-none tracking-tightest text-line">
                 {String(i + 1).padStart(2, "0")}
               </span>

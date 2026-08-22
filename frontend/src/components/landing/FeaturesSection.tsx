@@ -46,7 +46,7 @@ export function FeaturesSection() {
   return (
     <section id="agents" className="border-t border-line">
       <div className="max-w-[1400px] mx-auto px-5 py-20 lg:py-28">
-        <div className="max-w-2xl mb-14">
+        <div className="max-w-2xl mb-14" data-reveal>
           <Micro>The roster</Micro>
           <h2 className="font-display font-bold tracking-tightest leading-[0.95] mt-4 text-[clamp(2rem,4.5vw,3.5rem)]">
             Four specialists.
@@ -60,8 +60,13 @@ export function FeaturesSection() {
         </div>
 
         <div className="grid lg:grid-cols-2 gap-px">
-          {AGENTS.map((a) => (
-            <article key={a.role} className="panel p-6 lg:p-7">
+          {AGENTS.map((a, i) => (
+            <article
+              key={a.role}
+              data-reveal
+              style={{ "--reveal-delay": `${i * 70}ms` } as React.CSSProperties}
+              className="panel p-6 lg:p-7 transition-colors duration-300 hover:bg-raise"
+            >
               <div className="flex items-center gap-3">
                 <span className="w-8 h-8 border border-line flex items-center justify-center font-mono text-micro text-dim">
                   {a.mark}
@@ -88,7 +93,7 @@ export function FeaturesSection() {
           ))}
         </div>
 
-        <div className="panel mt-px">
+        <div className="panel mt-px" data-reveal>
           <div className="border-b border-line px-4 py-2.5">
             <Micro>What happens when it goes wrong</Micro>
           </div>

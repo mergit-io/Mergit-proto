@@ -14,7 +14,7 @@ const STEPS = [
 const GOAL = "Audit mergit-io/proto for security issues and open PRs with fixes";
 const RECEIPT = "0x9f2c4b17e8a0…41ab";
 
-function useReplay(count: number) {
+function useReplay(count: number, paused: boolean) {
   const [step, setStep] = useState(0);
 
   useEffect(() => {
@@ -22,26 +22,39 @@ function useReplay(count: number) {
       setStep(count + 1);
       return;
     }
+    if (paused) return;
     // `step` runs one past the last row so the settled receipt gets its own beat.
     const delay = step > count ? 3200 : (STEPS[step]?.ms ?? 1200);
     const t = setTimeout(() => setStep((s) => (s > count ? 0 : s + 1)), delay);
     return () => clearTimeout(t);
-  }, [step, count]);
+  }, [step, count, paused]);
 
-  return step;
+  return [step, setStep] as const;
 }
 
 function Replay() {
-  const step = useReplay(STEPS.length);
+  // Hovering holds the run still so a step can actually be read, and clicking a
+  // step jumps to it — the panel is the page's main claim, so it is worth being
+  // able to inspect rather than only watch.
+  const [paused, setPaused] = useState(false);
+  const [step, setStep] = useReplay(STEPS.length, paused);
   const settled = step > STEPS.length;
 
   return (
-    <div className="panel">
+    <div
+      className="panel"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+    >
       <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
         <Micro>Live run</Micro>
         <span className="flex items-center gap-2">
-          <span className={`w-1.5 h-1.5 ${settled ? "bg-mint" : "bg-violet animate-blip"}`} />
-          <Micro>{settled ? "Settled" : "Executing"}</Micro>
+          <span
+            className={`w-1.5 h-1.5 transition-colors duration-300 ${
+              paused ? "bg-amber" : settled ? "bg-mint" : "bg-violet animate-blip"
+            }`}
+          />
+          <Micro>{paused ? "Held" : settled ? "Settled" : "Executing"}</Micro>
         </span>
       </div>
 
@@ -55,12 +68,14 @@ function Replay() {
           const done = step > i;
           const active = step === i;
           return (
-            <li
-              key={s.agent}
-              className={`px-4 py-3 border-b border-line-soft transition-opacity duration-300 ${
-                done || active ? "opacity-100" : "opacity-25"
-              }`}
-            >
+            <li key={s.agent} className="border-b border-line-soft">
+              <button
+                onClick={() => setStep(i)}
+                aria-label={`Jump to step ${i + 1}: ${s.act}`}
+                className={`w-full text-left px-4 py-3 transition-[opacity,background-color] duration-300 hover:bg-raise ${
+                  done || active ? "opacity-100" : "opacity-30"
+                }`}
+              >
               <div className="flex items-center justify-between gap-3">
                 <span className="font-mono text-micro uppercase text-dim">
                   {String(i + 1).padStart(2, "0")} · {s.agent}
@@ -81,6 +96,7 @@ function Replay() {
                   {active && <span className="absolute inset-0 bar-indeterminate" />}
                 </span>
               </div>
+              </button>
             </li>
           );
         })}

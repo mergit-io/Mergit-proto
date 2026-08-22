@@ -22,7 +22,7 @@ export function ProofSection() {
       <div className="max-w-[1400px] mx-auto px-5 py-20 lg:py-28">
         <div className="grid lg:grid-cols-[1.1fr_0.9fr] gap-px">
           {/* The signature, at full strength: a solid violet field. */}
-          <div className="proof-field p-8 lg:p-12 flex flex-col">
+          <div className="proof-field p-8 lg:p-12 flex flex-col" data-reveal>
             <Micro>Proof of work</Micro>
             <h2 className="font-display font-bold tracking-tightest leading-[0.95] mt-5 text-[clamp(2rem,4vw,3.25rem)]">
               A finished task
@@ -54,7 +54,7 @@ export function ProofSection() {
             </div>
           </div>
 
-          <div className="panel">
+          <div className="panel" data-reveal style={{ "--reveal-delay": "90ms" } as React.CSSProperties}>
             <div className="border-b border-line px-6 py-3">
               <Micro>How a result becomes a proof</Micro>
             </div>

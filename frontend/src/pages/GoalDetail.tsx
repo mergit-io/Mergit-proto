@@ -82,11 +82,14 @@ function Rail({
   tasks,
   tools,
   live,
+  watched,
 }: {
   goalText: string;
   tasks: { id: string; agent_name: string; status: string }[];
   tools: string[];
   live: boolean;
+  /** True once this page has actually received stream events for the run. */
+  watched: boolean;
 }) {
   return (
     <aside className="w-full lg:w-72 shrink-0 border-b lg:border-b-0 lg:border-r border-line">
@@ -125,8 +128,8 @@ function Rail({
           // that fired before this page connected is not recoverable from the API.
           // Saying "nothing was called" would be a claim the page cannot support.
           <p className="px-4 py-3 text-xs text-dim leading-relaxed">
-            {live
-              ? "Calls appear here as agents make them. Anything before this page opened is not shown."
+            {live || watched
+              ? "Calls appear here as agents make them. Anything from before this page opened is not shown."
               : "This run finished before the page opened, so its calls were not captured."}
           </p>
         ) : (
@@ -230,7 +233,13 @@ export function GoalDetail() {
       </div>
 
       <div className="flex-1 flex flex-col lg:flex-row min-h-0">
-        <Rail goalText={data.goal_text} tasks={tasks} tools={tools} live={isActive} />
+        <Rail
+          goalText={data.goal_text}
+          tasks={tasks}
+          tools={tools}
+          live={isActive}
+          watched={sseEvents.length > 0}
+        />
 
         <div className="flex-1 min-w-0 flex flex-col">
           {tasks.length > 0 && (
