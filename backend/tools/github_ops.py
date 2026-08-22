@@ -30,11 +30,16 @@ def _require_token() -> str | None:
 #: A value that was never filled in. `{{t3.output.pr_number}}` is an interpolation
 #: template that outlived its task; `#<pr_number>` is the model writing its own blank.
 #:
-#: The angle-bracket form requires lowercase snake_case with an underscore, which is what
-#: a blank looks like and what ordinary comment text does not: `Vec<String>` is CamelCase,
-#: `<div>` and `<br>` have no underscore, and <https://example.com> is not an identifier.
-#: `<number>` slips through as the price of that — a wrong refusal costs a real comment.
-_PLACEHOLDER = re.compile(r"\{\{[^}]*\}\}|<[a-z][a-z0-9]*_[a-z0-9_]*>")
+#: The angle-bracket form requires snake_case with an underscore, which is what a blank
+#: looks like and what ordinary comment text does not: `Vec<String>` and `<div>` have no
+#: underscore, and <https://example.com> is not an identifier. `<number>` slips through as
+#: the price of that — a wrong refusal costs a real comment.
+#:
+#: Matching is case-insensitive. It was lowercase-only, and on 2026-08-22 an integrator
+#: posted `Fixed in PR #<PR_NUMBER>` on issue #25 of the sandbox repo: the same blank this
+#: guard exists to stop, written in the casing it did not cover. A placeholder is a
+#: placeholder whichever way the model shifts it.
+_PLACEHOLDER = re.compile(r"\{\{[^}]*\}\}|<[a-z][a-z0-9]*_[a-z0-9_]*>", re.I)
 
 
 def _unfilled_placeholders(body: str) -> list[str]:
