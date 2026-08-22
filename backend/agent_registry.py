@@ -76,7 +76,9 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
             },
             "required": ["summary", "key_points", "sources"],
         },
-        "max_iterations": 15,
+        # A repo walk is list_dir per directory before a single file is read; 15 ran out
+        # mid-survey on anything larger than a toy project.
+        "max_iterations": 24,
     },
     "writer": {
         "name": "writer",
@@ -104,7 +106,9 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
             },
             "required": ["text", "title"],
         },
-        "max_iterations": 4,
+        # Four leaves no room to re-read an input, and a writer that is handed a
+        # {{t1.output}} blob often needs a second look at it.
+        "max_iterations": 8,
     },
     "coder": {
         "name": "coder",
@@ -145,7 +149,9 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
             },
             "required": ["code", "path", "output", "success"],
         },
-        "max_iterations": 10,
+        # A fix is read -> write -> run -> re-run after the first failure. Ten covered
+        # that only when nothing went wrong the first time.
+        "max_iterations": 16,
     },
     "integrator": {
         "name": "integrator",
@@ -222,7 +228,9 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
         },
         # A merge is three calls (get_pr → merge_pr → post_comment) before submit_result,
         # and 5 iterations left no room for a single retry.
-        "max_iterations": 8,
+        # Live: list_dir, list_prs (errored), get_issue, create_issue burned half of
+        # eight before the agent had even started composing its result.
+        "max_iterations": 14,
     },
 }
 

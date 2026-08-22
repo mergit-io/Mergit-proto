@@ -280,10 +280,18 @@ def _not_actually_code(result: dict) -> str | None:
 #: because a template blank is not `\d+` — so the most brazen version of the very lie
 #: this pattern exists to catch was the one shape it could not see.
 _PLACEHOLDER_ID = r"<[^>\s]+>|\{\{?[^}\s]+\}?\}"
+#: An artifact address: something a tool produced and handed back. Ordered longest-first,
+#: because the engine takes the first alternative that matches and a bare `issues/N` would
+#: otherwise swallow the head of a comment URL and report the wrong artifact.
+#:
+#: A bare issue URL was missing. `github_create_issue` returns one, so its absence meant
+#: two things at once: a created issue was not recognised as evidence of work, and an
+#: issue URL an agent simply made up was never checked against the ones tools returned.
 _CLAIMED_URL = re.compile(
     r"https?://(?:www\.)?github\.com/[\w.-]+/[\w.-]+/"
     rf"(?:pull/(?:\d+|{_PLACEHOLDER_ID})"
-    rf"|issues/\d+#issuecomment-(?:\d+|{_PLACEHOLDER_ID}))", re.I)
+    rf"|issues/\d+#issuecomment-(?:\d+|{_PLACEHOLDER_ID})"
+    rf"|issues/(?:\d+|{_PLACEHOLDER_ID}))", re.I)
 
 
 def _collect_urls(obj: Any) -> list[str]:
@@ -408,6 +416,58 @@ def _carries_tool_failure(obj: Any, _depth: int = 0) -> str | None:
     return None
 
 
+def _wrap_bare_payload(result: Any, schema_required: list[str]) -> dict | None:
+    """The envelope a payload should have had, or None to leave it alone.
+
+    Goal 5981fe39: the integrator called `github_create_issue`, the tool returned SUCCESS,
+    GitHub issue #36 was created — and then it submitted
+
+        {"issue_number": 36, "status": "created", "url": ".../issues/36", ", ": ...}
+
+    against a schema requiring ["action", "result"]. Neither key was there, so the task
+    failed with `output: None`. The issue number and the URL were thrown away, the coder
+    downstream never learned what to fix, and the goal reported FAILED — while the work
+    sat finished on GitHub. The model had assembled the object badly (note the literal
+    ", " key); it had not failed to do the job.
+
+    The rescue is deliberately narrow, because the guards below exist to stop agents
+    claiming work they never did and this must not become the hole in them:
+
+    - Only when a required key is actually missing. A valid envelope is untouched.
+    - Only when the payload carries a URL. That is the artifact an agent cannot produce
+      without having done something — every tool that makes one returns it. No URL, no
+      evidence, and the envelope is all there is to judge by, so it still fails.
+    - `action` is synthesised as a neutral word, never a produce-verb, so wrapping can
+      neither trip `_claimed_without_artifact` nor blind it.
+    - The wrapped object goes through every guard afterwards, unchanged. A payload that
+      lies still fails; it just fails for lying rather than for punctuation.
+    """
+    if not isinstance(result, dict) or not schema_required:
+        return None
+    if not [k for k in schema_required if k not in result]:
+        return None
+    urls = _collect_urls(result)
+    if not urls:
+        return None
+
+    action = result.get("action")
+    url = result.get("url")
+    # A copy, not the object itself. The caller updates `result` in place, so nesting the
+    # live dict under its own "result" key made it self-referential and every guard that
+    # walks the structure recursed until the stack gave out.
+    payload = dict(result)
+    wrapped: dict[str, Any] = {
+        "result": payload,
+        "action": action if isinstance(action, str) and action.strip() else "submitted",
+        "url": url if isinstance(url, str) and url.strip() else urls[0],
+    }
+    # Anything else the schema demands cannot be invented from the payload, and guessing
+    # is how a rescue turns into a fabrication.
+    if [k for k in schema_required if k not in wrapped]:
+        return None
+    return wrapped
+
+
 def _submission_problem(result: Any, schema_required: list[str],
                         task_text: str = "",
                         known_urls: set[str] | None = None) -> str | None:
@@ -426,6 +486,16 @@ def _submission_problem(result: Any, schema_required: list[str],
     """
     if not schema_required:
         return None
+    # Recover a usable envelope before judging one. Mutated in place because all four
+    # submission routes hand their own `result` straight to the caller that stores it,
+    # so returning a new object here would be discarded by three of them.
+    if isinstance(result, dict):
+        wrapped = _wrap_bare_payload(result, schema_required)
+        if wrapped is not None:
+            logger.info("submission wrapped into %s — payload carried %s",
+                        schema_required, wrapped["url"])
+            result.clear()
+            result.update(wrapped)
     if not isinstance(result, dict):
         return (
             f"submit_result rejected — the result must be a JSON object with the "

@@ -36,9 +36,38 @@ AVAILABLE_MODELS = [
     # against this list, so an id missing from it is rejected even when litellm supports it.
     {"id": "openrouter/meta-llama/llama-3.3-70b-instruct",       "label": "Llama 3.3 70B (OpenRouter)",    "provider": "OpenRouter", "tier": "fast"},
     {"id": "openrouter/anthropic/claude-haiku-4.5",              "label": "Claude Haiku 4.5 (OpenRouter)", "provider": "OpenRouter", "tier": "fast"},
+    # GPT-class, and the default tier. Every id here was checked against OpenRouter's live
+    # /api/v1/models: all three report tool support and a ~1M context, and gpt-4.1 is both
+    # cheaper and larger-context than gpt-4o ($2/M vs $2.50/M in), so 4o is not listed.
+    {"id": "openrouter/openai/gpt-4.1",                          "label": "GPT-4.1 (OpenRouter)",          "provider": "OpenRouter", "tier": "powerful"},
+    {"id": "openrouter/openai/gpt-4.1-mini",                     "label": "GPT-4.1 Mini (OpenRouter)",     "provider": "OpenRouter", "tier": "fast"},
+    {"id": "openrouter/openai/gpt-4.1-nano",                     "label": "GPT-4.1 Nano (OpenRouter)",     "provider": "OpenRouter", "tier": "instant"},
 ]
 
+#: Llama 3.3 70B ran every role, and it is weak at the two things this system asks for
+#: most: long multi-step tool loops, and emitting a tool call that matches a schema
+#: exactly. Both failure modes were live — plans that ignored the goal's real shape, and
+#: an integrator that created a GitHub issue and then submitted it under keys the schema
+#: did not declare, failing the task and blocking everything downstream.
+#:
+#: GPT-4.1 is the default tier now, with Groq behind it in the fallback chain (see
+#: llm.py), so a deployment with no OpenRouter key still runs exactly as before. The
+#: split is by what the role actually does: planning, code and outside-world writes get
+#: the full model, reading and prose get mini at a fifth of the price.
 DEFAULTS: dict[str, str] = {
+    "orchestrator": "openrouter/openai/gpt-4.1",       # plan quality decides everything after it
+    "researcher":   "openrouter/openai/gpt-4.1-mini",  # many cheap tool calls
+    "writer":       "openrouter/openai/gpt-4.1-mini",  # prose, no tools to speak of
+    "coder":        "openrouter/openai/gpt-4.1",       # correctness matters more than price
+    "integrator":   "openrouter/openai/gpt-4.1",       # strict tool use; this is where it broke
+}
+
+#: What DEFAULTS used to be. `PUT /api/config/models` writes every role on every save,
+#: so a file holding exactly this is a snapshot of the old defaults, not a choice anybody
+#: made — the Models page was opened and saved without changing a thing. Treating it as a
+#: preference would pin those deployments to Llama for good and make the new defaults
+#: above a no-op wherever the page had ever been touched.
+_SUPERSEDED_DEFAULTS: dict[str, str] = {
     "orchestrator": "groq/llama-3.3-70b-versatile",
     "researcher":   "groq/llama-3.3-70b-versatile",
     "writer":       "groq/llama-3.3-70b-versatile",
@@ -56,6 +85,11 @@ def _load() -> dict[str, str]:
     if _CONFIG_FILE.exists():
         try:
             saved = json.loads(_CONFIG_FILE.read_text())
+            if saved == _SUPERSEDED_DEFAULTS:
+                logger.info("model_config.json matches the superseded defaults verbatim — "
+                            "treating it as unconfigured and using the current defaults")
+                _cache = dict(DEFAULTS)
+                return _cache
             # Merge with defaults so new roles always have a value
             _cache = {**DEFAULTS, **saved}
             return _cache
