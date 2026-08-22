@@ -210,7 +210,7 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
             "action (str — what was done), result (any — the outcome), url (str — the PR URL, or null). "
             "Call submit_result only after the PR is actually created (result.ok == true)."
         ),
-        "allowed_tools": ["github_pr", "github_post_comment", "github_read_file", "github_list_dir",
+        "allowed_tools": ["github_pr", "github_fork", "github_post_comment", "github_read_file", "github_list_dir",
                           "github_create_repo",
                           "github_list_workflows", "github_get_branch_protection", "github_set_branch_protection",
                           "github_get_pr", "github_get_pr_files", "github_list_prs", "github_merge_pr",
