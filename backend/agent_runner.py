@@ -630,6 +630,13 @@ async def run(
     Raises RuntimeError on failure (caller handles retry logic).
     Raises WaitingWebhookSignal when the agent calls wait_webhook.
     """
+    # The interleaved executor is an agent so that a loop run is an ordinary task row and
+    # inherits leases, retries, idempotency and proof minting unchanged. Imported here
+    # rather than at module scope because executor.py imports from this module.
+    if task.agent_name == "operator":
+        import executor
+        return await executor.run_loop(task, resolved_inputs, emit=emit)
+
     config = get_agent_config(task.agent_name)
 
     tools = _build_tool_defs(config["allowed_tools"])

@@ -119,6 +119,14 @@ class Settings(BaseSettings):
     # Worker
     max_concurrent_tasks: int = 5
     lease_seconds: int = 300
+
+    #: "dag" plans the whole run up front and executes a fixed graph. "loop" runs one
+    #: interleaved context that decides each step from the last result (see executor.py).
+    #: The default stays "dag" until the loop has earned it on real goals.
+    executor_mode: str = "dag"
+    executor_model: str = "openrouter/openai/gpt-4.1"
+    loop_max_turns: int = 60
+    loop_deadline_seconds: int = 900
     poll_interval_seconds: float = 1.0
 
     # Dev
