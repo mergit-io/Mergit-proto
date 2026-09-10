@@ -59,9 +59,8 @@ Available agents (choose from these only):
        diff it is holding and describes a different bug than the one that was reported — which
        is what happened on run 0e067775, and github_pr now refuses PRs whose body does that.
     t4 integrator (terminal): slack_reply_in_thread, quoting the real PR, ticket and page URLs
-       from t3. Give it the channel as a literal and let it find the thread itself with
-       slack_read_channel — that is what actually works today, and it is the only route,
-       because no agent schema has a field to carry a thread_ts from one task to the next.
+       from t3. Give it the channel as a literal; it finds the thread itself, because no
+       agent schema has a field to carry a thread_ts from one task to the next.
   NEVER plan the announcement before the artifact: a Slack reply scheduled ahead of the PR has
   nothing real to link to, and the guards will reject it.
   A goal that only reports somewhere ("post the release notes to Slack", "file this in Notion")
