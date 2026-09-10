@@ -67,17 +67,27 @@ def _rich(text: str) -> list[dict]:
             for i in range(0, min(len(text), _TEXT_LIMIT * 25), _TEXT_LIMIT)]
 
 
+#: Notion accepts at most 100 children per request. Stopping short of it leaves room for
+#: the marker appended when content had to be dropped.
+_BLOCK_LIMIT = 95
+
+
 def markdown_to_blocks(md: str) -> list[dict]:
     """A pragmatic Markdown → Notion block conversion.
 
     Deliberately small: headings, bullets, numbered items, fenced code, dividers and
     paragraphs. That is the whole vocabulary of an incident note. Anything richer would be
     a Markdown parser, and a Markdown parser is not what makes this demo work.
+
+    Content past Notion's per-request block cap is dropped — and **says so on the page**.
+    A note that quietly loses its last three paragraphs is worse than one that admits it,
+    because the reader has no way to tell the difference between "not written" and
+    "nothing more to say".
     """
     blocks: list[dict] = []
     lines = (md or "").split("\n")
     i = 0
-    while i < len(lines) and len(blocks) < 95:  # Notion caps children per request at 100
+    while i < len(lines) and len(blocks) < _BLOCK_LIMIT:
         line = lines[i]
         stripped = line.strip()
 
@@ -119,6 +129,13 @@ def markdown_to_blocks(md: str) -> list[dict]:
             blocks.append({"object": "block", "type": "paragraph",
                            "paragraph": {"rich_text": _rich(stripped)}})
         i += 1
+
+    remaining = len([ln for ln in lines[i:] if ln.strip()])
+    if remaining:
+        blocks.append({"object": "block", "type": "paragraph", "paragraph": {
+            "rich_text": _rich(
+                f"[{remaining} more lines were not written: Notion accepts "
+                f"{_BLOCK_LIMIT + 5} blocks per request.]")}})
     return blocks
 
 

@@ -63,7 +63,13 @@ def _missing(provider: str, credential: str, message: str) -> dict[str, Any]:
         "credential": credential,
         "provider": provider,
         "message": message,
-        "connect_url": f"/app/connections?connect={provider}",
+        # Only offered when there is something to click. `/app/connections` renders a card
+        # per provider the deployment can actually start a flow for, so linking a user to
+        # `?connect=linear` on a box with no Linear OAuth app sends them to a page with no
+        # Linear on it. A link that goes nowhere is worse than no link: it says the fix is
+        # self-service when the fix is an operator setting an environment variable.
+        "connect_url": (f"/app/connections?connect={provider}"
+                        if oauth_configured(provider) else ""),
     }
 
 

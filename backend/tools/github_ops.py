@@ -6,7 +6,6 @@ These tools let agents read repo contents, post comments, and get issue details.
 """
 import asyncio
 import logging
-import re
 
 from github import GithubException
 

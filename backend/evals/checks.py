@@ -239,10 +239,6 @@ async def slack_message_posted(channel: str, *, since: int, must_contain: list[s
     return Check("slack_message_posted", True, "posted")
 
 
-def _created_after(pr: dict, since: int) -> bool:
-    return _iso_after(pr.get("created_at") or pr.get("createdAt"), since)
-
-
 def _iso_after(stamp: Any, since: int) -> bool:
     """True when an ISO-8601 timestamp is later than a unix `since`.
 

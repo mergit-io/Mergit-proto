@@ -124,7 +124,10 @@ def test_missing_credential_parks_rather_than_fails(monkeypatch):
     assert parked["__WAITING_CREDENTIAL__"] is True
     assert parked["credential"] == "LINEAR_API_KEY"
     assert parked["provider"] == "linear"
-    assert "connect=linear" in parked["connect_url"]
+    # No connect link, because there is no flow to start: `/app/connections` renders a card
+    # only for providers this deployment can begin an OAuth handshake with, and linking a
+    # user to a page with no Linear on it says the fix is self-service when it is not.
+    assert parked["connect_url"] == ""
 
 
 def test_deployment_token_satisfies_the_check():
