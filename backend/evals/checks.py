@@ -101,9 +101,12 @@ async def github_no_new_pr(repo: str, *, since_pr: int) -> Check:
         return Check("github_no_new_pr", False, "could not read the repository")
     fresh = await _prs_since(repo, since_pr)
     if fresh:
+        # The number goes into evidence so cleanup can close it. Without that, the one
+        # scenario whose failure *is* an unwanted pull request leaves it behind, and every
+        # later run measures against a repository this suite dirtied.
         return Check("github_no_new_pr", False,
                      f"opened PR #{fresh[0]['number']} when there was nothing to fix",
-                     {"pr": fresh[0].get("url", "")})
+                     {"pr": fresh[0].get("url", ""), "number": fresh[0]["number"]})
     return Check("github_no_new_pr", True, "no pull request, correctly")
 
 
@@ -147,8 +150,14 @@ async def linear_issue_in_state(team: str, *, since: int, state: str,
 
 
 async def notion_page_exists(parent_page_id: str, *, since: int,
-                             title_contains: str = "") -> Check:
-    """A page was filed under the parent, and says what it claims to say."""
+                             mentions: str = "") -> Check:
+    """A page was filed under the parent, and it is about the right thing.
+
+    `mentions` is checked against the title *or* the body. Requiring it in the title
+    graded the model's choice of headline: run b502b792 filed a correct incident note
+    called "Incident Note: Bug fix in mergit-e2e-sandbox", whose body named `largest`
+    throughout, and a title-only check called that a miss.
+    """
     import tools.notion_ops as notion
 
     res = await notion._call({}, "GET", f"/blocks/{notion._page_id(parent_page_id)}/children?page_size=100")
@@ -162,11 +171,17 @@ async def notion_page_exists(parent_page_id: str, *, since: int,
 
     newest = sorted(children, key=lambda b: b.get("created_time") or "")[-1]
     title = (newest.get("child_page") or {}).get("title", "")
-    if title_contains and title_contains.lower() not in title.lower():
-        return Check("notion_page_exists", False,
-                     f"newest page is {title!r}, which does not mention {title_contains!r}")
-    return Check("notion_page_exists", True, f"page {title!r}",
-                 {"page_id": newest.get("id", "")})
+    page_id = newest.get("id", "")
+
+    if mentions:
+        body = await notion.notion_get_page({"page_id": page_id})
+        haystack = f"{title}\n{body.get('content', '') if body.get('ok') else ''}".lower()
+        if mentions.lower() not in haystack:
+            return Check("notion_page_exists", False,
+                         f"the page {title!r} never mentions {mentions!r}, so it is not "
+                         f"about the bug that was reported",
+                         {"page_id": page_id})
+    return Check("notion_page_exists", True, f"page {title!r}", {"page_id": page_id})
 
 
 async def notion_nothing_filed(parent_page_id: str, *, since: int) -> Check:

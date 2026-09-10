@@ -86,7 +86,7 @@ async def _verify_ship(cfg: Config, before: dict) -> list[checks.Check]:
 
     if cfg.notion_parent:
         out.append(await checks.notion_page_exists(
-            cfg.notion_parent, since=before["t"], title_contains="largest"))
+            cfg.notion_parent, since=before["t"], mentions="largest"))
 
     if cfg.thread_ts:
         must = [u for u in (pr_url,) if u]
