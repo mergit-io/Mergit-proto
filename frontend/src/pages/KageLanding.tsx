@@ -1,6 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { RUN_STAGES } from "../components/landing/runStages";
+import { useTheme } from "../lib/theme";
 
 /* The landing page.
    ------------------------------------------------------------------------------
@@ -19,6 +20,17 @@ const PAGE_URL = "/landing/kage/index.html";
 export function KageLanding() {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const navigate = useNavigate();
+  const { theme, toggle } = useTheme();
+
+  /* The app owns the theme; the frame is told what it is. Sent on load and on
+     every change, so the landing and the console never disagree — including when
+     the change came from the console in another tab and the provider restored it
+     from storage before this page mounted. */
+  const publishTheme = useCallback(() => {
+    frameRef.current?.contentWindow?.postMessage({ kind: "mergit:theme", theme }, "*");
+  }, [theme]);
+
+  useEffect(publishTheme, [publishTheme]);
 
   useEffect(() => {
     document.documentElement.dataset.landing = "kage";
@@ -34,14 +46,20 @@ export function KageLanding() {
          open redirect wearing a navigation event's clothes. */
       if (event.source !== frameRef.current?.contentWindow) return;
       const data = event.data as { kind?: string; to?: string } | null;
-      if (!data || data.kind !== "mergit:navigate") return;
+      if (!data) return;
+      if (data.kind === "mergit:toggle-theme") {
+        // The control inside the frame asks; the provider decides and answers.
+        toggle();
+        return;
+      }
+      if (data.kind !== "mergit:navigate") return;
       const to = data.to;
       if (typeof to !== "string" || !to.startsWith("/") || to.startsWith("//")) return;
       navigate(to);
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [navigate]);
+  }, [navigate, toggle]);
 
   return (
     <div className="kage-host">
@@ -51,6 +69,7 @@ export function KageLanding() {
         src={PAGE_URL}
         sandbox="allow-scripts"
         loading="eager"
+        onLoad={publishTheme}
       />
 
       {/* The page's argument, in this document rather than inside the frame.
