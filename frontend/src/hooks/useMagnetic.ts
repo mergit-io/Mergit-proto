@@ -30,11 +30,24 @@ export function useMagnetic(
       const toX = gsap.quickTo(target, "x", { duration: 0.45, ease: "power3.out" });
       const toY = gsap.quickTo(target, "y", { duration: 0.45, ease: "power3.out" });
 
-      const onMove = (event: PointerEvent) => {
-        if (event.pointerType === "touch") return;
+      /* One measurement per frame, not per event.
+         `getBoundingClientRect` forces the browser to flush pending layout, and a
+         pointermove handler is the worst place to ask for that: a 120Hz mouse
+         fires twice per frame, and the hero mounts two of these hooks alongside
+         the scene's own pointer listener. Coalescing into a rAF means at most one
+         forced layout per element per frame, and the cursor cannot outrun the
+         screen anyway. */
+      let queued: { x: number; y: number } | null = null;
+      let frame = 0;
+
+      const apply = () => {
+        frame = 0;
+        if (!queued) return;
+        const { x, y } = queued;
+        queued = null;
         const rect = target.getBoundingClientRect();
-        const dx = event.clientX - (rect.left + rect.width / 2);
-        const dy = event.clientY - (rect.top + rect.height / 2);
+        const dx = x - (rect.left + rect.width / 2);
+        const dy = y - (rect.top + rect.height / 2);
         // Distance from the element's edge, not its centre, so a wide button and
         // a small round one both start pulling at the same apparent gap.
         const reach = Math.hypot(dx / (rect.width / 2 + radius), dy / (rect.height / 2 + radius));
@@ -48,7 +61,14 @@ export function useMagnetic(
         toY(gsap.utils.clamp(-pull, pull, dy * 0.35 * strength));
       };
 
+      const onMove = (event: PointerEvent) => {
+        if (event.pointerType === "touch") return;
+        queued = { x: event.clientX, y: event.clientY };
+        if (!frame) frame = requestAnimationFrame(apply);
+      };
+
       const onLeave = () => {
+        queued = null;
         toX(0);
         toY(0);
       };
@@ -58,6 +78,7 @@ export function useMagnetic(
       cleanup = () => {
         window.removeEventListener("pointermove", onMove);
         document.removeEventListener("pointerleave", onLeave);
+        if (frame) cancelAnimationFrame(frame);
         toX(0);
         toY(0);
       };

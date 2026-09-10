@@ -45,13 +45,28 @@ let pending: Promise<Motion | null> | null = null;
 export function loadMotion(): Promise<Motion | null> {
   if (prefersReducedMotion()) return Promise.resolve(null);
   pending ??= (async () => {
-    const [{ gsap }, { ScrollTrigger }, { SplitText }] = await Promise.all([
-      import("gsap"),
-      import("gsap/ScrollTrigger"),
-      import("gsap/SplitText"),
-    ]);
-    gsap.registerPlugin(ScrollTrigger, SplitText);
-    return { gsap, ScrollTrigger, SplitText };
+    try {
+      const [{ gsap }, { ScrollTrigger }, { SplitText }] = await Promise.all([
+        import("gsap"),
+        import("gsap/ScrollTrigger"),
+        import("gsap/SplitText"),
+      ]);
+      gsap.registerPlugin(ScrollTrigger, SplitText);
+      return { gsap, ScrollTrigger, SplitText };
+    } catch {
+      /* A chunk that fails to arrive — a dropped connection, a stale cache
+         pointing at a deploy that no longer exists — is the same situation as
+         a visitor who asked for no motion, and callers already handle that.
+         Rejecting instead would surface as an unhandled rejection in every hook,
+         none of which can do anything useful with it.
+
+         The cache is cleared on the way out: without this, one failed load would
+         be remembered for the life of the page and every later caller would get
+         the same rejection back, so a single dropped request would permanently
+         disable motion instead of costing one retry. */
+      pending = null;
+      return null;
+    }
   })();
   return pending;
 }
