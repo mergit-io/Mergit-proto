@@ -643,3 +643,29 @@ html[data-landing="moss"] ::-webkit-scrollbar-thumb:hover {
   border: 1px solid rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(12px);
 }
+
+/* ── The landing page ─────────────────────────────────────────────────────────
+   A framed document that owns the whole viewport and scrolls inside itself, so
+   the app's own scrolling is switched off underneath it — two scrollbars, one of
+   which moves nothing, is the usual way this goes wrong. */
+html[data-landing="kage"],
+html[data-landing="kage"] body {
+  background-color: #05070a;
+  color-scheme: dark;
+  overflow: hidden;
+}
+html[data-landing="kage"] #root {
+  background-image: none;
+}
+
+.kage-host {
+  position: fixed;
+  inset: 0;
+  background: #05070a;
+}
+.kage-host iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}

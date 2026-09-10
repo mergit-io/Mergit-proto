@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Landing } from "./pages/Landing";
 import { Dashboard } from "./pages/Dashboard";
@@ -14,6 +15,12 @@ import { Connections } from "./pages/Connections";
 import { Approvals } from "./pages/Approvals";
 import { NotFound } from "./pages/NotFound";
 import { AuthProvider } from "./lib/auth";
+
+/* The landing page. Lazy for the same reason as /next: it is a framed document
+   with its own WebGL scene, and the console should not carry a byte of it. */
+const KageLanding = lazy(() =>
+  import("./pages/KageLanding").then((m) => ({ default: m.KageLanding }))
+);
 import { ThemeProvider } from "./lib/theme";
 import "./index.css";
 
@@ -26,7 +33,16 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Landing />} />
+        <Route
+          path="/"
+          element={
+            <Suspense fallback={<div className="min-h-screen" style={{ background: "#05070a" }} />}>
+              <KageLanding />
+            </Suspense>
+          }
+        />
+        {/* The moss world it replaced, kept reachable while the two are compared. */}
+        <Route path="/moss" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route
           path="/app"

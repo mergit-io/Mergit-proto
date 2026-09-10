@@ -1,0 +1,452 @@
+[
+ [
+  0,
+  "影の道",
+  "proof of work"
+ ],
+ [
+  1,
+  "Raising the mountain temple",
+  "Drawing the task graph"
+ ],
+ [
+  2,
+  "KAGE",
+  "MERGIT"
+ ],
+ [
+  3,
+  "HIDDEN REALMS OF KYOTO",
+  "THE AI AGENT ECONOMY"
+ ],
+ [
+  4,
+  "Temples",
+  "The run"
+ ],
+ [
+  5,
+  "伽藍",
+  "dag"
+ ],
+ [
+  6,
+  "Gardens",
+  "Agents"
+ ],
+ [
+  7,
+  "庭園",
+  "roles"
+ ],
+ [
+  8,
+  "Rituals",
+  "Proof"
+ ],
+ [
+  9,
+  "神事",
+  "sha256"
+ ],
+ [
+  10,
+  "Afterlight",
+  "Stack"
+ ],
+ [
+  11,
+  "残光",
+  "deps"
+ ],
+ [
+  12,
+  "Where stillness",
+  "Describe the"
+ ],
+ [
+  13,
+  "reveals the",
+  "outcome."
+ ],
+ [
+  14,
+  "unseen.",
+  "Not the steps."
+ ],
+ [
+  15,
+  null,
+  "One sentence becomes a task graph, and specialised agents execute it against real systems."
+ ],
+ [
+  16,
+  "Scroll to enter",
+  "Scroll to begin"
+ ],
+ [
+  18,
+  "Thresholds",
+  "You describe it"
+ ],
+ [
+  19,
+  null,
+  "One sentence in plain language. No workflow to wire up."
+ ],
+ [
+  21,
+  "Still Gardens",
+  "The graph is drawn"
+ ],
+ [
+  22,
+  null,
+  "A planning model resolves every task and its dependencies."
+ ],
+ [
+  24,
+  "Sacred Craft",
+  "Agents execute"
+ ],
+ [
+  25,
+  null,
+  "Each one works a tool-call loop against real systems."
+ ],
+ [
+  27,
+  "Night Rituals",
+  "The work settles"
+ ],
+ [
+  28,
+  null,
+  "Every finished task hashes its output and mints a proof."
+ ],
+ [
+  29,
+  "山門",
+  "plan"
+ ],
+ [
+  30,
+  "Sanmon — before the bell",
+  "Plan — before the first call"
+ ],
+ [
+  31,
+  "KAGE",
+  "MERGIT"
+ ],
+ [
+  32,
+  "影の道",
+  "proof of work"
+ ],
+ [
+  34,
+  "山門",
+  "dag"
+ ],
+ [
+  35,
+  null,
+  "One sentence in, a merged pull request out."
+ ],
+ [
+  36,
+  null,
+  "Mergit begins where the prompt stops: a goal in plain language, decomposed into work that can be checked rather than trusted."
+ ],
+ [
+  37,
+  null,
+  "The orchestrator assigns every node to an agent, resolves what each one needs, and the run starts moving against real systems."
+ ],
+ [
+  38,
+  "Cross the threshold",
+  "Open the console"
+ ],
+ [
+  39,
+  "05",
+  "06"
+ ],
+ [
+  40,
+  "Chapters",
+  "Agent roles"
+ ],
+ [
+  41,
+  "92",
+  "03"
+ ],
+ [
+  42,
+  "Minutes",
+  "Provider tiers"
+ ],
+ [
+  43,
+  "1611",
+  "04"
+ ],
+ [
+  44,
+  "Hall raised",
+  "Tasks in the run"
+ ],
+ [
+  45,
+  "Stillness",
+  "Proof"
+ ],
+ [
+  47,
+  "庭園",
+  "roles"
+ ],
+ [
+  48,
+  "Approach",
+  "Plan"
+ ],
+ [
+  49,
+  "参道",
+  "dag"
+ ],
+ [
+  50,
+  "The long climb",
+  "The task graph"
+ ],
+ [
+  52,
+  "Lanterns",
+  "Execute"
+ ],
+ [
+  53,
+  "灯籠",
+  "tools"
+ ],
+ [
+  54,
+  "Lantern court",
+  "Real side effects"
+ ],
+ [
+  56,
+  "Moonwater",
+  "Settle"
+ ],
+ [
+  57,
+  "月影",
+  "sha256"
+ ],
+ [
+  58,
+  "The wet court",
+  "The proof"
+ ],
+ [
+  61,
+  "手業",
+  "chain"
+ ],
+ [
+  62,
+  null,
+  "Five roles. One sentence. Every step on chain."
+ ],
+ [
+  63,
+  null,
+  "Each stage produces something the next one consumes. You describe an outcome, the orchestrator draws the graph, agents execute it against real systems, and every finished task mints a proof."
+ ],
+ [
+  65,
+  "山門",
+  "plan()"
+ ],
+ [
+  66,
+  null,
+  "How a goal becomes a graph, and what each node promises to produce."
+ ],
+ [
+  67,
+  "14 min",
+  "orchestrator"
+ ],
+ [
+  69,
+  "借景",
+  "github_read_file()"
+ ],
+ [
+  70,
+  null,
+  "Reading the repository until the flaw has a file and a line number."
+ ],
+ [
+  71,
+  "18 min",
+  "researcher"
+ ],
+ [
+  73,
+  "焼杉",
+  "code_exec()"
+ ],
+ [
+  74,
+  null,
+  "Writing the patch, running it, and keeping what survives the run."
+ ],
+ [
+  75,
+  "21 min",
+  "coder"
+ ],
+ [
+  77,
+  "灯籠",
+  "github_pr()"
+ ],
+ [
+  78,
+  null,
+  "Opening the pull request that carries the work back to you."
+ ],
+ [
+  79,
+  "17 min",
+  "integrator"
+ ],
+ [
+  81,
+  "朱月",
+  "proof.mint()"
+ ],
+ [
+  82,
+  null,
+  "Hashing the output and writing the record that anyone can check."
+ ],
+ [
+  83,
+  "22 min",
+  "on chain"
+ ],
+ [
+  84,
+  "Chapter 04 — Afterlight",
+  "Chapter 04 — Settlement"
+ ],
+ [
+  85,
+  "Afterlight",
+  "Settlement"
+ ],
+ [
+  86,
+  null,
+  "The run does not end in a chat log. It ends in a pull request, a hash, and a record that outlives the session."
+ ],
+ [
+  87,
+  "Begin the walk",
+  "Delegate a goal"
+ ],
+ [
+  88,
+  null,
+  "A goal-driven agent system. One sentence becomes a task graph, specialised agents execute it with real tools, and every finished task mints a proof on chain."
+ ],
+ [
+  89,
+  "Chapters",
+  "Sections"
+ ],
+ [
+  90,
+  "The Sanmon",
+  "The run"
+ ],
+ [
+  91,
+  "Still Gardens",
+  "Agents"
+ ],
+ [
+  92,
+  "Sacred Craft",
+  "Proof"
+ ],
+ [
+  93,
+  "Afterlight",
+  "Stack"
+ ],
+ [
+  94,
+  "Practice",
+  "Tools"
+ ],
+ [
+  95,
+  "Borrowed scenery",
+  "github_pr"
+ ],
+ [
+  96,
+  "Lantern light",
+  "code_exec"
+ ],
+ [
+  97,
+  "Charred cypress",
+  "tavily_search"
+ ],
+ [
+  98,
+  "Raked gravel",
+  "slack_post"
+ ],
+ [
+  100,
+  "Journal",
+  "GitHub"
+ ],
+ [
+  101,
+  "Field notes",
+  "Console"
+ ],
+ [
+  102,
+  "Colophon",
+  "Docs"
+ ],
+ [
+  103,
+  "© 2026 Kage — Kage no Michi",
+  "© 2026 Mergit — the AI agent economy"
+ ],
+ [
+  104,
+  "静けさは一つの技である",
+  "a finished task is a fact, not a claim"
+ ],
+ [
+  105,
+  "WebGL · Onest · Kyoto",
+  "WebGL · Onest · Mergit"
+ ]
+]
