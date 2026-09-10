@@ -151,6 +151,23 @@ async def token(provider: str, args: dict) -> str:
     return await _stored_token(provider, args) or deployment_token(provider)
 
 
+async def cache_scope(provider: str, args: dict) -> str:
+    """Who a per-process lookup cache entry belongs to.
+
+    Slack channel ids and Linear team ids are stable and worth caching, and both were
+    cached in a plain module-level dict keyed by name alone. That is correct for exactly
+    one workspace. With two connected users, the first workspace's `#eng-bugs` answers for
+    the second — a message posted to a channel in someone else's Slack, from a lookup that
+    never hit the network and so never had a chance to fail.
+
+    The user id is the right scope because `store.get_connection` returns one active
+    connection per provider per user, so a user maps to exactly one workspace. Calls on the
+    deployment token share a scope because they share a workspace.
+    """
+    user_id = await _resolve_user(args)
+    return user_id or "__deployment__"
+
+
 async def audit(provider: str, args: dict, tool_name: str,
                 target: str = "", outcome: str = "ok") -> None:
     """Record that a user's credential was used. Never raises.

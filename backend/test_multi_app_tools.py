@@ -553,3 +553,51 @@ def test_a_connected_user_is_unaffected_by_the_deployment_token(monkeypatch):
     monkeypatch.setattr(svc, "_stored_token", _fake_stored)
     assert asyncio.run(svc.credential_check("linear", {"_user_id": "u1"})) is None
     assert asyncio.run(svc.token("linear", {"_user_id": "u1"})) == "lin_api_theirs"
+
+
+# ── Lookup caches are per connection, not per process ────────────────────────────
+
+def test_two_users_do_not_share_a_slack_channel_cache(monkeypatch):
+    """`#eng-bugs` exists in more than one workspace.
+
+    An unscoped cache answers the second user with the first user's channel id — a message
+    posted into a channel in somebody else's Slack, from a lookup that never touched the
+    network and so never had a chance to fail.
+    """
+    alice = {"ok": True, "channels": [{"id": "C_ALICE", "name": "eng-bugs", "is_member": True}],
+             "response_metadata": {"next_cursor": ""}}
+    bob = {"ok": True, "channels": [{"id": "C_BOB", "name": "eng-bugs", "is_member": True}],
+           "response_metadata": {"next_cursor": ""}}
+    listings = [_Resp(alice), _Resp(bob)]
+    _install(monkeypatch, slack, {
+        "conversations.list": lambda: listings.pop(0),
+        "conversations.history": _Resp({"ok": True, "messages": []}),
+    })
+
+    a = asyncio.run(slack.slack_read_channel({"channel": "#eng-bugs", "_user_id": "alice"}))
+    b = asyncio.run(slack.slack_read_channel({"channel": "#eng-bugs", "_user_id": "bob"}))
+    assert a["channel"] == "C_ALICE"
+    assert b["channel"] == "C_BOB"
+
+    # And the cache still works: alice's second call must not re-list.
+    assert not listings, "both users listed once"
+    again = asyncio.run(slack.slack_read_channel({"channel": "#eng-bugs", "_user_id": "alice"}))
+    assert again["channel"] == "C_ALICE"
+
+
+def test_two_users_do_not_share_a_linear_team_cache(monkeypatch):
+    """`ENG` is a team key in every second Linear workspace."""
+    alice = {"data": {"teams": {"nodes": [{"id": "team-alice", "key": "ENG", "name": "Eng"}]}}}
+    bob = {"data": {"teams": {"nodes": [{"id": "team-bob", "key": "ENG", "name": "Eng"}]}}}
+    made = {"data": {"issueCreate": {"success": True, "issue": {
+        "id": "i", "identifier": "ENG-1", "title": "t",
+        "url": "https://linear.app/x/issue/ENG-1", "state": {"name": "Todo"}}}}}
+    answers = [_Resp(alice), _Resp(made), _Resp(bob), _Resp(made)]
+    calls = _install(monkeypatch, linear, {"api.linear.app": lambda: answers.pop(0)})
+
+    asyncio.run(linear.linear_create_issue({"team": "ENG", "title": "t", "_user_id": "alice"}))
+    asyncio.run(linear.linear_create_issue({"team": "ENG", "title": "t", "_user_id": "bob"}))
+
+    team_ids = [c["json"]["variables"]["teamId"] for c in calls
+                if (c["json"].get("variables") or {}).get("teamId")]
+    assert team_ids == ["team-alice", "team-bob"]

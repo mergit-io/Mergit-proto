@@ -24,6 +24,7 @@ import httpx
 
 from tools.placeholders import refuse_if_unfilled as _refuse_if_unfilled
 from tools.service_client import audit as _audit
+from tools.service_client import cache_scope as _cache_scope
 from tools.service_client import credential_check as _credential_check
 from tools.service_client import token as _token
 
@@ -38,8 +39,16 @@ _IDENTIFIER = re.compile(r"^([A-Za-z][A-Za-z0-9_]*)-(\d+)$")
 #: A UUID, which is what the API actually wants.
 _UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I)
 
-#: team key (upper) → team id, per process. Teams do not change id.
-_TEAM_IDS: dict[str, str] = {}
+#: scope → {team key (upper) → team id}, per process. Teams do not change id.
+#:
+#: Keyed by scope for the same reason as the Slack channel cache: `ENG` is a team key in
+#: every second Linear workspace, and an unscoped cache would file one user's issue on
+#: another user's board without ever making a request that could have failed.
+_TEAM_IDS: dict[str, dict[str, str]] = {}
+
+
+def _team_cache(scope: str) -> dict[str, str]:
+    return _TEAM_IDS.setdefault(scope, {})
 
 
 def _auth_header(tok: str) -> str:
@@ -89,15 +98,16 @@ async def _resolve_team(args: dict, team: str) -> tuple[str, str | None]:
                     "linear_list_teams shows what exists.")
     if _UUID.match(team):
         return team, None
-    if team.upper() in _TEAM_IDS:
-        return _TEAM_IDS[team.upper()], None
+    cache = _team_cache(await _cache_scope(_PROVIDER, args))
+    if team.upper() in cache:
+        return cache[team.upper()], None
 
     res = await _gql(args, "query { teams(first: 100) { nodes { id key name } } }")
     if not res["ok"]:
         return "", res["error"]
     nodes = res["data"]["teams"]["nodes"]
     for t in nodes:
-        _TEAM_IDS[t["key"].upper()] = t["id"]
+        cache[t["key"].upper()] = t["id"]
     for t in nodes:
         if team.upper() in (t["key"].upper(), t["name"].upper()):
             return t["id"], None
@@ -167,8 +177,9 @@ async def linear_list_teams(args: dict) -> dict:
     if not res["ok"]:
         return res
     nodes = res["data"]["teams"]["nodes"]
+    cache = _team_cache(await _cache_scope(_PROVIDER, args))
     for t in nodes:
-        _TEAM_IDS[t["key"].upper()] = t["id"]
+        cache[t["key"].upper()] = t["id"]
     await _audit(_PROVIDER, args, "linear_list_teams")
     return {"ok": True, "teams": [{"key": t["key"], "name": t["name"], "id": t["id"]}
                                   for t in nodes]}

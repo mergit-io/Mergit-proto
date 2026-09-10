@@ -26,6 +26,7 @@ import httpx
 
 from tools.placeholders import refuse_if_unfilled as _refuse_if_unfilled
 from tools.service_client import audit as _audit
+from tools.service_client import cache_scope as _cache_scope
 from tools.service_client import credential_check as _credential_check
 from tools.service_client import token as _token
 
@@ -35,9 +36,18 @@ _API = "https://slack.com/api"
 _PROVIDER = "slack"
 _TIMEOUT = 20
 
-#: name → id, per process. Slack channel ids never change, and `conversations.list` is a
-#: paginated call we would otherwise repeat on every single message.
-_CHANNEL_IDS: dict[str, str] = {}
+#: scope → {name → id}, per process. Slack channel ids never change, and
+#: `conversations.list` is a paginated call we would otherwise repeat on every message.
+#:
+#: Keyed by scope, not by name alone: `#eng-bugs` exists in more than one workspace, and a
+#: cache that forgot whose workspace it read would answer the second user with the first
+#: user's channel id — posting into a channel in somebody else's Slack, from a lookup that
+#: never touched the network and so never had a chance to fail.
+_CHANNEL_IDS: dict[str, dict[str, str]] = {}
+
+
+def _channel_cache(scope: str) -> dict[str, str]:
+    return _CHANNEL_IDS.setdefault(scope, {})
 
 #: Slack error codes worth translating, because the raw string sends an agent into a
 #: retry loop against a wall it cannot climb.
@@ -95,8 +105,9 @@ async def _resolve_channel(args: dict, channel: str) -> tuple[str, str | None]:
         return channel, None
 
     name = channel.lstrip("#").lower()
-    if name in _CHANNEL_IDS:
-        return _CHANNEL_IDS[name], None
+    cache = _channel_cache(await _cache_scope(_PROVIDER, args))
+    if name in cache:
+        return cache[name], None
 
     cursor = ""
     for _ in range(10):  # 10 pages × 200 = 2000 channels, then we stop looking
@@ -108,9 +119,9 @@ async def _resolve_channel(args: dict, channel: str) -> tuple[str, str | None]:
         if not body.get("ok"):
             return "", body.get("error", "could not list channels")
         for ch in body.get("channels", []):
-            _CHANNEL_IDS[ch["name"].lower()] = ch["id"]
-        if name in _CHANNEL_IDS:
-            return _CHANNEL_IDS[name], None
+            cache[ch["name"].lower()] = ch["id"]
+        if name in cache:
+            return cache[name], None
         cursor = (body.get("response_metadata") or {}).get("next_cursor") or ""
         if not cursor:
             break
@@ -177,8 +188,9 @@ async def slack_list_channels(args: dict) -> dict:
         return body
     channels = [{"id": c["id"], "name": c["name"], "is_member": c.get("is_member", False)}
                 for c in body.get("channels", [])]
+    cache = _channel_cache(await _cache_scope(_PROVIDER, args))
     for c in channels:
-        _CHANNEL_IDS[c["name"].lower()] = c["id"]
+        cache[c["name"].lower()] = c["id"]
     await _audit(_PROVIDER, args, "slack_list_channels")
     return {"ok": True, "channels": channels, "count": len(channels)}
 
