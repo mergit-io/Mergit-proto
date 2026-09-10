@@ -1,31 +1,23 @@
+import { useCallback, useState } from "react";
 import { Micro } from "../ui";
+import { prefersReducedMotion } from "../../lib/motion";
+import { RunStory } from "./RunStory";
+import { RUN_STAGES } from "./runStages";
 
-/* Numbered because the stages are genuinely ordered: each one consumes what the
-   previous produced. The numbers carry information rather than decorating. */
-const STAGES = [
-  {
-    title: "You describe an outcome",
-    body: "One sentence in plain language. No template to fill in, no workflow to wire up, no step list to keep current.",
-    out: "Natural language",
-  },
-  {
-    title: "The orchestrator draws the graph",
-    body: "A planning model turns that sentence into a task graph — every node assigned to an agent, with its inputs and dependencies resolved.",
-    out: "Task DAG",
-  },
-  {
-    title: "Agents execute in parallel",
-    body: "Up to five tasks run at once. Each agent works a tool-call loop against real systems, and every call is checked for idempotency before it fires.",
-    out: "Real side effects",
-  },
-  {
-    title: "The work settles",
-    body: "The final task returns the result — a pull request, a repository, a report. Each finished task hashes its output and mints a proof on chain.",
-    out: "Result and proof",
-  },
-];
+/* Two ways to tell the same four stages.
+   ------------------------------------------------------------------------------
+   The pinned story is the better argument — it spends scroll on the fact that
+   each stage consumes what the last one produced — but it needs motion to be
+   welcome and a viewport tall enough to hold a pinned stage. Everywhere else the
+   stages are a grid of cards, which is the version that has to keep working: it
+   is what a phone gets, what a reduced-motion visitor gets, and what is left if
+   the motion chunk never arrives.
 
-export function HowItWorks() {
+   The choice is made synchronously from `matchMedia`, before the first paint, so
+   the section does not render one version and then swap. The only asynchronous
+   path is failure: RunStory reports back if motion turns out to be unavailable,
+   and the grid takes over. */
+function StageGrid() {
   return (
     <section id="run" className="border-t border-line">
       <div className="max-w-[1400px] mx-auto px-5 py-20 lg:py-28">
@@ -39,7 +31,7 @@ export function HowItWorks() {
         </div>
 
         <ol className="grid md:grid-cols-2 xl:grid-cols-4 gap-px">
-          {STAGES.map((s, i) => (
+          {RUN_STAGES.map((s, i) => (
             <li
               key={s.title}
               data-reveal
@@ -60,4 +52,18 @@ export function HowItWorks() {
       </div>
     </section>
   );
+}
+
+function roomForAPinnedStage() {
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia("(min-width: 1024px) and (min-height: 680px)").matches
+  );
+}
+
+export function HowItWorks() {
+  const [pinned, setPinned] = useState(() => !prefersReducedMotion() && roomForAPinnedStage());
+  const fallBackToGrid = useCallback(() => setPinned(false), []);
+
+  return pinned ? <RunStory onUnavailable={fallBackToGrid} /> : <StageGrid />;
 }

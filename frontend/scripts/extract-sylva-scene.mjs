@@ -49,6 +49,37 @@ const SCENE_MARKUP = `<main class="hero" id="hero">
   <div class="stage" id="stage" aria-hidden="true"></div>
 </main>`;
 
+/* The scene's world tilts with the cursor, and it learns about the cursor from a
+   `pointermove` listener on its own `window`. That listener is unreachable once
+   the frame is `pointer-events: none` — which it has to be, because wheel events
+   over a cross-origin iframe never reach the parent's JS, and a smooth-scroll
+   library that listens on the parent would leave the page frozen wherever the
+   hero is under the mouse.
+
+   So the parent keeps every pointer event and forwards the coordinates in, and
+   this bridge turns them back into the event the scene is already listening for.
+   Coordinates only, from `window.parent` only — nothing here reads a payload
+   field it did not ask for. */
+const POINTER_BRIDGE = `<script data-mergit-pointer-bridge>
+(function () {
+  var KIND = "mergit:pointer";
+  window.addEventListener("message", function (event) {
+    if (event.source !== window.parent) return;
+    var data = event.data;
+    if (!data || data.kind !== KIND) return;
+    if (data.leave) {
+      window.dispatchEvent(new PointerEvent("pointerleave", { pointerType: "mouse", bubbles: true }));
+      return;
+    }
+    var x = Number(data.x), y = Number(data.y);
+    if (!isFinite(x) || !isFinite(y)) return;
+    window.dispatchEvent(new PointerEvent("pointermove", {
+      pointerType: "mouse", clientX: x, clientY: y, bubbles: true
+    }));
+  });
+})();
+<\/script>`;
+
 /* The source page is a full-height document; inside our iframe it is a layer.
    `overflow:hidden` matters: without it the 100svh hero plus the iframe's own
    scrollbar gutter makes the canvas jitter on every pointer move. */
@@ -56,11 +87,9 @@ const SCENE_STYLE = `<style data-mergit-sylva-scene>
   html, body { width: 100% !important; height: 100% !important; min-height: 0 !important; margin: 0 !important; overflow: hidden !important; }
   body { position: relative !important; background: #4a4d44 !important; }
   .hero { height: 100% !important; min-height: 0 !important; }
-  /* The canvas keeps pointer events so the world still reacts to the cursor;
-     the empty stage must not, or it would eat every click meant for the React
-     hero sitting above the iframe. */
-  #scene { pointer-events: auto !important; }
-  #stage { pointer-events: none !important; }
+  /* Nothing in here takes pointer events: the parent owns them and forwards the
+     coordinates through the bridge above. See POINTER_BRIDGE for why. */
+  #scene, #stage { pointer-events: none !important; }
 </style>`;
 
 async function main() {
@@ -100,6 +129,9 @@ async function main() {
   // Ours, not upstream's: the head's own <style> block has to keep the layer
   // overrides last so they win on specificity ties.
   out = out.replace("</head>", `${SCENE_STYLE}\n</head>`);
+
+  // Last thing before the document closes, so the scene's own listeners exist.
+  out = out.replace("</body>", `${POINTER_BRIDGE}\n</body>`);
 
   /* Reduced motion. The source already computes REDUCED from its own
      matchMedia (media queries resolve inside an iframe, so this works), and
