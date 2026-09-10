@@ -383,3 +383,212 @@ html.reveal-ready [data-reveal].is-in {
   fill: rgb(var(--c-dim));
 }
 .react-flow__controls-button:hover { background: rgb(var(--c-raise)); }
+
+/* ── The landing's living world ────────────────────────────────────────────────
+   The landing page is the one surface that does not read as the console. It is
+   drawn over ThreeUI's Sylva scene (see components/landing/SylvaScene.tsx), and
+   everything below only re-points the existing tokens at moss — no section had to
+   be restyled by hand, because every colour in the system already resolves
+   through a variable.
+
+   Scoped to `.landing-moss`, which sits on the landing's root element. Tokens set
+   there beat the ones on `:root` for that subtree by inheritance rather than by
+   specificity, so /app keeps both its themes untouched and nothing here can leak
+   into the console. */
+@font-face {
+  font-family: "Lexend";
+  src: url("/landing/sylva/lexend-latin.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* The scene owns the page's ground while the landing is mounted: the drafting
+   grid and the console's near-black would both show through at the edges — behind
+   an overscroll bounce, and around the scene's own letterboxing. Landing sets this
+   attribute on mount and takes it off on unmount. */
+html[data-landing="moss"],
+html[data-landing="moss"] body {
+  background-color: #383b34;
+  color-scheme: dark;
+}
+html[data-landing="moss"] #root {
+  background-image: none;
+}
+/* The scrollbar is painted from :root, so on the landing it stayed the console's
+   near-black gutter running down the side of a moss page. */
+html[data-landing="moss"] ::-webkit-scrollbar-track {
+  background: #383b34;
+}
+html[data-landing="moss"] ::-webkit-scrollbar-thumb {
+  background: #5c6353;
+  border-color: #383b34;
+}
+html[data-landing="moss"] ::-webkit-scrollbar-thumb:hover {
+  background: #78806c;
+}
+
+.landing-moss {
+  /* Read off the scene: #383b34 is its sky, #4a4d44 its moss, #f2f3ef the cream
+     of its field-note cards. The accent is lichen rather than violet — the one
+     token whose old value the scene actively rejects. */
+  --c-ink: 56 59 52;
+  --c-slab: 44 48 41;
+  --c-raise: 62 67 57;
+  --c-line: 86 92 80;
+  --c-line-soft: 68 74 63;
+  --c-text: 240 243 235;
+  --c-dim: 182 190 172;
+  --c-faint: 132 141 123;
+  --c-violet: 168 193 135;
+  --c-violet-hi: 190 212 160;
+  --c-on-violet: 26 32 22;
+  --c-mint: 154 209 160;
+  --c-amber: 224 178 92;
+  --c-red: 226 122 106;
+  --grid-line: rgba(255, 255, 255, 0.022);
+  background-color: rgb(var(--c-ink));
+  color: rgb(var(--c-text));
+}
+
+/* The proof field is the page's signature and it cannot become a pale green
+   rectangle: on moss it goes the other way, to the deepest colour in the scene.
+   The inverted contents keep their white labels, which hold up on #22301f — but
+   `--c-text` still resolves through `--c-on-violet`, and that is now dark. */
+.landing-moss .proof-field {
+  background: #22301f;
+  color: rgb(238 241 231);
+}
+.landing-moss .proof-field > * {
+  --c-text: 238 241 231;
+  /* The proof block is drawn in `text-on-violet`, which is ink now that the accent
+     is a pale lichen — on the deep field it was a dark shape on a dark ground. It
+     is inverted with the rest of the contents rather than special-cased, the same
+     way .proof-field already hands its children their own tokens. */
+  --c-on-violet: 238 241 231;
+}
+
+@layer components {
+  .font-moss {
+    font-family: "Lexend", "Inter Variable", Inter, system-ui, sans-serif;
+  }
+
+  /* Sylva's liquid-metal controls are a canvas shader welded into its scene
+     script, so this is a CSS reading of them rather than a port: a pale plate,
+     a specular top edge, and a shadow that lifts on hover. */
+  .moss-pill {
+    @apply font-moss inline-flex h-12 items-center gap-2.5 rounded-full px-7 text-sm font-medium;
+    color: #1a2016;
+    background: linear-gradient(180deg, #f6f8f1 0%, #dfe5d4 62%, #cdd5c0 100%);
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 14px 30px rgba(16, 21, 13, 0.34);
+    transition: transform 180ms var(--ease), box-shadow 180ms var(--ease), filter 180ms var(--ease);
+  }
+  .moss-pill:hover {
+    filter: brightness(1.04);
+    transform: translateY(-1px);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 18px 38px rgba(16, 21, 13, 0.4);
+  }
+  .moss-pill:active {
+    transform: translateY(1px);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.5) inset, 0 8px 18px rgba(16, 21, 13, 0.3);
+  }
+
+  /* The play control: glass over the world, so the moss reads through it. */
+  .moss-ring {
+    @apply inline-flex h-12 w-12 items-center justify-center rounded-full;
+    color: rgb(var(--c-text));
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.34);
+    backdrop-filter: blur(10px);
+    transition: background-color 180ms var(--ease), transform 180ms var(--ease);
+  }
+  .moss-ring:hover {
+    background: rgba(255, 255, 255, 0.18);
+    transform: scale(1.06);
+  }
+
+  .moss-stat {
+    @apply flex items-start gap-3 px-4 py-3;
+    border-radius: 22px;
+    background: rgba(22, 28, 18, 0.34);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(12px);
+  }
+
+  /* The run's surface. It was a cream field-note card, borrowed from Sylva's own
+     composition, and it read as a document pasted onto a forest: a dense console
+     panel in paper clothing, four hairlines deep, over an organic scene. Glass
+     instead — the same material as .moss-stat directly below it, so the hero has
+     one vocabulary rather than two. The tokens are left alone, because the moss
+     palette already reads on a dark translucent ground. */
+  .moss-card {
+    @apply flex flex-col p-5;
+    min-height: 340px;
+    border-radius: 28px;
+    background: rgba(22, 28, 18, 0.38);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 26px 60px rgba(16, 21, 13, 0.34);
+  }
+  /* Glass has no business carrying a solid hairline, so the card's rules are
+     white at low alpha and its hover is a lift in the glass rather than a fill. */
+  .moss-card .rule-glass {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .moss-card .rule-glass-soft {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .moss-card .rule-glass-soft:last-child {
+    border-bottom: 0;
+  }
+
+  /* The section voice inside the card: Lexend, not the console's mono. Mono stays
+     on the identifiers — step numbers, agent names, the receipt — because those
+     are things the console will show you again, spelled the same way. */
+  .glass-label {
+    @apply font-moss text-[11px] font-medium uppercase text-dim;
+    letter-spacing: 0.18em;
+  }
+
+  /* Sylva's scroll cue, turned on its side to sit under the hero rather than
+     beside it. The track fills once, as an invitation rather than a loop. */
+  .moss-scroll {
+    @apply inline-flex items-center gap-3 font-mono text-micro uppercase;
+    color: rgba(255, 255, 255, 0.5);
+    letter-spacing: 0.28em;
+    transition: color 200ms var(--ease);
+  }
+  .moss-scroll:hover {
+    color: rgba(255, 255, 255, 0.86);
+  }
+  .moss-track {
+    position: relative;
+    display: block;
+    width: 84px;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.2);
+    overflow: hidden;
+  }
+  .moss-track::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    width: 34%;
+    background: rgba(255, 255, 255, 0.75);
+    animation: moss-track 2.6s var(--ease) infinite;
+  }
+
+  /* The scene is a layer, not a block: it fills the hero and paints its own
+     ground so the hero is composed before the iframe has loaded. */
+  .sylva-scene {
+    position: absolute;
+    overflow: hidden;
+    pointer-events: auto;
+  }
+}
+
+@keyframes moss-track {
+  0% { transform: translateX(-100%); }
+  60%, 100% { transform: translateX(300%); }
+}
