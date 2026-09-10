@@ -41,16 +41,26 @@ PROVIDERS: dict[str, dict[str, str]] = {
 }
 
 
-def _missing(provider: str, message: str) -> dict[str, Any]:
+def _missing(provider: str, credential: str, message: str) -> dict[str, Any]:
     """The park sentinel, built per call so it can name the user who must connect.
 
+    `credential` is the **resume key**, and getting it wrong is worse than it looks. The
+    task is parked under this string, and `api/connections.py` releases parked tasks by
+    calling `db.resume_credential_tasks("conn:<provider>:<user_id>")` after a successful
+    connect. Park under the environment variable name instead and the two never meet: the
+    user connects, the UI says connected, and the goal waits forever.
+
+    So it is `conn:<provider>:<user_id>` whenever a user could connect and we know who they
+    are, and the environment variable name only on the single-tenant path where there is
+    no user and no connect flow to wait for.
+
     Returned by value, never shared as a module constant — see the same note in
-    `github_client._missing`. A shared dict cannot carry a per-user resume key, and
-    without one the first person to connect releases everybody's parked tasks.
+    `github_client._missing`. A shared dict cannot carry a per-user resume key, and without
+    one the first person to connect releases everybody's parked tasks.
     """
     return {
         WAITING_CREDENTIAL_SENTINEL: True,
-        "credential": PROVIDERS[provider]["env"],
+        "credential": credential,
         "provider": provider,
         "message": message,
         "connect_url": f"/app/connections?connect={provider}",
@@ -119,6 +129,7 @@ async def credential_check(provider: str, args: dict) -> dict | None:
         return None
 
     label = PROVIDERS[provider]["label"]
+    user_id = await _resolve_user(args)
 
     # The deployment token is a single-tenant affordance, and it stops being one the moment
     # this deployment can ask a user to connect for themselves. Falling back here when a
@@ -126,9 +137,10 @@ async def credential_check(provider: str, args: dict) -> dict | None:
     # — posting to the operator's Slack, filing in the operator's Linear — while every log
     # line still named the right user. `github_client.credential_check` draws the same line
     # for the same reason.
-    if oauth_configured(provider):
+    if oauth_configured(provider) and user_id:
         return _missing(
             provider,
+            f"conn:{provider}:{user_id}",
             f"Connect your {label} account so Mergit can act on your behalf.",
         )
 
@@ -137,6 +149,7 @@ async def credential_check(provider: str, args: dict) -> dict | None:
 
     return _missing(
         provider,
+        PROVIDERS[provider]["env"],
         f"{label} access is required. Connect {label}, or set "
         f"{PROVIDERS[provider]['env']} on the deployment.",
     )

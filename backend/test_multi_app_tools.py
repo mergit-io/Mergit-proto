@@ -529,16 +529,48 @@ def test_deployment_token_is_not_used_once_a_user_could_connect(monkeypatch):
     named the right user. `github_client.credential_check` draws the same line.
     """
     monkeypatch.setenv("SLACK_BOT_TOKEN", "xoxb-deployment")
+    caller = {"_user_id": "u1"}
 
     monkeypatch.setattr(svc.settings, "slack_client_id", "", raising=False)
     monkeypatch.setattr(svc.settings, "slack_client_secret", "", raising=False)
-    assert asyncio.run(svc.credential_check("slack", {})) is None
+    assert asyncio.run(svc.credential_check("slack", caller)) is None
 
     monkeypatch.setattr(svc.settings, "slack_client_id", "cid", raising=False)
     monkeypatch.setattr(svc.settings, "slack_client_secret", "sec", raising=False)
-    parked = asyncio.run(svc.credential_check("slack", {}))
+    parked = asyncio.run(svc.credential_check("slack", caller))
     assert parked is not None
     assert "Connect your Slack account" in parked["message"]
+
+    # No resolvable user is the single-tenant path — an HTTP handler with no session and no
+    # goal. There is nobody to ask to connect, so the deployment token still applies. This
+    # is the same line `github_client.credential_check` draws with `app_configured() and
+    # user_id`.
+    assert asyncio.run(svc.credential_check("slack", {})) is None
+
+
+def test_a_parked_task_is_keyed_so_that_connecting_actually_resumes_it(monkeypatch):
+    """The park key and the resume key have to be the same string.
+
+    `api/connections.py` releases parked work with
+    `db.resume_credential_tasks(f"conn:slack:{user_id}")` after a successful connect. Park
+    under the environment variable name instead and the two never meet: the user connects,
+    the UI says connected, and the goal waits forever.
+    """
+    monkeypatch.delenv("SLACK_BOT_TOKEN", raising=False)
+    monkeypatch.setattr(svc.settings, "slack_bot_token", "", raising=False)
+    monkeypatch.setattr(svc.settings, "slack_client_id", "cid", raising=False)
+    monkeypatch.setattr(svc.settings, "slack_client_secret", "sec", raising=False)
+
+    parked = asyncio.run(svc.credential_check("slack", {"_user_id": "u1"}))
+    assert parked["credential"] == "conn:slack:u1"
+    assert parked["connect_url"] == "/app/connections?connect=slack"
+
+    # And with no connect flow configured, the message has to name the variable instead —
+    # there is no button for the operator to press.
+    monkeypatch.setattr(svc.settings, "slack_client_id", "", raising=False)
+    monkeypatch.setattr(svc.settings, "slack_client_secret", "", raising=False)
+    parked = asyncio.run(svc.credential_check("slack", {"_user_id": "u1"}))
+    assert parked["credential"] == "SLACK_BOT_TOKEN"
 
 
 def test_a_connected_user_is_unaffected_by_the_deployment_token(monkeypatch):
