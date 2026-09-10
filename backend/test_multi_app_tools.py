@@ -516,3 +516,40 @@ def test_a_write_claim_must_carry_an_address_and_a_read_must_not():
 
     for action in ["read the slack thread", "reviewed the linear board", "summarised the repo"]:
         assert _claimed_without_artifact({"action": action, "result": "done", "url": None}) is None
+
+
+# ── The deployment token stops being a fallback once OAuth exists ────────────────
+
+def test_deployment_token_is_not_used_once_a_user_could_connect(monkeypatch):
+    """A single-tenant affordance must not survive into multi-tenancy.
+
+    With OAuth configured, a user who has not connected has to connect. Falling back to
+    the deployment's own key would run their goal on the operator's identity — posting to
+    the operator's Slack, filing in the operator's Linear — while every log line still
+    named the right user. `github_client.credential_check` draws the same line.
+    """
+    monkeypatch.setenv("SLACK_BOT_TOKEN", "xoxb-deployment")
+
+    monkeypatch.setattr(svc.settings, "slack_client_id", "", raising=False)
+    monkeypatch.setattr(svc.settings, "slack_client_secret", "", raising=False)
+    assert asyncio.run(svc.credential_check("slack", {})) is None
+
+    monkeypatch.setattr(svc.settings, "slack_client_id", "cid", raising=False)
+    monkeypatch.setattr(svc.settings, "slack_client_secret", "sec", raising=False)
+    parked = asyncio.run(svc.credential_check("slack", {}))
+    assert parked is not None
+    assert "Connect your Slack account" in parked["message"]
+
+
+def test_a_connected_user_is_unaffected_by_the_deployment_token(monkeypatch):
+    """The user's own connection always wins, configured OAuth or not."""
+    monkeypatch.setenv("LINEAR_API_KEY", "lin_api_deployment")
+    monkeypatch.setattr(svc.settings, "linear_client_id", "cid", raising=False)
+    monkeypatch.setattr(svc.settings, "linear_client_secret", "sec", raising=False)
+
+    async def _fake_stored(provider, args):
+        return "lin_api_theirs" if args.get("_user_id") else ""
+
+    monkeypatch.setattr(svc, "_stored_token", _fake_stored)
+    assert asyncio.run(svc.credential_check("linear", {"_user_id": "u1"})) is None
+    assert asyncio.run(svc.token("linear", {"_user_id": "u1"})) == "lin_api_theirs"

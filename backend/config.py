@@ -94,6 +94,14 @@ class Settings(BaseSettings):
     slack_client_secret: str = ""
     slack_signing_secret: str = ""
 
+    # ── Delegated authority: Linear and Notion ──────────────────────────────────
+    # Set these and the deployment stops using its own key on behalf of a user who has
+    # not connected — see `tools/service_client.oauth_configured`.
+    linear_client_id: str = ""
+    linear_client_secret: str = ""
+    notion_client_id: str = ""
+    notion_client_secret: str = ""
+
     #: Wraps the per-row data keys that encrypt stored OAuth tokens. Read once at startup
     #: and popped from os.environ before the worker starts, because `PUT /api/config/keys`
     #: writes into os.environ and `code_exec` inherits it.

@@ -13,10 +13,11 @@ Resolution order matches GitHub's exactly, and for the same reasons:
    module permitted to decrypt (`test_route_coverage.py` asserts it).
 2. **An explicit caller** — `_user_id`, for HTTP handlers that have a session but no goal.
 3. **The deployment token** — `SLACK_BOT_TOKEN`, `LINEAR_API_KEY`, `NOTION_API_KEY`.
-   Single-tenant fallback, and like GitHub's it applies **only** when the deployment has
-   no per-user connection path configured for that provider at all. A silent fallback when
-   a *particular* user's connection is missing would run one person's goal on another
-   person's identity, which is the bug that shape of code always turns out to be.
+   Single-tenant fallback, and like GitHub's it applies **only** when `oauth_configured()`
+   is false for that provider — that is, when this deployment cannot ask the user to
+   connect for themselves. A silent fallback when a *particular* user's connection is
+   missing would run one person's goal on another person's identity, which is the bug that
+   shape of code always turns out to be.
 
 When nothing resolves the tool returns the `WAITING_CREDENTIAL` sentinel rather than an
 error, so the task parks and resumes on the same run once the human connects — a failed
@@ -54,6 +55,17 @@ def _missing(provider: str, message: str) -> dict[str, Any]:
         "message": message,
         "connect_url": f"/app/connections?connect={provider}",
     }
+
+
+def oauth_configured(provider: str) -> bool:
+    """True when this deployment can ask *this user* to connect `provider` themselves.
+
+    The hinge of the fallback rule below. `github_client.app_configured()` plays the same
+    part for GitHub.
+    """
+    prefix = provider  # slack_client_id, linear_client_id, notion_client_id
+    return bool(getattr(settings, f"{prefix}_client_id", "")
+                and getattr(settings, f"{prefix}_client_secret", ""))
 
 
 def deployment_token(provider: str) -> str:
@@ -105,9 +117,24 @@ async def credential_check(provider: str, args: dict) -> dict | None:
     """
     if await _stored_token(provider, args):
         return None
+
+    label = PROVIDERS[provider]["label"]
+
+    # The deployment token is a single-tenant affordance, and it stops being one the moment
+    # this deployment can ask a user to connect for themselves. Falling back here when a
+    # *particular* user has no connection would run their goal on somebody else's identity
+    # — posting to the operator's Slack, filing in the operator's Linear — while every log
+    # line still named the right user. `github_client.credential_check` draws the same line
+    # for the same reason.
+    if oauth_configured(provider):
+        return _missing(
+            provider,
+            f"Connect your {label} account so Mergit can act on your behalf.",
+        )
+
     if deployment_token(provider):
         return None
-    label = PROVIDERS[provider]["label"]
+
     return _missing(
         provider,
         f"{label} access is required. Connect {label}, or set "
