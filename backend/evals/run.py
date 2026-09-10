@@ -206,8 +206,11 @@ async def cleanup(cfg: sc.Config, results: list[Check]) -> list[str]:
                         else f"could not cancel {identifier}")
         page_id = check.evidence.get("page_id")
         if page_id:
+            # `in_trash`, not `archived`: the pinned API version rejects the old field
+            # outright — "body.archived should be not present" — so every cleanup silently
+            # left its page behind until this was checked against the live API.
             archived = await notion._call({}, "PATCH", f"/pages/{page_id}",
-                                          {"archived": True})
+                                          {"in_trash": True})
             done.append(f"archived notion {page_id[:8]}" if archived.get("ok")
                         else f"could not archive notion {page_id[:8]}")
     return done

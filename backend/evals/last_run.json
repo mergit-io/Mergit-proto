@@ -3,41 +3,43 @@
     {
       "scenario": "ship_the_fix",
       "run": 1,
-      "outcome": "reported_shortfall",
-      "goal_id": "b502b792-b358-425b-8e63-35a2387b12fd",
+      "outcome": "success",
+      "goal_id": "320c5840-e816-4bdd-a8e9-8d68ba1cacea",
       "goal_status": "COMPLETED",
-      "seconds": 135.3,
+      "seconds": 66.5,
       "checks": [
         {
           "name": "github_pr_opened",
           "passed": true,
-          "detail": "PR #50 touches calc.py",
+          "detail": "PR #54 touches calc.py",
           "evidence": {
-            "pr": "https://github.com/OfficialAbhinavSingh/mergit-e2e-sandbox/pull/50",
-            "number": 50
+            "pr": "https://github.com/OfficialAbhinavSingh/mergit-e2e-sandbox/pull/54",
+            "number": 54
           }
         },
         {
           "name": "linear_issue_in_state",
           "passed": true,
-          "detail": "ABH-9 in In Review",
+          "detail": "ABH-11 in In Review",
           "evidence": {
-            "issue": "https://linear.app/abhinav-singh/issue/ABH-9/review-bug-fix-pr-50",
-            "identifier": "ABH-9"
+            "issue": "https://linear.app/abhinav-singh/issue/ABH-11/fix-largest-in-calcpy-to-handle-all-negative-lists",
+            "identifier": "ABH-11"
           }
         },
         {
           "name": "notion_page_exists",
-          "passed": false,
-          "detail": "newest page is 'Incident Note: Bug fix in mergit-e2e-sandbox', which does not mention 'largest'",
-          "evidence": {}
+          "passed": true,
+          "detail": "page 'Incident: largest() in calc.py returned 0 for all-negative lists'",
+          "evidence": {
+            "page_id": "3d74db58-266f-8113-86a1-e44bbb6b14fe"
+          }
         },
         {
           "name": "slack_replied_in_thread",
           "passed": true,
           "detail": "replied with 1 real links",
           "evidence": {
-            "ts": "1789041783.556539"
+            "ts": "1789042330.982079"
           }
         }
       ]
@@ -46,34 +48,34 @@
       "scenario": "ship_the_fix",
       "run": 2,
       "outcome": "success",
-      "goal_id": "c22f3d97-8723-4032-8197-186978405d87",
+      "goal_id": "6be305cf-d7b1-40a6-a605-bf47ed9c5eb4",
       "goal_status": "COMPLETED",
-      "seconds": 151.4,
+      "seconds": 78.9,
       "checks": [
         {
           "name": "github_pr_opened",
           "passed": true,
-          "detail": "PR #51 touches calc.py",
+          "detail": "PR #55 touches calc.py",
           "evidence": {
-            "pr": "https://github.com/OfficialAbhinavSingh/mergit-e2e-sandbox/pull/51",
-            "number": 51
+            "pr": "https://github.com/OfficialAbhinavSingh/mergit-e2e-sandbox/pull/55",
+            "number": 55
           }
         },
         {
           "name": "linear_issue_in_state",
           "passed": true,
-          "detail": "ABH-10 in In Review",
+          "detail": "ABH-12 in In Review",
           "evidence": {
-            "issue": "https://linear.app/abhinav-singh/issue/ABH-10/fix-largest-in-calcpy-to-handle-all-negative-lists",
-            "identifier": "ABH-10"
+            "issue": "https://linear.app/abhinav-singh/issue/ABH-12/fix-largest-in-calcpy-to-handle-all-negative-numbers",
+            "identifier": "ABH-12"
           }
         },
         {
           "name": "notion_page_exists",
           "passed": true,
-          "detail": "page 'Incident: largest() returned 0 for all-negative lists in calc.py'",
+          "detail": "page 'Incident: largest() in calc.py returned 0 for all-negative lists'",
           "evidence": {
-            "page_id": "3d74db58-266f-813f-859b-ff4661c932e2"
+            "page_id": "3d74db58-266f-81de-86a7-feeb94e7622f"
           }
         },
         {
@@ -81,7 +83,7 @@
           "passed": true,
           "detail": "replied with 1 real links",
           "evidence": {
-            "ts": "1789041950.986959"
+            "ts": "1789042428.913069"
           }
         }
       ]
@@ -90,16 +92,17 @@
       "scenario": "already_correct",
       "run": 1,
       "outcome": "silent_failure",
-      "goal_id": "6fbbd7f8-a85c-47bf-aecc-0124bc6da2f2",
+      "goal_id": "b8800f04-c312-4766-a2d3-6e7c76f7d68e",
       "goal_status": "COMPLETED",
-      "seconds": 58.9,
+      "seconds": 50.3,
       "checks": [
         {
           "name": "github_no_new_pr",
           "passed": false,
-          "detail": "opened PR #52 when there was nothing to fix",
+          "detail": "opened PR #56 when there was nothing to fix",
           "evidence": {
-            "pr": "https://github.com/OfficialAbhinavSingh/mergit-e2e-sandbox/pull/52"
+            "pr": "https://github.com/OfficialAbhinavSingh/mergit-e2e-sandbox/pull/56",
+            "number": 56
           }
         }
       ]
@@ -107,18 +110,16 @@
     {
       "scenario": "already_correct",
       "run": 2,
-      "outcome": "silent_failure",
-      "goal_id": "71b47040-385c-49e8-856c-8f13e1e8c550",
+      "outcome": "success",
+      "goal_id": "b218f96d-7b85-4514-9bf5-0eeff7ccfd92",
       "goal_status": "COMPLETED",
-      "seconds": 61.2,
+      "seconds": 37.5,
       "checks": [
         {
           "name": "github_no_new_pr",
-          "passed": false,
-          "detail": "opened PR #53 when there was nothing to fix",
-          "evidence": {
-            "pr": "https://github.com/OfficialAbhinavSingh/mergit-e2e-sandbox/pull/53"
-          }
+          "passed": true,
+          "detail": "no pull request, correctly",
+          "evidence": {}
         }
       ]
     },
@@ -126,9 +127,9 @@
       "scenario": "report_only",
       "run": 1,
       "outcome": "success",
-      "goal_id": "f1eb1f6c-77ed-4a0b-b9c0-cfcaf8614ce0",
+      "goal_id": "0fd32ae8-5a2e-4c04-a022-16802302886a",
       "goal_status": "COMPLETED",
-      "seconds": 35.1,
+      "seconds": 45.1,
       "checks": [
         {
           "name": "slack_message_posted",
@@ -148,9 +149,9 @@
       "scenario": "report_only",
       "run": 2,
       "outcome": "success",
-      "goal_id": "d4d1be97-7edd-4b54-9f62-a77be3e54ebe",
+      "goal_id": "15846329-ca18-4deb-affe-370a3b0c2201",
       "goal_status": "COMPLETED",
-      "seconds": 51.1,
+      "seconds": 40.1,
       "checks": [
         {
           "name": "slack_message_posted",
@@ -167,7 +168,7 @@
       ]
     }
   ],
-  "success_rate": 0.5,
-  "silent_failure_rate": 0.3333333333333333,
-  "reported_shortfall_rate": 0.16666666666666666
+  "success_rate": 0.8333333333333334,
+  "silent_failure_rate": 0.16666666666666666,
+  "reported_shortfall_rate": 0.0
 }

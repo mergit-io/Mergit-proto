@@ -96,13 +96,51 @@ what was reported and nothing else), and `tools/grounding.py` catches it if it s
 largest() to handle all-negative lists"*, ABH-7 In Review, a Notion incident note, and a
 Slack reply in the original thread carrying all three URLs.
 
+## How we know it works
+
+`evals/` runs the scenarios against a live server and grades every one of them by reading
+the services back. Nothing consults a goal's output, its task rows or its tool results —
+those are the claims under test, and a harness that graded claims against themselves would
+agree with every lie.
+
+Latest suite, two runs per scenario:
+
+| scenario | runs | ok | silent | said so | median |
+|---|---|---|---|---|---|
+| ship_the_fix | 2 | 2 | 0 | 0 | 78.9s |
+| already_correct | 2 | 1 | 1 | 0 | 50.3s |
+| report_only | 2 | 2 | 0 | 0 | 45.1s |
+| degraded | skipped — only means something while Notion is unreachable | | | | |
+
+**success 83% · silent-failure 17%**
+
+Three of the four scenarios are not the happy path, because a suite made only of happy
+paths measures whether the demo works rather than whether the system does.
+
+The suite separates two things a single number hides. A **silent failure** is a run
+reported COMPLETED that the services say did not happen, with nothing in its own output
+admitting it — the dangerous kind, because it is the run nobody goes and checks. A
+**reported shortfall** missed an objective and named the one it missed; there the defect is
+the COMPLETED status, not the honesty. Run `dcaac2eb` was the second kind, and scoring it
+as the first would have slandered an agent that told the truth.
+
+Both live findings so far came from this suite, not from watching a demo:
+
+- **`already_correct` fails intermittently — 1 of 2, and 2 of 2 the run before.** Told "if
+  it is already correct, say so", the pipeline opened PR #52 adding module-level asserts
+  and a `print` to a library file. Same root as the unrequested `if not numbers` branch:
+  the agent manufactures work rather than reporting that there is none.
+- **`notion_create_page` took its own schema literally.** The description said "Defaults to
+  NOTION_PARENT_PAGE_ID" and a model passed that string as the value, shadowing the real
+  default. Fixed; ship_the_fix went from 0/1 to 2/2.
+
 ## Still to build
 
 1. **Receipts** (`receipts.py`) — request hash, response hash and a post-action read-back
    per side effect, over the existing `tool_calls` row (`args_hash`, `result_json`).
-2. **Eval harness** (`evals/`) — a scenario suite run N times, asserting by read-back from
-   each app, reporting success rate, **silent-failure rate** and recovery rate.
-3. **Fault injection** — kill the worker mid-run, revoke a token, force a 500. All three
+2. **Fault injection** — kill the worker mid-run, revoke a token, force a 500. All three
    recovery paths already exist (lease reclaim, `WAITING_CREDENTIAL`, replanner); the
    harness has to prove they fire.
+3. **A guard for manufactured work** — the `already_correct` failure and the unrequested
+   branch are the same defect, and prompting has not fixed either.
 4. `/app/evals` — one table, and the reliability brief writes itself from it.
