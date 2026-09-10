@@ -19,6 +19,7 @@ thread accumulates replies and that is stated rather than hidden.
 import argparse
 import asyncio
 import json
+import re
 import sys
 import time
 from dataclasses import asdict, dataclass, field
@@ -39,9 +40,47 @@ POLL_S = 5
 #: What a run can turn out to be. `silent_failure` is the one the suite exists to count.
 SUCCESS = "success"
 SILENT_FAILURE = "silent_failure"
+REPORTED_SHORTFALL = "reported_shortfall"
 LOUD_FAILURE = "loud_failure"
 PESSIMISTIC = "pessimistic"
 SKIPPED = "skipped"
+
+#: Words a run uses when it is owning up to something it could not do.
+_ADMISSION = re.compile(
+    r"could not|couldn'?t|cannot|can'?t|unable|failed|was not|were not|not created|"
+    r"missing|skipped|no .{0,24}(?:was|were) created", re.I)
+
+#: Which service a failed check is about, so an admission can be matched to it. A run that
+#: admits a Slack problem has not thereby excused a missing Notion page.
+_SUBJECT = {
+    "notion": r"notion",
+    "linear": r"linear",
+    "slack": r"slack",
+    "github": r"github|pull request|\bpr\b",
+}
+
+
+def admits(check_name: str, text: str) -> bool:
+    """True when `text` owns up to the thing `check_name` found missing.
+
+    Run dcaac2eb is why this exists. The Notion page really was not created, and the
+    integrator said so in as many words — "Notion incident note could not be created due to
+    missing parent page configuration" — and the goal was still marked COMPLETED. Counting
+    that as a silent failure would be wrong twice over: it slanders an agent that was
+    honest, and it hides the real defect, which is that a goal reports COMPLETED when a
+    stated objective was not met.
+
+    Matched within a segment rather than across the whole blob, so "the PR failed" does not
+    excuse a missing Notion page that is mentioned three lines away.
+    """
+    subject = next((pattern for prefix, pattern in _SUBJECT.items()
+                    if check_name.startswith(prefix)), "")
+    if not subject:
+        return False
+    for segment in re.split(r"[.\n]|\",", text or ""):
+        if re.search(subject, segment, re.I) and _ADMISSION.search(segment):
+            return True
+    return False
 
 
 @dataclass
@@ -84,6 +123,19 @@ async def find_thread(cfg: sc.Config) -> str:
     return threaded[0]["ts"] if threaded else ""
 
 
+async def reported_text(cfg: sc.Config, goal_id: str) -> str:
+    """Everything the run said about itself — the goal output and every task output.
+
+    Read only to tell an honest shortfall from a silent one. It is never used to decide
+    whether an artifact exists; that is what the services are for.
+    """
+    async with httpx.AsyncClient(timeout=30) as client:
+        state = (await client.get(f"{cfg.base_url}/api/goals/{goal_id}")).json()
+    parts = [str(state.get("output") or ""), str(state.get("error") or "")]
+    parts += [str(t.get("output") or "") for t in state.get("tasks", [])]
+    return "\n".join(parts)
+
+
 async def submit_and_wait(cfg: sc.Config, goal: str) -> tuple[str, str, float]:
     """(goal_id, terminal status, seconds). Status is TIMEOUT if it never settles."""
     started = time.time()
@@ -107,16 +159,28 @@ async def submit_and_wait(cfg: sc.Config, goal: str) -> tuple[str, str, float]:
     return goal_id, "TIMEOUT", time.time() - started
 
 
-def classify(goal_status: str, results: list[Check]) -> str:
+def classify(goal_status: str, results: list[Check], reported: str = "") -> str:
     """What this run turned out to be.
 
     The distinction that matters is between a run that failed and said so, and a run that
     failed and reported success. Both are failures; only the second one is dangerous,
     because it is the one nobody goes and checks.
+
+    `reported` is what the run said about itself. A COMPLETED goal that missed an objective
+    *and named the one it missed* is a `reported_shortfall`, not a silent failure — the
+    defect there is the status, not the honesty.
     """
+    if goal_status == "COMPLETED" and not results:
+        # Nothing was verified, so nothing is known. Calling that a pass — or an honest
+        # shortfall — is the mistake this harness exists to avoid.
+        return SILENT_FAILURE
+
     everything_held = all(c.passed for c in results) if results else False
     if goal_status == "COMPLETED":
-        return SUCCESS if everything_held else SILENT_FAILURE
+        if everything_held:
+            return SUCCESS
+        unexplained = [c for c in results if not c.passed and not admits(c.name, reported)]
+        return SILENT_FAILURE if unexplained else REPORTED_SHORTFALL
     return PESSIMISTIC if everything_held else LOUD_FAILURE
 
 
@@ -156,9 +220,10 @@ async def run_one(cfg: sc.Config, scenario: sc.Scenario, run_no: int,
 
     goal_id, status, seconds = await submit_and_wait(cfg, goal)
     verdicts = await scenario.verify(cfg, before)
+    said = await reported_text(cfg, goal_id)
 
     result = RunResult(
-        scenario=scenario.id, run=run_no, outcome=classify(status, verdicts),
+        scenario=scenario.id, run=run_no, outcome=classify(status, verdicts, said),
         goal_id=goal_id, goal_status=status, seconds=round(seconds, 1),
         checks=[asdict(v) for v in verdicts],
     )
@@ -174,15 +239,17 @@ def report(results: list[RunResult]) -> dict:
         by_scenario.setdefault(r.scenario, []).append(r)
 
     print("\n" + "=" * 78)
-    print(f"{'scenario':<18}{'runs':>5}{'ok':>5}{'silent':>8}{'loud':>6}{'median s':>10}")
+    print(f"{'scenario':<18}{'runs':>5}{'ok':>5}{'silent':>8}{'said so':>9}{'loud':>6}"
+          f"{'median s':>10}")
     print("-" * 78)
     for name, runs in by_scenario.items():
         counted = [r for r in runs if r.outcome != SKIPPED]
         ok = sum(1 for r in counted if r.outcome == SUCCESS)
         silent = sum(1 for r in counted if r.outcome == SILENT_FAILURE)
+        said = sum(1 for r in counted if r.outcome == REPORTED_SHORTFALL)
         loud = sum(1 for r in counted if r.outcome == LOUD_FAILURE)
         times = sorted(r.seconds for r in counted) or [0]
-        print(f"{name:<18}{len(counted):>5}{ok:>5}{silent:>8}{loud:>6}"
+        print(f"{name:<18}{len(counted):>5}{ok:>5}{silent:>8}{said:>9}{loud:>6}"
               f"{times[len(times) // 2]:>10.1f}")
 
     counted = [r for r in results if r.outcome != SKIPPED]
@@ -190,9 +257,12 @@ def report(results: list[RunResult]) -> dict:
     silent = sum(1 for r in counted if r.outcome == SILENT_FAILURE)
     ok = sum(1 for r in counted if r.outcome == SUCCESS)
     print("-" * 78)
+    said = sum(1 for r in counted if r.outcome == REPORTED_SHORTFALL)
     print(f"success rate         {ok}/{len(counted)}  ({100 * ok / total:.0f}%)")
     print(f"SILENT-FAILURE RATE  {silent}/{len(counted)}  ({100 * silent / total:.0f}%)"
-          "   ← runs reported COMPLETED that the services say did not happen")
+          "   ← reported COMPLETED, services say otherwise, run never said so")
+    print(f"reported shortfall   {said}/{len(counted)}  ({100 * said / total:.0f}%)"
+          "   ← missed an objective and named it; the bug is the COMPLETED status")
 
     for r in counted:
         if r.failed_checks:
@@ -205,6 +275,7 @@ def report(results: list[RunResult]) -> dict:
         "runs": [asdict(r) for r in counted],
         "success_rate": ok / total,
         "silent_failure_rate": silent / total,
+        "reported_shortfall_rate": said / total,
     }
 
 

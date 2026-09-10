@@ -223,15 +223,23 @@ async def notion_create_page(args: dict) -> dict:
     if blanks:
         return blanks
 
-    parent_raw = (args.get("parent_page_id")
-                  or os.environ.get("NOTION_PARENT_PAGE_ID", "")
-                  or settings.notion_parent_page_id)
-    parent = _page_id(parent_raw)
+    default_raw = (os.environ.get("NOTION_PARENT_PAGE_ID", "")
+                   or settings.notion_parent_page_id)
+    supplied = (args.get("parent_page_id") or "").strip()
+
+    # A supplied value that contains no page id is not a parent — it is a model repeating
+    # something it read. Run dcaac2eb passed the literal string "NOTION_PARENT_PAGE_ID",
+    # copied out of this tool's own schema description, and because that string is truthy
+    # the configured default never got a chance. Anything unusable falls through to the
+    # default rather than failing the call, and only a missing default is an error.
+    parent = _page_id(supplied) or _page_id(default_raw)
     if not parent:
+        detail = (f" The value passed as parent_page_id ({supplied!r}) contains no Notion "
+                  f"page id." if supplied else "")
         return {"ok": False, "error": (
             "no Notion parent page. An internal integration cannot create a workspace-root "
-            "page, so one is required: pass parent_page_id, or set NOTION_PARENT_PAGE_ID "
-            "on the deployment.")}
+            "page, so one is required: pass parent_page_id as a page id or page URL, or set "
+            "NOTION_PARENT_PAGE_ID on the deployment." + detail)}
 
     payload = {
         "parent": {"type": "page_id", "page_id": parent},
@@ -258,7 +266,12 @@ NOTION_CREATE_PAGE_SCHEMA = {
     "properties": {
         "title": {"type": "string", "description": "Page title"},
         "content": {"type": "string", "description": "Markdown body. Include real URLs, never placeholders."},
-        "parent_page_id": {"type": "string", "description": "Parent page id or URL. Defaults to NOTION_PARENT_PAGE_ID."},
+        # Deliberately does not name the environment variable. It used to, and a model
+        # passed that name as the value — reading the description as an instruction.
+        "parent_page_id": {"type": "string", "description": (
+            "Optional. A Notion page id or page URL to create this page under. Omit it "
+            "and the workspace's configured parent page is used — that is the normal "
+            "case, so only pass this when you have a specific page id in hand.")},
     },
     "required": ["title"],
 }

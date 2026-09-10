@@ -1,0 +1,86 @@
+{
+  "runs": [
+    {
+      "scenario": "ship_the_fix",
+      "run": 1,
+      "outcome": "silent_failure",
+      "goal_id": "dcaac2eb-13f5-46ca-8ad2-4fd102980bf1",
+      "goal_status": "COMPLETED",
+      "seconds": 114.5,
+      "checks": [
+        {
+          "name": "github_pr_opened",
+          "passed": true,
+          "detail": "PR #49 touches calc.py",
+          "evidence": {
+            "pr": "https://github.com/OfficialAbhinavSingh/mergit-e2e-sandbox/pull/49",
+            "number": 49
+          }
+        },
+        {
+          "name": "linear_issue_in_state",
+          "passed": true,
+          "detail": "ABH-8 in In Review",
+          "evidence": {
+            "issue": "https://linear.app/abhinav-singh/issue/ABH-8/fix-correct-largest-to-handle-all-negative-lists-in-calcpy",
+            "identifier": "ABH-8"
+          }
+        },
+        {
+          "name": "notion_page_exists",
+          "passed": false,
+          "detail": "no page was created under the parent",
+          "evidence": {}
+        },
+        {
+          "name": "slack_replied_in_thread",
+          "passed": true,
+          "detail": "replied with 1 real links",
+          "evidence": {
+            "ts": "1789041232.190649"
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "already_correct",
+      "run": 1,
+      "outcome": "success",
+      "goal_id": "62119884-48b2-44bd-ae8c-1dbc7cca83a3",
+      "goal_status": "COMPLETED",
+      "seconds": 30.1,
+      "checks": [
+        {
+          "name": "github_no_new_pr",
+          "passed": true,
+          "detail": "no pull request, correctly",
+          "evidence": {}
+        }
+      ]
+    },
+    {
+      "scenario": "report_only",
+      "run": 1,
+      "outcome": "success",
+      "goal_id": "20c333c8-381a-490d-ae4f-56bd72f3093c",
+      "goal_status": "COMPLETED",
+      "seconds": 35.2,
+      "checks": [
+        {
+          "name": "slack_message_posted",
+          "passed": true,
+          "detail": "posted",
+          "evidence": {}
+        },
+        {
+          "name": "github_no_new_pr",
+          "passed": true,
+          "detail": "no pull request, correctly",
+          "evidence": {}
+        }
+      ]
+    }
+  ],
+  "success_rate": 0.6666666666666666,
+  "silent_failure_rate": 0.3333333333333333
+}
