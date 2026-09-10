@@ -3,7 +3,7 @@ import logging
 import re
 
 import language
-from tools import grounding
+from tools import grounding, scope_creep
 from tools.github_client import (
     TOKEN_MISSING,
     client as _client,
@@ -545,7 +545,8 @@ async def github_pr(args: dict) -> dict:
     # `average` function did not handle empty lists properly" while the diff changed only
     # `largest`. Nothing was fabricated — every tool succeeded and the fix was correct — so
     # no fabrication guard could see it. See tools/grounding.py.
-    ungrounded = grounding.unsupported_claims(body, _before_after(upstream, files, base_branch))
+    before_after = _before_after(upstream, files, base_branch)
+    ungrounded = grounding.unsupported_claims(body, before_after)
     if ungrounded:
         logger.warning("Refusing PR on %s — body claims what the diff does not do: %s",
                        repo_name, ungrounded)
@@ -554,6 +555,22 @@ async def github_pr(args: dict) -> dict:
                          "the Problem and Fix sections must be about the code in this diff, "
                          "not about code you did not touch. Re-read your own files[] content "
                          "against what is already in the repository, then rewrite the body."}
+
+    # Grounding asks whether the description is true of the diff. This asks the other
+    # half: whether the diff contains anything the description does not account for.
+    # Both live failures it exists for were entirely truthful — PR #52 shipped asserts that
+    # run on import, PR #53 said "No code-level issue was found" and changed the file
+    # anyway. See tools/scope_creep.py.
+    unrequested = scope_creep.unrequested_changes(before_after, body)
+    if unrequested:
+        logger.warning("Refusing PR on %s — changes the description does not account for: %s",
+                       repo_name, unrequested)
+        return {"action": "create_pr", "result": None, "url": None, "ok": False,
+                "error": f"{'; '.join(unrequested[:4])}. Either leave these out and ship only "
+                         "the change that was asked for, or say plainly in the body that you "
+                         "are making them and why. If you found nothing wrong, report that "
+                         "— it is a complete and successful answer, and it does not need a "
+                         "pull request."}
 
     # `g.get_user()` needs a token that HAS a user. An installation token does not — it
     # authenticates as the app, and this call fails against it. So the fork path (and only
