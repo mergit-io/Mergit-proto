@@ -72,6 +72,13 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
             "actual diff, and github_get_pr for its state, checks and review verdicts. The PR "
             "title and body are claims, not evidence — never describe a change you have not read. "
             "Put the diff you read into code_context.\n"
+            "1c. To read a Slack report: slack_read_channel lists recent messages in a channel "
+            "(each has a `ts`), then slack_read_thread with that `ts` returns the whole thread. "
+            "The first message of the thread is the report itself; the replies are usually the "
+            "reproduction steps. Quote what you actually read — never summarise a thread you did "
+            "not open.\n"
+            "1d. linear_get_issue reads a ticket (ENG-42) and notion_get_page reads a page, "
+            "for tasks that start from an existing ticket or document rather than from code.\n"
             "2. For web research: use web_search for broad queries, http_request for specific URLs.\n"
             "3. If web_search returns a 'note' field saying it is unavailable, or returns no results, "
             "do NOT keep retrying it. Instead, use your training knowledge to answer.\n"
@@ -89,7 +96,12 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
         "allowed_tools": ["web_search", "http_request", "github_read_file", "github_list_dir",
                           "github_get_issue", "github_search_code", "github_list_workflows",
                           "github_get_branch_protection", "github_get_pr", "github_get_pr_files",
-                          "github_list_prs", "spawn_goal"],
+                          "github_list_prs", "spawn_goal",
+                          # Read-only across the other three services. The researcher gathers
+                          # evidence; it never writes to anyone's workspace.
+                          "slack_list_channels", "slack_read_channel", "slack_read_thread",
+                          "linear_list_teams", "linear_get_issue",
+                          "notion_search", "notion_get_page"],
         "output_schema": {
             "type": "object",
             "properties": {
@@ -151,9 +163,18 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
             "- NEVER invent a tidier filename. Fixing `calc.py` by writing `calculator.py` "
             "does not fix anything — it adds a second file and leaves the bug in place.\n"
             "- Only choose a new path when the task genuinely calls for a file that does not exist yet.\n\n"
+            "SCOPE RULE — fix the reported bug and nothing else:\n"
+            "- Change only what the report describes. An extra behaviour nobody asked for is a "
+            "second change hiding inside a bug fix, and the reviewer cannot tell them apart.\n"
+            "- Run 0e067775: the report was `largest([-5, -2, -9])` returning 0 instead of -2. The "
+            "fix was correct, but an unrequested `if not numbers: return 0` branch came with it, "
+            "and every artifact downstream then described the PR as an empty-list fix — a change "
+            "no one had asked for, explaining a bug no one had reported.\n"
+            "- Keep the rest of the file byte-for-byte as you found it.\n\n"
             "Workflow:\n"
             "1. Write the actual Python code (not a design doc — real .py file content as a string).\n"
-            "2. Run it with code_exec. Capture real output.\n"
+            "2. Run it with code_exec. Capture real output — include the reported repro, so the "
+            "output shows the reported symptom is gone.\n"
             "3. Call submit_result with all four required keys.\n\n"
             "WRONG (will be rejected):\n"
             "  submit_result({architecture: ..., layers: ..., deliverables: ...})  ← REJECTED\n"
@@ -194,13 +215,20 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
             "Imperative mood, under 70 chars, no trailing period.\n"
             "- Body: well-structured markdown with these exact sections:\n"
             "    ## Summary — one or two sentences on what this PR does\n"
-            "    ## Problem — the bug/issue and its user-visible impact\n"
+            "    ## Problem — the bug/issue and its user-visible impact, TAKEN FROM THE REPORT. "
+            "If your inputs carry `reported_problem`, that text is the problem — restate it, do "
+            "not replace it with what you infer from the diff you are holding. On run 0e067775 an "
+            "integrator was handed a fix for `largest()` returning 0 on negative numbers and wrote "
+            "'the average function did not handle empty lists', which was both untrue and about a "
+            "function the diff never touched.\n"
             "    ## Root Cause — the specific code-level reason it happened\n"
             "    ## Fix — what you changed and why this is the correct approach\n"
             "    ## Verification — the exact command run and its output proving the fix works "
             "(use the coder's execution output; never claim 'tested' without evidence)\n"
             "    Closes #<issue_number>  (only if an issue number is known)\n"
             "- Keep the diff MINIMAL and focused — only the lines needed for the fix, no unrelated churn.\n"
+            "- Every sentence in the body must be about code this diff changes. github_pr refuses a "
+            "body that claims something about a function or file the diff does not touch.\n"
             "- Use github_pr with files[] (path+content) — it auto-detects the base branch and will "
             "autonomously fork the repo if you lack push access, then open a cross-repo PR.\n"
             "- PATH RULE — every path in files[] must be a file that ALREADY EXISTS, unless the task "
@@ -228,6 +256,19 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
             "- Only report a merge when the tool returned merged == true.\n\n"
             "For OPENING an issue use github_create_issue; to close one after the fix ships use "
             "github_close_issue; github_add_labels for triage.\n\n"
+            "CROSS-APP WORK — Slack, Linear and Notion:\n"
+            "- slack_reply_in_thread answers the person who asked, in the thread they are watching. "
+            "Use it instead of slack_post_message whenever you were given a thread_ts. Include every "
+            "real URL you produced (PR, ticket, page) — a reply with no links is not a report.\n"
+            "- linear_create_issue puts the work on the board; put the PR URL in the description. "
+            "linear_update_issue moves it (state: 'In Review' once the PR is open, 'Done' once it "
+            "merged). If you do not know the team key, call linear_list_teams first; if a state name "
+            "is refused, call linear_list_states and use one it names.\n"
+            "- notion_create_page files the written record: what broke, the root cause, the fix, and "
+            "links to the PR and the ticket. `content` is Markdown.\n"
+            "- ORDER MATTERS. Produce the artifact before you announce it: PR first, then the ticket "
+            "and the page that link to it, then the Slack reply that links to all three. Announcing "
+            "first means announcing a URL you do not have.\n\n"
             "NEVER report an action you did not verify. Every claim in submit_result must correspond "
             "to a tool result where ok == true. If a tool returned ok == false, say so plainly.\n\n"
             "Always return a JSON object with exactly these keys: "
@@ -240,7 +281,16 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
                           "github_get_pr", "github_get_pr_files", "github_list_prs", "github_merge_pr",
                           "github_review_pr", "github_request_review", "github_update_pr",
                           "github_create_issue", "github_close_issue", "github_add_labels",
-                          "http_request", "wait_webhook", "spawn_goal"],
+                          "http_request", "wait_webhook", "spawn_goal",
+                          # The other three apps. Read tools are included alongside the write
+                          # tools deliberately: the integrator resolves a channel, a team or a
+                          # parent page before it writes, and without the read half it guesses.
+                          "slack_list_channels", "slack_read_channel", "slack_read_thread",
+                          "slack_post_message", "slack_reply_in_thread",
+                          "linear_list_teams", "linear_list_states", "linear_create_issue",
+                          "linear_get_issue", "linear_update_issue", "linear_comment",
+                          "notion_search", "notion_create_page", "notion_append_blocks",
+                          "notion_get_page"],
         "output_schema": {
             "type": "object",
             "properties": {
@@ -254,7 +304,10 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
         # and 5 iterations left no room for a single retry.
         # Live: list_dir, list_prs (errored), get_issue, create_issue burned half of
         # eight before the agent had even started composing its result.
-        "max_iterations": 14,
+        # Raised to 20 when Slack, Linear and Notion were added: the full chain is
+        # github_pr → linear_create_issue → linear_update_issue → notion_create_page →
+        # slack_reply_in_thread, and each of those may need one resolve call first.
+        "max_iterations": 20,
     },
 }
 
