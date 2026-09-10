@@ -88,9 +88,18 @@ def test_a_writer_with_no_inputs_is_not_rejected_by_this_rule():
 
 def test_an_agent_that_can_actually_fetch_may_be_given_references():
     """The integrator owns `github_get_pr`, so a PR number is a real instruction to it,
-    not a request to imagine one."""
+    not a request to imagine one.
+
+    The reference here is `{{t1.output.summary}}` rather than `{{t1.output.pr_number}}`,
+    which is what this fixture used to say. A researcher reports no `pr_number` — that
+    reference would resolve to its whole output, handing the integrator a dict where a
+    number belongs, and `_unknown_output_fields` now refuses it. The subject of this test
+    is whether an agent that can fetch may be given a reference at all, and that is
+    unchanged; only the field had to become one that exists.
+    """
     act = TaskSpec(id="t2", agent="integrator", description="Merge the pull request",
-                   inputs={"repo": "o/r", "pr_number": "{{t1.output.pr_number}}"},
+                   inputs={"repo": "o/r", "pr_number": 32,
+                           "context": "{{t1.output.summary}}"},
                    depends_on=["t1"])
 
     _validate_plan(_plan(RESEARCH, act))
@@ -302,3 +311,73 @@ def test_taking_the_path_alongside_the_code_is_fine():
         _t("t3", "writer", "Report", {"d": "{{t2.output}}"}, ["t2"]),
     ]
     _validate_plan(PlanSchema(tasks=tasks, terminal="t3", reasoning="r"))
+
+
+# ── References to fields the upstream agent does not produce ─────────────────────
+
+def test_a_reference_to_a_field_the_upstream_agent_never_produces_is_rejected():
+    """Run 8738177b planned a writer task reading `{{t2.output.summary}}`, where t2 is the
+    coder. The coder's output has `code`, `path`, `output` and `success` — no `summary`.
+
+    Interpolation is deliberately forgiving about that: a missing field falls back to the
+    whole upstream output rather than failing the goal. So the writer was handed the entire
+    contents of calc.py as the incident note's "root cause", and wrote it up. Nothing
+    failed, nothing was empty, and the note was nonsense.
+
+    The planner meant `{{t1.output.summary}}` — the researcher's. It is a typo that only a
+    schema can catch, so the schema catches it.
+    """
+    code = TaskSpec(id="t2", agent="coder", description="Write the fix",
+                    inputs={"issue_summary": "{{t1.output.summary}}"}, depends_on=["t1"])
+    note = TaskSpec(id="t3", agent="writer", description="Write the incident note",
+                    inputs={"data": {"root_cause": "{{t2.output.summary}}"}},
+                    depends_on=["t2"])
+
+    with pytest.raises(ValueError) as excinfo:
+        _validate_plan(_plan(RESEARCH, code, note))
+
+    message = str(excinfo.value)
+    assert "t2.output.summary" in message
+    assert "coder" in message
+    assert "code" in message, "the message must name the fields that DO exist"
+
+
+def test_a_reference_nested_in_a_dict_is_checked_too():
+    """The shape that produced the bug was nested, so a top-level-only check would have
+    missed the very case it exists for."""
+    code = TaskSpec(id="t2", agent="coder", description="Write the fix",
+                    inputs={"repo": "o/r"}, depends_on=["t1"])
+    note = TaskSpec(id="t3", agent="writer", description="Write it up",
+                    inputs={"sections": [{"body": "cause: {{t2.output.summary}}"}]},
+                    depends_on=["t2"])
+
+    with pytest.raises(ValueError, match="t2.output.summary"):
+        _validate_plan(_plan(RESEARCH, code, note))
+
+
+def test_a_reference_to_a_field_that_does_exist_is_fine():
+    code = TaskSpec(id="t2", agent="coder", description="Write the fix",
+                    inputs={"code_context": "{{t1.output.code_context}}"}, depends_on=["t1"])
+    ship = TaskSpec(id="t3", agent="integrator", description="Open the pull request",
+                    inputs={"repo": "o/r", "fixed_code": "{{t2.output.code}}",
+                            "file_path": "{{t2.output.path}}"},
+                    depends_on=["t2"])
+    _validate_plan(_plan(RESEARCH, code, ship))
+
+
+def test_referencing_a_whole_output_is_always_fine():
+    """`{{t1.output}}` names no field, so there is no field to get wrong."""
+    write = TaskSpec(id="t2", agent="writer", description="Write it up",
+                     inputs={"data": "{{t1.output}}"}, depends_on=["t1"])
+    _validate_plan(_plan(RESEARCH, write))
+
+
+def test_a_nested_path_is_judged_on_its_first_segment():
+    """The integrator's `result` is free-form, so `result.pr_url` is unknowable ahead of
+    time — but `result` itself either exists on the schema or it does not."""
+    ship = TaskSpec(id="t2", agent="integrator", description="Open the pull request",
+                    inputs={"repo": "o/r", "fixed_code": "x"}, depends_on=["t1"])
+    tell = TaskSpec(id="t3", agent="writer", description="Write it up",
+                    inputs={"data": {"link": "{{t2.output.result.pr_url}}"}},
+                    depends_on=["t2"])
+    _validate_plan(_plan(RESEARCH, ship, tell))

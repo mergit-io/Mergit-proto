@@ -45,7 +45,10 @@ Available agents (choose from these only):
   was reported in #eng-bugs", "close the loop on the bug in that thread" — is a four-step plan,
   and the order is fixed because each step needs a real URL from the one before it:
     t1 researcher: slack_read_channel then slack_read_thread — read the actual thread, extract
-       the repro. Its output MUST carry the channel and the thread_ts, because t4 replies there.
+       the repro. Put the channel name in t1's inputs as a literal (the goal text names it),
+       NOT as a reference to another task: a researcher reports summary, key_points, sources
+       and code_context and nothing else, so {{t1.output.channel}} and {{t1.output.thread_ts}}
+       name fields that do not exist and hand the whole researcher output over instead.
     t2 coder: write the fix from t1's code_context.
     t3 integrator: github_pr opens the PR, then linear_create_issue (description carries the PR
        URL), then linear_update_issue to 'In Review', then notion_create_page with the written
@@ -55,8 +58,10 @@ Available agents (choose from these only):
        a key named `reported_problem`. Without it the integrator writes the PR body from the
        diff it is holding and describes a different bug than the one that was reported — which
        is what happened on run 0e067775, and github_pr now refuses PRs whose body does that.
-    t4 integrator (terminal): slack_reply_in_thread using t1's channel and thread_ts, quoting the
-       real PR, ticket and page URLs from t3.
+    t4 integrator (terminal): slack_reply_in_thread, quoting the real PR, ticket and page URLs
+       from t3. Give it the channel as a literal and let it find the thread itself with
+       slack_read_channel — that is what actually works today, and it is the only route,
+       because no agent schema has a field to carry a thread_ts from one task to the next.
   NEVER plan the announcement before the artifact: a Slack reply scheduled ahead of the PR has
   nothing real to link to, and the guards will reject it.
   A goal that only reports somewhere ("post the release notes to Slack", "file this in Notion")
@@ -546,6 +551,70 @@ def _coder_terminal_after_a_pull_request(p: "PlanSchema") -> str | None:
     )
 
 
+def _template_refs(inputs: Any) -> list[tuple[str, str | None]]:
+    """Every `{{task.output[.path]}}` in `inputs`, at any depth, as (task_id, path).
+
+    Recursive because plan inputs are. `_extract_template_deps` and `_rewrite_templates`
+    both walk nested structures for the same reason; the one walker that did not was
+    `interpolation.resolve_inputs`, and run 8738177b is what that cost.
+    """
+    from interpolation import TEMPLATE_RE
+
+    found: list[tuple[str, str | None]] = []
+
+    def scan(v: Any) -> None:
+        if isinstance(v, str):
+            found.extend((m.group(1), m.group(2)) for m in TEMPLATE_RE.finditer(v))
+        elif isinstance(v, dict):
+            for vv in v.values():
+                scan(vv)
+        elif isinstance(v, list):
+            for item in v:
+                scan(item)
+
+    scan(inputs)
+    return found
+
+
+def _unknown_output_fields(p: PlanSchema) -> str:
+    """Plan references to fields the upstream agent's schema does not have.
+
+    Run 8738177b gave a writer `{{t2.output.summary}}`, where t2 was the coder. A coder
+    reports `code`, `path`, `output` and `success` — never `summary`. Interpolation is
+    deliberately forgiving about a missing field and falls back to the whole upstream
+    output rather than failing the goal, so the writer was handed the entire contents of
+    calc.py as the incident note's "root cause" and wrote it up. Nothing failed, nothing
+    was empty, and the note was nonsense.
+
+    The planner meant the researcher's `summary`. That is a typo only a schema can catch.
+
+    Judged on the first segment alone: an integrator's `result` is free-form, so
+    `result.pr_url` is unknowable ahead of time, while `result` itself either exists or does
+    not. An agent with no declared properties is left alone rather than guessed at.
+    """
+    from agent_registry import AGENT_REGISTRY
+
+    agent_of = {t.id: t.agent for t in p.tasks}
+    problems: list[str] = []
+    for task in p.tasks:
+        for ref_id, path in _template_refs(task.inputs):
+            if not path:
+                continue  # `{{t1.output}}` names no field, so none can be wrong
+            agent = agent_of.get(ref_id)
+            if not agent:
+                continue  # an unknown task id is a different error, already reported
+            properties = ((AGENT_REGISTRY.get(agent) or {}).get("output_schema") or {}).get(
+                "properties") or {}
+            if not properties:
+                continue
+            field = path.split(".")[0].split("[")[0]
+            if field not in properties:
+                problems.append(
+                    f"task '{task.id}' reads {{{{{ref_id}.output.{field}}}}}, but '{ref_id}' "
+                    f"is a {agent} and a {agent} reports only {sorted(properties)}")
+    return "; ".join(problems)
+
+
 def _validate_plan(p: PlanSchema) -> None:
     ids = {t.id for t in p.tasks}
     if p.terminal not in ids:
@@ -572,6 +641,16 @@ def _validate_plan(p: PlanSchema) -> None:
                 "(its toolset is file_ops). It would have to invent the answer. Put a "
                 "researcher task first to fetch the content, and hand the writer that output."
             )
+    # Last of the content checks, deliberately. A plan with a bad field reference is often
+    # also a plan with a more specific problem — a writer asked to fetch, a PR task with no
+    # code — and those messages say more about what to do. This one catches what is left.
+    if (wrong_fields := _unknown_output_fields(p)):
+        raise ValueError(
+            f"{wrong_fields}. A reference to a field that does not exist does not fail — it "
+            "silently hands over the whole upstream output instead — so the task downstream "
+            "gets something plausible and wrong. Reference a field the agent actually "
+            "reports, or reference the whole output.")
+
     # Enforce: researcher/integrator must not be terminal unless they are the only task,
     # OR it's a GitHub automation workflow (researcher → coder → integrator) where the
     # integrator creates real side-effects (PR + comment) as the final action.
