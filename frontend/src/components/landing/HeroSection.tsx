@@ -1,7 +1,11 @@
+import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Micro, ProofBlock } from "../ui";
 import { Replay } from "./Replay";
 import { SylvaScene } from "./SylvaScene";
+import { loadMotion } from "../../lib/motion";
+import { useLineReveal } from "../../hooks/useLineReveal";
+import { useMagnetic } from "../../hooks/useMagnetic";
 
 /* Both numbers are read off the system rather than chosen for the page:
    `economy.ROLES` is the six roles that hold a passport and earn reputation, and
@@ -26,9 +30,64 @@ function StatMark({ kind }: { kind: "proof" | "chain" }) {
 }
 
 export function HeroSection() {
+  const sectionRef = useRef<HTMLElement>(null);
+  const sceneRef = useRef<HTMLDivElement>(null);
+  const washRef = useRef<HTMLDivElement>(null);
+  const headlineRef = useRef<HTMLHeadingElement>(null);
+  const ctaRef = useRef<HTMLAnchorElement>(null);
+  const playRef = useRef<HTMLAnchorElement>(null);
+
+  useLineReveal(headlineRef, 0.15);
+  useMagnetic(ctaRef, { pull: 12 });
+  useMagnetic(playRef, { radius: 90, pull: 16 });
+
+  /* Leaving the hero should feel like walking out of the world rather than
+     scrolling a picture of it: the ground sinks and swells slightly while the
+     wash closes over it, so the next section arrives out of the moss instead of
+     on top of it. Scrubbed, so it is entirely under the reader's thumb. */
+  useEffect(() => {
+    let cancelled = false;
+    let cleanup: (() => void) | null = null;
+
+    (async () => {
+      const motion = await loadMotion();
+      if (!motion || cancelled) return;
+      const section = sectionRef.current;
+      const scene = sceneRef.current;
+      const wash = washRef.current;
+      if (!section || !scene || !wash) return;
+
+      const timeline = motion.gsap.timeline({
+        scrollTrigger: { trigger: section, start: "top top", end: "bottom top", scrub: true },
+      });
+      timeline
+        .to(scene, { yPercent: 14, scale: 1.14, ease: "none" }, 0)
+        .to(wash, { opacity: 1.35, ease: "none" }, 0);
+
+      cleanup = () => {
+        timeline.scrollTrigger?.kill();
+        timeline.kill();
+        motion.gsap.set([scene, wash], { clearProps: "all" });
+      };
+    })();
+
+    return () => {
+      cancelled = true;
+      cleanup?.();
+    };
+  }, []);
+
   return (
-    <section className="relative isolate flex min-h-[100svh] flex-col justify-end overflow-hidden">
-      <SylvaScene className="absolute inset-0 -z-10" />
+    <section
+      ref={sectionRef}
+      className="relative isolate flex min-h-[100svh] flex-col justify-end overflow-hidden"
+    >
+      {/* The scene sits in a wrapper the scroll timeline can transform, so the
+          component keeps its single job — running the world — and does not have
+          to hand out a ref to its own host. */}
+      <div ref={sceneRef} className="absolute inset-0 -z-10">
+        <SylvaScene className="absolute inset-0" />
+      </div>
       {/* The world is bright at the horizon and the headline sits over it, so the
           type gets its own ground rather than a text-shadow — a wash dark enough
           to hold its contrast, shaped so the moss still reads through it. */}
@@ -36,6 +95,7 @@ export function HeroSection() {
           move the scene's cursor parallax is listening for — the world would go
           still under a mouse that is plainly over it. */}
       <div
+        ref={washRef}
         className="pointer-events-none absolute inset-0 -z-10"
         aria-hidden="true"
         style={{
@@ -44,14 +104,9 @@ export function HeroSection() {
         }}
       />
 
-      {/* The hero's copy is a layer over a world that tilts with the cursor, so the
-          layer has to be transparent to the pointer everywhere it has nothing in it —
-          otherwise a full-width wrapper's padding is enough to hold the whole scene
-          still. Re-enabled per block rather than globally, so the type stays
-          selectable and the card stays hoverable. */}
-      <div className="pointer-events-none mx-auto w-full max-w-[1400px] px-5 pb-16 pt-32 lg:pb-24 lg:pt-40">
+      <div className="mx-auto w-full max-w-[1400px] px-5 pb-16 pt-32 lg:pb-24 lg:pt-40">
         <div className="grid items-end gap-12 lg:grid-cols-[1.15fr_0.85fr] lg:gap-16">
-          <div className="pointer-events-auto">
+          <div>
             <div className="flex items-center gap-2.5" data-reveal>
               <span className="h-1.5 w-1.5 bg-violet" />
               <Micro>Proof of work · on chain</Micro>
@@ -60,12 +115,16 @@ export function HeroSection() {
             {/* Lexend at 300, not Archivo at 700: the console's display face is a
                 slab that fights the scene. The landing borrows Sylva's face for the
                 one headline and hands the page straight back afterwards. */}
+            {/* No data-reveal: useLineReveal owns this element, and the CSS reveal
+                would be a second opacity animation on the same node. */}
             <h1
+              ref={headlineRef}
               className="font-moss mt-7 text-[clamp(2.6rem,6.4vw,5.25rem)] font-light leading-[0.98] tracking-[-0.028em]"
-              data-reveal
-              style={{ "--reveal-delay": "80ms" } as React.CSSProperties}
             >
-              Describe the outcome.
+              {/* The trailing space is load-bearing: SplitText derives the element's
+                  aria-label from its text content, and without it a screen reader
+                  reads "outcome.Not the steps." */}
+              Describe the outcome.{" "}
               <br />
               <span className="text-dim">Not the steps.</span>
             </h1>
@@ -85,12 +144,12 @@ export function HeroSection() {
               data-reveal
               style={{ "--reveal-delay": "240ms" } as React.CSSProperties}
             >
-              <Link to="/app" className="moss-pill">
+              <Link to="/app" className="moss-pill" ref={ctaRef}>
                 Delegate a goal
                 <span aria-hidden="true">&rarr;</span>
               </Link>
               {/* Sylva's play control, pointed at something real: the run below. */}
-              <a href="#run" className="moss-ring" aria-label="See a full run">
+              <a href="#run" className="moss-ring" aria-label="See a full run" ref={playRef}>
                 <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
                   <path d="M8 5.2v13.6L19 12z" fill="currentColor" />
                 </svg>
@@ -120,7 +179,7 @@ export function HeroSection() {
               It is the one light surface on the page, which is what makes the run
               read as the subject rather than as decoration. */}
           <div
-            className="moss-card pointer-events-auto"
+            className="moss-card"
             data-reveal
             style={{ "--reveal-delay": "400ms" } as React.CSSProperties}
           >
@@ -128,7 +187,7 @@ export function HeroSection() {
           </div>
         </div>
 
-        <a href="#run" className="moss-scroll pointer-events-auto mt-14" data-reveal>
+        <a href="#run" className="moss-scroll mt-14" data-reveal>
           Discover
           <span className="moss-track" aria-hidden="true" />
         </a>

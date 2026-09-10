@@ -718,11 +718,9 @@
   html, body { width: 100% !important; height: 100% !important; min-height: 0 !important; margin: 0 !important; overflow: hidden !important; }
   body { position: relative !important; background: #4a4d44 !important; }
   .hero { height: 100% !important; min-height: 0 !important; }
-  /* The canvas keeps pointer events so the world still reacts to the cursor;
-     the empty stage must not, or it would eat every click meant for the React
-     hero sitting above the iframe. */
-  #scene { pointer-events: auto !important; }
-  #stage { pointer-events: none !important; }
+  /* Nothing in here takes pointer events: the parent owns them and forwards the
+     coordinates through the bridge above. See POINTER_BRIDGE for why. */
+  #scene, #stage { pointer-events: none !important; }
 </style>
 </head>
 <body>
@@ -4160,6 +4158,25 @@ window.__seek   = v => { clock = v; drawn = null; };
 
   /* never leave the page invisible if something stalls */
   setTimeout(ready, 4000);
+})();
+</script>
+<script data-mergit-pointer-bridge>
+(function () {
+  var KIND = "mergit:pointer";
+  window.addEventListener("message", function (event) {
+    if (event.source !== window.parent) return;
+    var data = event.data;
+    if (!data || data.kind !== KIND) return;
+    if (data.leave) {
+      window.dispatchEvent(new PointerEvent("pointerleave", { pointerType: "mouse", bubbles: true }));
+      return;
+    }
+    var x = Number(data.x), y = Number(data.y);
+    if (!isFinite(x) || !isFinite(y)) return;
+    window.dispatchEvent(new PointerEvent("pointermove", {
+      pointerType: "mouse", clientX: x, clientY: y, bubbles: true
+    }));
+  });
 })();
 </script>
 </body>

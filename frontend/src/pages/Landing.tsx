@@ -7,9 +7,11 @@ import { ProofSection } from "../components/landing/ProofSection";
 import { StackSection } from "../components/landing/StackSection";
 import { LandingFooter } from "../components/landing/LandingFooter";
 import { useReveal } from "../hooks/useReveal";
+import { useSmoothScroll } from "../hooks/useSmoothScroll";
 
 export function Landing() {
   useReveal();
+  useSmoothScroll();
 
   /* `.landing-moss` below re-points the design tokens for this subtree, but the
      document's own background belongs to <html> and would still show through an
