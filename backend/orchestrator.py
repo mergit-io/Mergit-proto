@@ -208,10 +208,18 @@ async def connected_apps_note(goal: GoalRow) -> str:
 
     args = {"_goal_id": goal.id}
     live, absent = [], []
-    (live if await github_credential_check(args) is None else absent).append("github")
-    for provider in ("slack", "linear", "notion"):
-        usable = await service_client.credential_check(provider, args) is None
-        (live if usable else absent).append(provider)
+    try:
+        (live if await github_credential_check(args) is None else absent).append("github")
+        for provider in ("slack", "linear", "notion"):
+            usable = await service_client.credential_check(provider, args) is None
+            (live if usable else absent).append(provider)
+    except Exception as e:
+        # This runs on every planning call, and resolving a credential reaches the database
+        # to find the goal's owner. A transient failure there must not take planning down
+        # with it: without this note the planner behaves exactly as it did before the note
+        # existed, which is a worse plan, not a dead goal.
+        logger.warning("could not read connected apps for goal %s: %s", goal.id, e)
+        return ""
 
     note = f"\n\nCONNECTED APPS, checked just now: {', '.join(live) or 'none'}."
     if absent:

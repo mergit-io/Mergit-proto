@@ -636,3 +636,24 @@ def test_two_users_do_not_share_a_linear_team_cache(monkeypatch):
     team_ids = [c["json"]["variables"]["teamId"] for c in calls
                 if (c["json"].get("variables") or {}).get("teamId")]
     assert team_ids == ["team-alice", "team-bob"]
+
+
+def test_the_planner_note_never_takes_planning_down_with_it(monkeypatch):
+    """`connected_apps_note` runs on every planning call and reaches the database to find
+    the goal's owner. A transient failure there must degrade to no note, not a dead goal:
+    without it the planner behaves as it did before the note existed, which is a worse
+    plan rather than no plan at all.
+    """
+    import orchestrator
+
+    async def _explode(_args):
+        raise RuntimeError("database is locked")
+
+    monkeypatch.setattr(orchestrator, "AGENT_DESCRIPTIONS", orchestrator.AGENT_DESCRIPTIONS)
+    import tools.github_client as ghc
+    monkeypatch.setattr(ghc, "credential_check", _explode)
+
+    class _Goal:
+        id = "goal-under-test"
+
+    assert asyncio.run(orchestrator.connected_apps_note(_Goal())) == ""
