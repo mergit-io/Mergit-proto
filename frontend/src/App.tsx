@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Landing } from "./pages/Landing";
 import { Dashboard } from "./pages/Dashboard";
@@ -14,6 +15,13 @@ import { Connections } from "./pages/Connections";
 import { Approvals } from "./pages/Approvals";
 import { NotFound } from "./pages/NotFound";
 import { AuthProvider } from "./lib/auth";
+
+/* Lazily, and this is the whole point of the split: /next is the only route that
+   mounts the 3D stack, and every other page in the app — including the console —
+   would otherwise carry it in the main chunk for nothing. */
+const NextLanding = lazy(() =>
+  import("./pages/NextLanding").then((m) => ({ default: m.NextLanding }))
+);
 import { ThemeProvider } from "./lib/theme";
 import "./index.css";
 
@@ -27,6 +35,16 @@ export default function App() {
       <BrowserRouter>
       <Routes>
         <Route path="/" element={<Landing />} />
+        <Route
+          path="/next"
+          element={
+            /* The fallback paints the page's own ground rather than nothing, so
+               the wait reads as the page arriving instead of as a white flash. */
+            <Suspense fallback={<div className="min-h-screen" style={{ background: "#f4f4f1" }} />}>
+              <NextLanding />
+            </Suspense>
+          }
+        />
         <Route path="/login" element={<Login />} />
         <Route
           path="/app"

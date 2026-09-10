@@ -1,20 +1,5 @@
 import { Micro, ProofBlock } from "../ui";
-
-/* Illustrative receipts — the shape of the ledger, not live data. The console at
-   /app/economy shows the real thing. */
-const RECEIPTS = [
-  { tx: "0x9f2c…41ab", role: "integrator", rep: "+18" },
-  { tx: "0x41de…7c02", role: "coder", rep: "+12" },
-  { tx: "0xbb10…9e3f", role: "researcher", rep: "+9" },
-  { tx: "0x0d77…a5c4", role: "writer", rep: "+21" },
-];
-
-const CHAIN = [
-  ["Canonical output", "The task's result, serialised the same way every time"],
-  ["SHA-256 digest", "Hashed, so the record is a fixed size and tamper-evident"],
-  ["On-chain record", "Written to ProofOfWork with the agent's passport token"],
-  ["Reputation", "Success rate, speed and volume recomposed into one score"],
-];
+import { CHAIN, RECEIPTS } from "./content";
 
 export function ProofSection() {
   return (

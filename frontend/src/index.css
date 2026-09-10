@@ -643,3 +643,115 @@ html[data-landing="moss"] ::-webkit-scrollbar-thumb:hover {
   border: 1px solid rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(12px);
 }
+
+/* ── The paper landing (/next) ────────────────────────────────────────────────
+   A second landing in the editorial register: bright ground, strict grid, one
+   accent, and a great deal of nothing. Scoped exactly as `.landing-moss` is —
+   tokens set on the page's own root element, where they win for that subtree by
+   inheritance rather than specificity, so neither this nor the moss page can
+   reach into the console's themes.
+
+   Values start from the light theme above and tighten: a warmer paper than pure
+   white, near-black type rather than the console's off-white-on-ink, and
+   hairlines light enough to organise without drawing attention. */
+html[data-landing="paper"],
+html[data-landing="paper"] body {
+  background-color: #f4f4f1;
+  color-scheme: light;
+}
+html[data-landing="paper"] #root {
+  background-image: none;
+}
+html[data-landing="paper"] ::-webkit-scrollbar-track {
+  background: #f4f4f1;
+}
+html[data-landing="paper"] ::-webkit-scrollbar-thumb {
+  background: #d5d5cd;
+  border-color: #f4f4f1;
+}
+html[data-landing="paper"] ::-webkit-scrollbar-thumb:hover {
+  background: #b9b9ae;
+}
+
+.landing-paper {
+  --c-ink: 244 244 241;
+  --c-slab: 255 255 255;
+  --c-raise: 250 250 248;
+  --c-line: 226 226 220;
+  --c-line-soft: 237 237 232;
+  --c-text: 16 16 16;
+  --c-dim: 92 92 85;
+  /* 124, not the light theme's 141: `faint` carries the big stage numerals here,
+     and at 141 they sat under 3:1 on paper. */
+  --c-faint: 124 124 115;
+  --c-violet: 90 52 245;
+  --c-violet-hi: 74 38 224;
+  --c-on-violet: 255 255 255;
+  --c-mint: 0 140 95;
+  --c-amber: 176 106 0;
+  --c-red: 214 39 61;
+  --grid-line: rgba(16, 16, 16, 0.03);
+  background-color: rgb(var(--c-ink));
+  color: rgb(var(--c-text));
+}
+
+@layer components {
+  /* One measure, one rhythm. Every section on the page is this. */
+  .paper-section {
+    @apply mx-auto max-w-[1320px] px-8 py-24 lg:py-36;
+  }
+
+  /* `dim`, not `faint`. At 10px this is small text and owes 4.5:1; on paper
+     `faint` measured 3.82 and failed. `faint` keeps carrying the big stage
+     numerals, where 3:1 is the bar and it passes. */
+  .paper-eyebrow {
+    @apply font-mono text-micro uppercase text-dim;
+  }
+
+  /* The page's only filled control. Square, because the console is square and
+     this is still the same product. */
+  .paper-cta {
+    @apply inline-flex h-11 items-center justify-center gap-2 px-6 text-sm font-medium;
+    background: rgb(var(--c-text));
+    color: rgb(var(--c-ink));
+    transition: background-color 200ms var(--ease), transform 120ms var(--ease);
+  }
+  .paper-cta:hover {
+    background: rgb(var(--c-violet));
+  }
+  .paper-cta:active {
+    transform: translateY(1px);
+  }
+  .paper-cta--lg {
+    @apply h-14 px-9 text-base;
+  }
+
+  /* A text link that earns its underline on hover rather than wearing one. */
+  .paper-link {
+    @apply relative text-sm text-text;
+  }
+  .paper-link::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -4px;
+    height: 1px;
+    background: currentColor;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 240ms var(--ease);
+  }
+  .paper-link:hover::after {
+    transform: scaleX(1);
+  }
+
+  /* The object's stage. A fixed square with its own light, so stage two can drop
+     a canvas in without a single number around it moving. */
+  .paper-plate {
+    @apply relative flex aspect-square w-full items-center justify-center overflow-hidden;
+    background:
+      radial-gradient(120% 100% at 50% 0%, #ffffff 0%, #f0f0ec 55%, #e6e6e0 100%);
+    border: 1px solid rgb(var(--c-line));
+  }
+}

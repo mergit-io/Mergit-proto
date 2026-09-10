@@ -1,15 +1,5 @@
 import { Micro } from "../ui";
-
-const STACK = [
-  { name: "Groq", role: "Default inference for every agent role" },
-  { name: "Anthropic", role: "First fallback when a provider caps out" },
-  { name: "OpenRouter", role: "Second and third tiers of the fallback chain" },
-  { name: "LiteLLM", role: "One interface across all three providers" },
-  { name: "Tavily", role: "Web search for the researcher" },
-  { name: "FastAPI", role: "API, event stream, and the app itself" },
-  { name: "SQLite (WAL)", role: "Durable state with atomic lease claiming" },
-  { name: "Solidity on EVM", role: "Passports, proofs, reputation, audit trail" },
-];
+import { STACK } from "./content";
 
 export function StackSection() {
   return (
