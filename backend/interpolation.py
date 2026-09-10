@@ -33,12 +33,34 @@ def _resolve_path(obj: Any, path: str) -> Any:
     return obj
 
 
+#: How deep a plan's inputs are followed. A model-authored structure is a handful of levels
+#: at most; this only exists so a pathological one cannot raise RecursionError inside the
+#: worker, which would fail the goal for a reason that has nothing to do with the goal.
+_MAX_DEPTH = 12
+
+
 def resolve_inputs(inputs: dict, task_outputs: dict[str, dict]) -> dict:
     """Replace {{task_id.output}} or {{task_id.output.field}} templates with values from completed tasks.
 
     Resilient by design: if the LLM-authored plan references a field that does not
     exist on the upstream output (wrong field name, schema drift), fall back to the
-    whole upstream output instead of failing the entire goal."""
+    whole upstream output instead of failing the entire goal.
+
+    **Templates are replaced wherever they appear, at any depth.** This walked only the top
+    level once, and run `8738177b` is what that cost: the planner gave a writer task the
+    inputs
+
+        {"data": {"root_cause": "{{8738177b_t2.output.summary}}", ...}}
+
+    and `data` was a dict, so every template inside it was returned untouched — no warning,
+    no error, no resolution. The writer then produced "The root cause of the bug was related
+    to {{8738177b_t2.output.summary}}." as finished prose, and the next task filed that text
+    as an incident note. Only the publish-time placeholder guard stopped it reaching a page
+    a human would read.
+
+    Nesting is ordinary in an LLM-authored plan — the planner is shown
+    `{"data": "{{t1.output}}"}` for the writer and nests one level deeper about as often as
+    not — so it is a thing to support, not a thing to forbid."""
 
     def _lookup(task_id: str, path: str | None) -> Any:
         if task_id not in task_outputs:
@@ -56,7 +78,12 @@ def resolve_inputs(inputs: dict, task_outputs: dict[str, dict]) -> dict:
             )
             return obj
 
-    def resolve_value(v: Any) -> Any:
+    def resolve_value(v: Any, depth: int = 0) -> Any:
+        if depth < _MAX_DEPTH:
+            if isinstance(v, dict):
+                return {k: resolve_value(item, depth + 1) for k, item in v.items()}
+            if isinstance(v, list):
+                return [resolve_value(item, depth + 1) for item in v]
         if not isinstance(v, str):
             return v
         full_match = TEMPLATE_RE.fullmatch(v)
