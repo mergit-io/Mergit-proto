@@ -1,11 +1,21 @@
+import { Suspense, lazy, useState } from "react";
 import { Link } from "react-router-dom";
 import { ProofBlock } from "../ui";
+import { hasWebGL } from "../../lib/webgl";
 
-/* One object, one sentence, one control, and a great deal of nothing.
-   The object is the line-art mark for now; stage two replaces this plate with the
-   real thing without moving anything around it, which is why the plate owns a
-   fixed square rather than sizing to its contents. */
+/* The object is a further chunk beyond this page's own: three.js is ~170KB
+   gzipped and the hero's type, grid and copy should not wait behind it. Until it
+   arrives — and on any machine that cannot give us a GL context — the plate holds
+   the line-art mark, which is the same object drawn flat. */
+const ProofObject = lazy(() =>
+  import("./ProofObject").then((m) => ({ default: m.ProofObject }))
+);
+
+/* One object, one sentence, one control, and a great deal of nothing. */
 export function NextHero() {
+  // Probed once, at mount: the answer cannot change while the page is open.
+  const [webgl] = useState(hasWebGL);
+
   return (
     <section className="mx-auto max-w-[1320px] px-8 pb-28 pt-40 lg:pb-40 lg:pt-52">
       <div className="grid items-center gap-16 lg:grid-cols-[1fr_0.9fr] lg:gap-24">
@@ -35,7 +45,13 @@ export function NextHero() {
         </div>
 
         <div className="paper-plate">
-          <ProofBlock className="h-2/3 w-2/3 text-violet" />
+          {webgl ? (
+            <Suspense fallback={<ProofBlock className="h-2/3 w-2/3 text-violet" />}>
+              <ProofObject className="absolute inset-0" />
+            </Suspense>
+          ) : (
+            <ProofBlock className="h-2/3 w-2/3 text-violet" />
+          )}
         </div>
       </div>
     </section>

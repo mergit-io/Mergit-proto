@@ -22,13 +22,15 @@
     "react-markdown": "^9.1.0",
     "react-router-dom": "^6.30.3",
     "reactflow": "^11.11.4",
-    "swr": "^2.4.1"
+    "swr": "^2.4.1",
+    "three": "^0.186.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^24.12.3",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@types/three": "^0.185.4",
     "@vitejs/plugin-react": "^6.0.1",
     "autoprefixer": "^10.5.0",
     "eslint": "^10.3.0",
