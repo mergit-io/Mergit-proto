@@ -222,6 +222,26 @@ async def fresh_user_token(user_id: str, conn: dict | None = None) -> str:
         await store.release_refresh_lease(conn["id"], owner)
 
 
+async def service_token(user_id: str, provider: str) -> str:
+    """The stored API token for a simple bearer-auth service — `linear`, `notion`, `slack`.
+
+    The generalisation of `slack_bot_token`. Every non-GitHub integration authenticates
+    the same way (one opaque string in one header), so they share one resolver rather
+    than each reaching into `store.open_secrets` — which would break the invariant that
+    `credentials/` is the only package that can decrypt anything.
+
+    Returns a string rather than a client because each service's client is one `httpx`
+    call, not a library. The string still never reaches a model: the tools that call this
+    accept a channel, a team or a page id, never a token.
+    """
+    conn = await store.get_connection(user_id, provider)
+    if not conn:
+        raise NoConnection(provider, user_id,
+                           f"Connect {provider.title()} so Mergit can act on your behalf there.")
+    access, _ = store.open_secrets(conn)
+    return access
+
+
 async def slack_bot_token(user_id: str, team_id: str | None = None) -> str:
     """The workspace bot token, for the Slack tools.
 
@@ -238,4 +258,4 @@ async def slack_bot_token(user_id: str, team_id: str | None = None) -> str:
 
 
 __all__ = ["GitHubHandle", "NoConnection", "allowed_repos", "for_goal", "for_user",
-           "fresh_user_token", "slack_bot_token", "DEFAULT_PERMISSIONS"]
+           "fresh_user_token", "service_token", "slack_bot_token", "DEFAULT_PERMISSIONS"]

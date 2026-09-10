@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 AGENT_DESCRIPTIONS = """
 Available agents (choose from these only):
 
-- researcher: Searches the web, reads GitHub repos, reads PR diffs, gathers facts.
-  Tools: web_search, http_request, github_read_file, github_list_dir, github_get_issue, github_search_code, github_get_pr, github_get_pr_files, github_list_prs
+- researcher: Searches the web, reads GitHub repos, reads PR diffs, reads Slack threads, Linear issues and Notion pages, gathers facts.
+  Tools: web_search, http_request, github_read_file, github_list_dir, github_get_issue, github_search_code, github_get_pr, github_get_pr_files, github_list_prs, slack_list_channels, slack_read_channel, slack_read_thread, linear_list_teams, linear_get_issue, notion_search, notion_get_page
   Output: {{"summary": str, "key_points": [str], "sources": [str], "code_context": str}}
   NOTE: outputs raw structured data — NOT a human-readable report on its own.
   Use for: web research, reading GitHub repos/files/issues, reading the DIFF of a pull request
@@ -34,13 +34,33 @@ Available agents (choose from these only):
   Output: {{"code": str, "output": str, "success": bool}}
   Use for: writing code fixes, running scripts, generating patches.
 
-- integrator: Performs every WRITE action on GitHub — opens/updates/reviews/merges PRs, opens/closes/labels issues, forks repos, creates repos, manages Actions workflows and branch protection — plus other external APIs and webhooks.
-  Tools: github_pr, github_merge_pr, github_review_pr, github_request_review, github_update_pr, github_get_pr, github_get_pr_files, github_list_prs, github_create_issue, github_close_issue, github_add_labels, github_post_comment, github_read_file, github_create_repo, github_list_workflows, github_get_branch_protection, github_set_branch_protection, http_request, wait_webhook
+- integrator: Performs every WRITE action on the outside world — GitHub (opens/updates/reviews/merges PRs, opens/closes/labels issues, forks repos, creates repos, manages Actions workflows and branch protection), Slack (posts messages and thread replies), Linear (creates, moves and comments on issues) and Notion (creates and appends to pages) — plus other external APIs and webhooks.
+  Tools: github_pr, github_merge_pr, github_review_pr, github_request_review, github_update_pr, github_get_pr, github_get_pr_files, github_list_prs, github_create_issue, github_close_issue, github_add_labels, github_post_comment, github_read_file, github_create_repo, github_list_workflows, github_get_branch_protection, github_set_branch_protection, http_request, wait_webhook, slack_post_message, slack_reply_in_thread, slack_read_thread, linear_create_issue, linear_update_issue, linear_comment, linear_get_issue, linear_list_teams, linear_list_states, notion_create_page, notion_append_blocks, notion_get_page, notion_search
   Output: {{"action": str, "result": any, "url": str|null}}
   NOTE: outputs raw API data — NOT a human-readable report on its own.
   Use for: shipping a new project as its own repo (github_create_repo), creating PRs, MERGING PRs, submitting PR reviews, opening/closing/labelling issues, posting comments, adding/updating CI workflows, setting branch protection rules.
   For "build X and ship it as a new repo" goals use the pattern: coder writes+tests the app -> integrator calls github_create_repo with all files.
   For "add a CI workflow" goals: researcher reads existing workflows -> coder writes the YAML -> integrator creates PR with the new .github/workflows/file.yml.
+  CROSS-APP GOALS (Slack + GitHub + Linear + Notion). A goal that starts in Slack — "fix what
+  was reported in #eng-bugs", "close the loop on the bug in that thread" — is a four-step plan,
+  and the order is fixed because each step needs a real URL from the one before it:
+    t1 researcher: slack_read_channel then slack_read_thread — read the actual thread, extract
+       the repro. Its output MUST carry the channel and the thread_ts, because t4 replies there.
+    t2 coder: write the fix from t1's code_context.
+    t3 integrator: github_pr opens the PR, then linear_create_issue (description carries the PR
+       URL), then linear_update_issue to 'In Review', then notion_create_page with the written
+       record. One integrator task, several tool calls — not four tasks. Drop any of those
+       steps whose app is listed as NOT CONNECTED below.
+       t3's inputs MUST include the reported symptom, verbatim, as {{{{t1.output.summary}}}} under
+       a key named `reported_problem`. Without it the integrator writes the PR body from the
+       diff it is holding and describes a different bug than the one that was reported — which
+       is what happened on run 0e067775, and github_pr now refuses PRs whose body does that.
+    t4 integrator (terminal): slack_reply_in_thread using t1's channel and thread_ts, quoting the
+       real PR, ticket and page URLs from t3.
+  NEVER plan the announcement before the artifact: a Slack reply scheduled ahead of the PR has
+  nothing real to link to, and the guards will reject it.
+  A goal that only reports somewhere ("post the release notes to Slack", "file this in Notion")
+  is writer -> integrator, not a four-step chain.
   For "set branch protection" goals: integrator calls github_set_branch_protection directly (no coder needed).
   For "merge PR #N" goals: integrator calls github_get_pr then github_merge_pr directly (no coder needed).
   MERGE SAFETY: github_merge_pr refuses to merge a PR with conflicts, failing/pending CI checks,
@@ -170,6 +190,37 @@ PLAN_TOOL = {
 }
 
 
+async def connected_apps_note(goal: GoalRow) -> str:
+    """Which outside services this goal can actually reach, as a line for the planner.
+
+    Run `0e9fefe4` is why this exists. The plan was right — read Slack, fix, open a PR,
+    file a ticket, file a Notion page, reply in the thread — and it stalled at
+    WAITING_CREDENTIAL on `NOTION_API_KEY`, because the planner had no way to know Notion
+    was the one app of the four with no credential. The system behaved correctly and the
+    run still produced nothing.
+
+    Resolved per goal rather than baked into the prompt: a connection can arrive between
+    one goal and the next, and it is resolved through the same `credential_check` the tools
+    use, so the planner's picture cannot drift from what a tool call would actually find.
+    """
+    from tools import service_client
+    from tools.github_client import credential_check as github_credential_check
+
+    args = {"_goal_id": goal.id}
+    live, absent = [], []
+    (live if await github_credential_check(args) is None else absent).append("github")
+    for provider in ("slack", "linear", "notion"):
+        usable = await service_client.credential_check(provider, args) is None
+        (live if usable else absent).append(provider)
+
+    note = f"\n\nCONNECTED APPS, checked just now: {', '.join(live) or 'none'}."
+    if absent:
+        note += (f"\nNOT CONNECTED: {', '.join(absent)}. Do NOT plan any step that uses "
+                 f"{' or '.join(absent)} — there is no credential, so the task would park "
+                 f"and the goal would never finish. Plan around it and say nothing about it.")
+    return note
+
+
 async def plan(goal: GoalRow) -> PlanSchema:
 
     orchestrator_model = model_config.get_model("orchestrator")
@@ -178,6 +229,7 @@ async def plan(goal: GoalRow) -> PlanSchema:
     import context as ctx_store
     ctx_prompt = ctx_store.get_context_prompt()
     system_content = SYSTEM_PROMPT + ctx_prompt if ctx_prompt else SYSTEM_PROMPT
+    system_content += await connected_apps_note(goal)
 
     # Truncate very long goal texts to avoid saturating the token budget before tasks are emitted
     goal_text = goal.goal_text

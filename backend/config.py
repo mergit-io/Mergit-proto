@@ -23,6 +23,17 @@ class Settings(BaseSettings):
     # Tools
     tavily_api_key: str = ""
     github_token: str = ""
+    # ── Single-tenant service tokens ────────────────────────────────────────────
+    # The same shape as `github_token`: a deployment-wide credential used only when the
+    # per-user connection is absent. `tools/service_client.py` prefers the user's stored
+    # connection and falls back here, so a laptop with three keys in `.env` behaves like
+    # a multi-tenant deployment without anyone having to click Connect.
+    slack_bot_token: str = ""
+    linear_api_key: str = ""
+    notion_api_key: str = ""
+    #: The Notion page every generated page is filed under. Notion refuses a workspace-root
+    #: parent for internal integrations, so a parent is required, not optional.
+    notion_parent_page_id: str = ""
     github_default_repo: str = ""
     mergit_repo: str = "mergit-io/Mergit-proto"  # repo where self-heal issues/PRs are filed
 
