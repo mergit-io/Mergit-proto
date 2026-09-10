@@ -100,7 +100,10 @@ export function ProofObject({
       const glass = new THREE.MeshPhysicalMaterial({
         color: 0xffffff,
         transmission: 1,
-        thickness: 0.85,
+        // 0.5, not 0.85: the two halves each refract the core, and a thick shell
+        // offsets those two images far enough apart that the solid inside reads
+        // as two solids rather than one seen through glass.
+        thickness: 0.5,
         roughness: 0.09,
         ior: 1.45,
         clearcoat: 1,

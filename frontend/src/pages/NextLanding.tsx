@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useSmoothScroll } from "../hooks/useSmoothScroll";
 import { NextNav } from "../components/next/NextNav";
 import { NextHero } from "../components/next/NextHero";
 import {
@@ -13,6 +14,7 @@ import {
    docs/superpowers/specs/2026-09-10-next-landing-3d.md — so it is a real page
    with real content rather than a mock. */
 export function NextLanding() {
+  useSmoothScroll();
   /* Same mechanism the moss landing uses: the tokens below are re-pointed for
      this subtree only, and the document's own ground is handed over for as long
      as the page is mounted. /app keeps both its themes. */

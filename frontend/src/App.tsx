@@ -40,7 +40,7 @@ export default function App() {
           element={
             /* The fallback paints the page's own ground rather than nothing, so
                the wait reads as the page arriving instead of as a white flash. */
-            <Suspense fallback={<div className="min-h-screen" style={{ background: "#f4f4f1" }} />}>
+            <Suspense fallback={<div className="min-h-screen" style={{ background: "#f2f2f5" }} />}>
               <NextLanding />
             </Suspense>
           }
