@@ -4,10 +4,12 @@ import { Micro } from "../ui";
 /* The hero's argument is the run itself: one real goal, decomposed, executed by
    four agents, settled on chain. It replays on a loop rather than being described.
 
-   It lives in its own file because it is now drawn inside the hero's card, which
-   is a much smaller frame than the half-page panel it used to be — `compact`
-   trades the tool name and the progress bar for the two lines that carry the
-   meaning, and everything else about the run is identical. */
+   It lives in its own file because it is now drawn inside the hero's glass panel,
+   which is a much smaller and much softer frame than the half-page console panel
+   it used to be. `compact` trades the tool name and the progress bar for the two
+   lines that carry the meaning, and swaps the console's solid hairlines and mono
+   section labels for glass rules and Lexend — everything else about the run is
+   identical. */
 const STEPS = [
   { agent: "orchestrator", act: "Decomposed the goal into 4 tasks", tool: "plan", ms: 1400 },
   { agent: "researcher", act: "Read the repo and located the flaw", tool: "github_read_file", ms: 2000 },
@@ -44,6 +46,16 @@ export function Replay({ compact = false }: { compact?: boolean }) {
   const [step, setStep] = useReplay(STEPS.length, paused);
   const settled = step > STEPS.length;
 
+  // The two voices: Lexend section labels on glass, mono in the console.
+  const Label = compact
+    ? ({ children }: { children: React.ReactNode }) => (
+        <span className="glass-label">{children}</span>
+      )
+    : Micro;
+
+  const rule = compact ? "rule-glass" : "border-b border-line";
+  const ruleSoft = compact ? "rule-glass-soft" : "border-b border-line-soft";
+
   return (
     <div
       className={compact ? "flex flex-col" : "panel"}
@@ -55,24 +67,22 @@ export function Replay({ compact = false }: { compact?: boolean }) {
       onBlurCapture={() => setPaused(false)}
     >
       <div
-        className={`flex items-center justify-between border-b border-line ${
-          compact ? "pb-2.5" : "px-4 py-2.5"
-        }`}
+        className={`flex items-center justify-between ${rule} ${compact ? "pb-3" : "px-4 py-2.5"}`}
       >
-        <Micro>Live run</Micro>
+        <Label>Live run</Label>
         <span className="flex items-center gap-2">
           <span
             className={`w-1.5 h-1.5 transition-colors duration-300 ${
               paused ? "bg-amber" : settled ? "bg-mint" : "bg-violet animate-blip"
             }`}
           />
-          <Micro>{paused ? "Held" : settled ? "Settled" : "Executing"}</Micro>
+          <Label>{paused ? "Held" : settled ? "Settled" : "Executing"}</Label>
         </span>
       </div>
 
-      <div className={`border-b border-line ${compact ? "py-3" : "px-4 py-3.5"}`}>
-        <Micro>Goal</Micro>
-        <p className={`mt-1.5 leading-snug ${compact ? "text-xs" : "text-sm"}`}>{GOAL}</p>
+      <div className={`${rule} ${compact ? "py-3.5" : "px-4 py-3.5"}`}>
+        <Label>Goal</Label>
+        <p className={`leading-snug ${compact ? "mt-2 text-[13px]" : "mt-1.5 text-sm"}`}>{GOAL}</p>
       </div>
 
       <ol className={compact ? "flex-1" : ""}>
@@ -80,11 +90,7 @@ export function Replay({ compact = false }: { compact?: boolean }) {
           const done = step > i;
           const active = step === i;
           return (
-            <li
-              key={s.agent}
-              className="border-b border-line-soft"
-              aria-current={active ? "step" : undefined}
-            >
+            <li key={s.agent} className={ruleSoft} aria-current={active ? "step" : undefined}>
               {/* A button may only contain phrasing content, so the row is spans, and
                   the dimming sits on an inner wrapper — on the button it also faded the
                   focus ring, leaving keyboard focus almost invisible on queued steps.
@@ -92,8 +98,8 @@ export function Replay({ compact = false }: { compact?: boolean }) {
                   and swallow the status, the tool name and the progress. */}
               <button
                 onClick={() => setStep(i)}
-                className={`w-full text-left block transition-colors duration-300 hover:bg-raise ${
-                  compact ? "py-2" : "px-4 py-3"
+                className={`w-full text-left block transition-colors duration-300 ${
+                  compact ? "-mx-2 rounded-2xl px-2 py-2.5 hover:bg-white/[0.06]" : "px-4 py-3 hover:bg-raise"
                 }`}
               >
                 <span
@@ -113,10 +119,10 @@ export function Replay({ compact = false }: { compact?: boolean }) {
                       {done ? "Done" : active ? "Running" : "Queued"}
                     </span>
                   </span>
-                  <span className={`block mt-1 ${compact ? "text-xs" : "text-sm mt-1.5"}`}>
+                  <span className={`block ${compact ? "mt-1 text-[13px]" : "mt-1.5 text-sm"}`}>
                     {s.act}
                   </span>
-                  {/* The tool call and its bar are the first thing to go in the card:
+                  {/* The tool call and its bar are the first thing to go in the panel:
                       they are the only rows whose meaning survives being dropped. */}
                   {!compact && (
                     <span className="flex items-center gap-3 mt-2">
@@ -134,13 +140,17 @@ export function Replay({ compact = false }: { compact?: boolean }) {
         })}
       </ol>
 
-      {/* The settled receipt: the moment the run becomes a fact on chain. */}
+      {/* The settled receipt: the moment the run becomes a fact on chain. Inset and
+          rounded on glass rather than bled to the panel's edges — a full-bleed bar
+          would square off two of the card's corners. */}
       <div
         className={`flex items-center justify-between transition-colors duration-500 ${
-          compact ? "-mx-5 px-5 mt-auto pt-3 pb-1" : "px-4 py-3.5"
-        } ${settled ? "proof-field" : compact ? "" : "bg-slab"}`}
+          compact
+            ? `mt-4 rounded-2xl px-3.5 py-3 ${settled ? "proof-field" : "bg-black/20"}`
+            : `px-4 py-3.5 ${settled ? "proof-field" : "bg-slab"}`
+        }`}
       >
-        <Micro>{settled ? "Proof minted" : "Awaiting settlement"}</Micro>
+        <Label>{settled ? "Proof minted" : "Awaiting settlement"}</Label>
         <span
           className={`font-mono tabular ${compact ? "text-[10px]" : "text-xs"} ${
             settled ? "" : "text-faint"

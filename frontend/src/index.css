@@ -516,26 +516,39 @@ html[data-landing="moss"] ::-webkit-scrollbar-thumb:hover {
     backdrop-filter: blur(12px);
   }
 
-  /* The cream field-note card. Its tokens are inverted in place, the same way
-     .proof-field inverts its contents, so everything inside it — the run, its
-     hairlines, its mono labels — resolves against cream without being rewritten. */
+  /* The run's surface. It was a cream field-note card, borrowed from Sylva's own
+     composition, and it read as a document pasted onto a forest: a dense console
+     panel in paper clothing, four hairlines deep, over an organic scene. Glass
+     instead — the same material as .moss-stat directly below it, so the hero has
+     one vocabulary rather than two. The tokens are left alone, because the moss
+     palette already reads on a dark translucent ground. */
   .moss-card {
-    --c-slab: 242 243 239;
-    --c-raise: 233 236 227;
-    --c-line: 208 213 199;
-    --c-line-soft: 223 227 215;
-    --c-text: 35 38 31;
-    --c-dim: 108 116 101;
-    --c-faint: 140 147 132;
-    --c-mint: 47 112 66;
-    --c-violet: 74 105 52;
-    --c-on-violet: 255 255 255;
     @apply flex flex-col p-5;
     min-height: 340px;
-    color: rgb(var(--c-text));
-    background: rgb(var(--c-slab));
-    border-radius: 30px;
-    box-shadow: 0 30px 70px rgba(16, 21, 13, 0.3);
+    border-radius: 28px;
+    background: rgba(22, 28, 18, 0.38);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 26px 60px rgba(16, 21, 13, 0.34);
+  }
+  /* Glass has no business carrying a solid hairline, so the card's rules are
+     white at low alpha and its hover is a lift in the glass rather than a fill. */
+  .moss-card .rule-glass {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .moss-card .rule-glass-soft {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .moss-card .rule-glass-soft:last-child {
+    border-bottom: 0;
+  }
+
+  /* The section voice inside the card: Lexend, not the console's mono. Mono stays
+     on the identifiers — step numbers, agent names, the receipt — because those
+     are things the console will show you again, spelled the same way. */
+  .glass-label {
+    @apply font-moss text-[11px] font-medium uppercase text-dim;
+    letter-spacing: 0.18em;
   }
 
   /* Sylva's scroll cue, turned on its side to sit under the hero rather than
