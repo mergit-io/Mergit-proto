@@ -28,6 +28,8 @@ def client():
     (dist / "index.html").write_text(INDEX)
     (dist / "assets").mkdir()
     (dist / "assets" / "app.js").write_text("console.log('hi')")
+    (dist / "landing").mkdir()
+    (dist / "landing" / "still.webp").write_bytes(b"not really a webp")
 
     app = FastAPI()
     router = APIRouter(prefix="/api", tags=["probe"])
@@ -89,3 +91,23 @@ def test_unmatched_api_paths_are_json_404s(client, path):
 def test_the_api_404_does_not_leak_the_spa_body(client):
     r = client.get("/api/nope")
     assert "id=root" not in r.text
+
+
+# ── the landing page's own assets ───────────────────────────────────────────────
+
+def test_landing_assets_are_readable_cross_origin(client):
+    """The landing is framed with `sandbox` and no `allow-same-origin`, so its origin is
+    opaque and its own stills reach it as cross-origin responses. One of its effects
+    draws a still into a canvas and uploads that canvas as a WebGL texture, which throws
+    on a canvas tainted by a response that never opted in — the failure mode was three
+    black rectangles where the cards should be."""
+    r = client.get("/landing/still.webp")
+    assert r.status_code == 200
+    assert r.headers.get("access-control-allow-origin") == "*"
+
+
+def test_nothing_else_is_readable_cross_origin(client):
+    """Scoped to /landing. The console and the API are not public in this sense."""
+    for path in ("/assets/app.js", "/index.html", "/app"):
+        r = client.get(path)
+        assert "access-control-allow-origin" not in r.headers, path
