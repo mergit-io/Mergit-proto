@@ -11,6 +11,7 @@ import { Economy } from "./pages/Economy";
 import { AgentDetail } from "./pages/AgentDetail";
 import { SelfHeal } from "./pages/SelfHeal";
 import { Connections } from "./pages/Connections";
+import { Services } from "./pages/Services";
 import { Approvals } from "./pages/Approvals";
 import { NotFound } from "./pages/NotFound";
 import { AuthProvider } from "./lib/auth";
@@ -97,6 +98,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <Connections />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/services"
+          element={
+            <ProtectedRoute>
+              <Services />
             </ProtectedRoute>
           }
         />
