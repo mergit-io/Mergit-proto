@@ -515,12 +515,6 @@ const NAV_BRIDGE = `<script data-mergit-nav-bridge>
     event.preventDefault();
     parent.postMessage({ kind: "mergit:navigate", to: link.getAttribute("href").slice(8) }, "*");
   });
-  document.addEventListener("click", function (event) {
-    var toggle = event.target && event.target.closest ? event.target.closest("[data-mergit-theme-toggle]") : null;
-    if (!toggle) return;
-    event.preventDefault();
-    parent.postMessage({ kind: "mergit:toggle-theme" }, "*");
-  });
 })();
 <\/script>`;
 
