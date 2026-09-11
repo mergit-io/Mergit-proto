@@ -218,7 +218,8 @@ async def cleanup(cfg: sc.Config, results: list[Check]) -> list[str]:
 
 async def run_one(cfg: sc.Config, scenario: sc.Scenario, run_no: int,
                   *, do_cleanup: bool) -> RunResult:
-    goal = scenario.goal.format(repo=cfg.repo, channel=cfg.channel, team=cfg.team)
+    goal = scenario.goal.format(repo=cfg.repo, channel=cfg.channel, team=cfg.team,
+                                report_channel=cfg.report_channel or cfg.channel)
     before = await scenario.before(cfg)
 
     goal_id, status, seconds = await submit_and_wait(cfg, goal)

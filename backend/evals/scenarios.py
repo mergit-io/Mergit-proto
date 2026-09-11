@@ -31,6 +31,12 @@ def _settings_value(name: str) -> str:
 class Config:
     repo: str = os.environ.get("EVAL_REPO", "OfficialAbhinavSingh/mergit-e2e-sandbox")
     channel: str = os.environ.get("EVAL_SLACK_CHANNEL", "#eng-bugs")
+    #: Where `report_only` posts. Defaults to `channel`, which is how the demo channel
+    #: ended up with eight bot summaries stacked above the bug report everyone is meant to
+    #: look at — and a channel whose newest ten messages are all the agent's own makes
+    #: "find the thread you are answering" harder than it is in real life. Point it
+    #: somewhere else with EVAL_REPORT_CHANNEL when the demo channel matters.
+    report_channel: str = os.environ.get("EVAL_REPORT_CHANNEL", "")
     thread_ts: str = os.environ.get("EVAL_THREAD_TS", "")
     team: str = os.environ.get("EVAL_LINEAR_TEAM", "ABH")
     #: `settings` reads `backend/.env` through pydantic, which never touches `os.environ`,
@@ -132,7 +138,8 @@ ALREADY_CORRECT = Scenario(
 async def _verify_report_only(cfg: Config, before: dict) -> list[checks.Check]:
     return [
         await checks.slack_message_posted(
-            cfg.channel, since=float(before["t"]), must_contain=["calc"]),
+            cfg.report_channel or cfg.channel, since=float(before["t"]),
+            must_contain=["calc"]),
         await checks.github_no_new_pr(cfg.repo, since_pr=before["pr"]),
     ]
 
@@ -140,7 +147,7 @@ async def _verify_report_only(cfg: Config, before: dict) -> list[checks.Check]:
 REPORT_ONLY = Scenario(
     id="report_only",
     goal=("Post a short summary of what calc.py in {repo} currently contains to the "
-          "{channel} Slack channel. Do not change any code."),
+          "{report_channel} Slack channel. Do not change any code."),
     before=_watermarks,
     verify=_verify_report_only,
     needs=["github", "slack"],
