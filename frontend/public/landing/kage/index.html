@@ -902,51 +902,81 @@ body[data-layout-footer="b"] .foot-base span:last-child{ text-align:right; }
     letter-spacing: -0.02em !important;
   }
 </style>
-<style data-mergit-theme>
-  html[data-theme="light"] {
-    --ink: #f2f2f5;
-    --ink-2: #ffffff;
-    --bone: #111019;
-    --bone-dim: #4a4857;
-    --muted: #63607a;
-    --line: rgba(17, 16, 25, .14);
-    --line-soft: rgba(17, 16, 25, .07);
-    --vermilion: #5a34f5;
-    --ember: #4a26e0;
-    --gold: #8a6d1f;
-  }
-  /* No filter on the canvas: the scene's own materials are re-coloured by the
-     palette below, and brightening the result as well blew the temple out to flat
-     white. The cut-out photographs are not materials and cannot be re-coloured,
-     so they keep a mild lift to sit with the day palette. */
-  html[data-theme="light"] .fg-el img {
-    filter: saturate(.78) brightness(1.22) contrast(.94);
+<style data-mergit-page>
+  /* The hero's two links, on one line until the frame is too narrow for it. */
+  .hero-act{ display:flex; flex-wrap:wrap; align-items:center; gap:clamp(18px,2.4vw,38px); margin-top:clamp(20px,2.6vh,32px); }
+  .arrowlink--quiet{ color:var(--bone-dim); }
+  /* On a phone the two links stack, and the second one lands in the wordmark.
+     It is also the only link on the page that duplicates something already
+     there — the scroll cue says the same thing a few lines down. */
+  @media (max-width:820px){ .arrowlink--quiet{ display:none; } }
+
+  /* The preview card shares the lower-right corner with the last letters of the
+     wordmark. It is moved down and in by the width of one letter's overhang, so
+     the two sit beside each other instead of on top of each other. */
+  body[data-layout-hero="b"] .peek{ bottom:clamp(20px,3.6vh,58px); width:clamp(140px,13.5vw,224px); }
+  .arrowlink--quiet:hover{ color:var(--bone); }
+
+  /* Chapter II's card copy. Held to a reading measure and dimmed one step below
+     the card label, so the three of them read as captions to the viewports
+     rather than as three columns of body text. */
+  .card-copy{
+    margin-top:10px; max-width:42ch;
+    font-size:clamp(12px,.86vw,13.5px); line-height:1.62; color:var(--muted);
   }
 
-  /* The sky above the horizon is a GLSL gradient inside a ShaderMaterial, which
-     the palette walk cannot reach — so in light mode the top of the frame is
-     still night, and near-black type over it is unreadable. Until those uniforms
-     are exposed, the copy carries its own ground. */
-  html[data-theme="light"] .display,
-  html[data-theme="light"] .lead,
-  html[data-theme="light"] .body,
-  html[data-theme="light"] .body-lg,
-  html[data-theme="light"] .hero-sub,
-  html[data-theme="light"] .eyebrow,
-  html[data-theme="light"] .nav-link,
-  html[data-theme="light"] .sec-head {
-    text-shadow: 0 1px 22px rgba(242, 242, 245, .92), 0 0 6px rgba(242, 242, 245, .8);
+  /* The menu. A full-frame sheet rather than a dropdown: it is the only thing on
+     screen while it is open, so it does not have to win a stacking contest with
+     a canvas, a vignette and a grain layer. */
+  .menu{
+    position:fixed; inset:0; z-index:60;
+    display:grid; place-items:center; padding:calc(var(--pad) + 40px) var(--pad) var(--pad);
+    background:rgba(3,6,9,.93);
+    opacity:0; visibility:hidden; pointer-events:none;
+    transition:opacity .42s var(--ease), visibility 0s linear .42s;
   }
-</style>
-<style data-mergit-toggle>
-  .nav-theme {
-    display: inline-flex; align-items: center; justify-content: center;
-    width: 38px; height: 38px; margin-right: 4px;
-    background: none; border: 1px solid var(--line); border-radius: 999px;
-    color: var(--bone-dim); cursor: pointer;
-    transition: color .25s var(--ease), border-color .25s var(--ease);
+  @supports (backdrop-filter: blur(1px)) { .menu{ backdrop-filter:blur(18px) saturate(.9); } }
+  html.menu-open .menu{ opacity:1; visibility:visible; pointer-events:auto; transition-delay:0s; }
+  html.menu-open, html.menu-open body{ overflow:hidden; }
+  /* The bar rides above the sheet, or the control that opened it — and the only
+     one that closes it — is the one thing the sheet covers. The links go with
+     the sheet instead: they are the first column of it. */
+  html.menu-open .nav{ z-index:70; }
+  html.menu-open .nav-links{ opacity:0; pointer-events:none; }
+  .nav-links{ transition:opacity .3s var(--ease); }
+  .menu-in{
+    width:min(1180px,100%);
+    display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:clamp(28px,5vw,88px);
   }
-  .nav-theme:hover { color: var(--bone); border-color: var(--bone-dim); }
+  .menu-col h4{
+    margin:0 0 18px; padding-bottom:12px; border-bottom:1px solid var(--line);
+    font-size:10px; font-weight:500; letter-spacing:.24em; text-transform:uppercase; color:var(--muted);
+  }
+  .menu-col ul{ list-style:none; margin:0; padding:0; }
+  .menu-col li{ margin:0; }
+  .menu-col a{
+    display:flex; align-items:baseline; gap:14px; padding:11px 0;
+    font-size:clamp(16px,1.5vw,22px); font-weight:300; letter-spacing:-.01em;
+    color:var(--bone-dim); transition:color .3s var(--ease), transform .45s var(--ease-out);
+  }
+  .menu-col a b{ font-size:10px; font-weight:500; letter-spacing:.18em; color:var(--vermilion); }
+  .menu-col a:hover{ color:var(--bone); transform:translate3d(6px,0,0); }
+  .menu-note p{ margin:0 0 16px; max-width:38ch; font-size:13px; line-height:1.7; color:var(--muted); }
+  .menu-note .jp{ font-size:11px; letter-spacing:.26em; color:var(--bone-dim); }
+  /* Upstream animates the two lines into a cross only inside its phone query. */
+  .nav-burger.active i:nth-child(1){ top:7px; width:26px; transform:rotate(45deg); }
+  .nav-burger.active i:nth-child(2){ top:7px; width:26px; transform:rotate(-45deg); }
+  @media (max-width:820px){
+    .menu{ display:none; }   /* upstream's own sheet owns this width */
+  }
+  @media (max-width:1100px){
+    .menu-in{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .menu-note{ display:none; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .menu{ transition-duration:.001s; }
+    .menu-col a{ transition:none; }
+  }
 </style>
 </head>
 <body data-layout-hero="b" data-layout-story="b" data-layout-gallery="b"
@@ -985,19 +1015,41 @@ body[data-layout-footer="b"] .foot-base span:last-child{ text-align:right; }
     <span class="brand-tx"><b>MERGIT</b><i>THE AI AGENT ECONOMY</i></span>
   </a>
   <nav class="nav-links" id="navlinks">
-    <a class="nav-link" href="#gate" data-cursor><span>The run</span><span class="alt">dag</span></a>
-    <a class="nav-link" href="#pathways" data-cursor><span>Agents</span><span class="alt">roles</span></a>
-    <a class="nav-link" href="#lessons" data-cursor><span>Proof</span><span class="alt">sha256</span></a>
-    <a class="nav-link" href="#eternity" data-cursor><span>Stack</span><span class="alt">deps</span></a>
+    <a class="nav-link" href="#gate" data-cursor><span>The plan</span><span class="alt">dag</span></a>
+    <a class="nav-link" href="#pathways" data-cursor><span>The graph</span><span class="alt">roles</span></a>
+    <a class="nav-link" href="#lessons" data-cursor><span>The run</span><span class="alt">chain</span></a>
+    <a class="nav-link" href="#eternity" data-cursor><span>Settlement</span><span class="alt">proof</span></a>
   </nav>
-  <button class="nav-theme" data-mergit-theme-toggle aria-label="Switch between light and dark" data-cursor>
-    <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.25">
-      <circle cx="8" cy="8" r="3.1"/>
-      <path d="M8 1.2v1.6M8 13.2v1.6M1.2 8h1.6M13.2 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M12.6 3.4l-1.1 1.1M4.5 11.5l-1.1 1.1" stroke-linecap="round"/>
-    </svg>
-  </button>
   <button class="nav-burger" aria-label="Menu" data-cursor><i></i><i></i></button>
 </header>
+
+<div class="menu" id="menu" aria-hidden="true">
+  <div class="menu-in">
+    <div class="menu-col">
+      <h4>Chapters</h4>
+      <ul>
+        <li><a href="#top" data-cursor><b>00</b> The goal</a></li>
+        <li><a href="#gate" data-cursor><b>01</b> The plan</a></li>
+        <li><a href="#pathways" data-cursor><b>02</b> The graph</a></li>
+        <li><a href="#lessons" data-cursor><b>03</b> The run</a></li>
+        <li><a href="#eternity" data-cursor><b>04</b> Settlement</a></li>
+      </ul>
+    </div>
+    <div class="menu-col">
+      <h4>Product</h4>
+      <ul>
+        <li><a href="#mergit:/app" data-cursor><b>→</b> Open the console</a></li>
+        <li><a href="#mergit:/app" data-cursor><b>→</b> Delegate a goal</a></li>
+        <li><a href="#mergit:/login" data-cursor><b>→</b> Sign in</a></li>
+      </ul>
+    </div>
+    <div class="menu-col menu-note">
+      <h4>Mergit</h4>
+      <p>Describe the outcome, not the steps. One sentence becomes a task graph, specialised agents execute it with real tools, and every finished task mints a proof on chain.</p>
+      <span class="jp">a finished task is a fact, not a claim</span>
+    </div>
+  </div>
+</div>
 
 <div class="page" id="top">
 
@@ -1011,6 +1063,16 @@ body[data-layout-footer="b"] .foot-base span:last-child{ text-align:right; }
       <span class="mask-line"><span>Not the steps.</span></span>
     </h1>
     <p class="hero-sub body" data-rv="up">One sentence becomes a task graph, and specialised agents execute it against real systems.</p>
+    <div class="hero-act" data-rv="fade">
+      <a class="arrowlink" href="#mergit:/app" data-cursor>
+        <span>Open the console</span>
+        <span class="ar"><svg viewBox="0 0 14 14" fill="none"><path d="M3 11 11 3M5 3h6v6" stroke="#dfe7e0" stroke-width="1.3"/></svg></span>
+      </a>
+      <a class="arrowlink arrowlink--quiet" href="#gate" data-cursor>
+        <span>See how a run works</span>
+        <span class="ar"><svg viewBox="0 0 14 14" fill="none"><path d="M7 3v8M3.4 7.6 7 11.2l3.6-3.6" stroke="#dfe7e0" stroke-width="1.3"/></svg></span>
+      </a>
+    </div>
   </div>
 
   <div class="hero-spacer"></div>
@@ -1100,6 +1162,10 @@ body[data-layout-footer="b"] .foot-base span:last-child{ text-align:right; }
   <div class="sec-head" data-rv="fade">
     <span class="k"><b>02</b> — The graph</span><span class="rule"></span><span class="k jp">roles</span>
   </div>
+  <div class="cur-head">
+    <h2 class="display h-sec" data-rv="up">How the work actually gets done.</h2>
+    <p class="body-lg" data-rv="up">A run has three movements. The orchestrator turns your sentence into a graph of tasks and their dependencies; specialised agents execute those tasks with real tools against real systems; and every finished task hashes what it produced and mints a proof on chain.</p>
+  </div>
   <div class="cards" id="cards">
     <article class="card" data-rv="up" data-view="0" data-cursor>
       <div class="card-fr" data-frame>
@@ -1108,6 +1174,7 @@ body[data-layout-footer="b"] .foot-base span:last-child{ text-align:right; }
         <div class="card-lab"><b>Plan</b><span class="jp">dag</span></div>
       </div>
       <div class="card-meta"><span>The task graph</span><span>01 / 03</span></div>
+      <p class="card-copy">A planning model reads the goal and writes the graph: every task, what it needs first, and which of the six agent roles owns it. Nothing runs until the shape of the work is decided.</p>
     </article>
     <article class="card" data-rv="up" data-view="1" data-cursor>
       <div class="card-fr" data-frame>
@@ -1116,6 +1183,7 @@ body[data-layout-footer="b"] .foot-base span:last-child{ text-align:right; }
         <div class="card-lab"><b>Execute</b><span class="jp">tools</span></div>
       </div>
       <div class="card-meta"><span>Real side effects</span><span>02 / 03</span></div>
+      <p class="card-copy">Each agent works a tool-call loop — reading the repository, running code, posting to Slack, opening the pull request. The side effects are real, so the approvals and the spend limits are too.</p>
     </article>
     <article class="card" data-rv="up" data-view="2" data-cursor>
       <div class="card-fr" data-frame>
@@ -1124,6 +1192,7 @@ body[data-layout-footer="b"] .foot-base span:last-child{ text-align:right; }
         <div class="card-lab"><b>Settle</b><span class="jp">sha256</span></div>
       </div>
       <div class="card-meta"><span>The proof</span><span>03 / 03</span></div>
+      <p class="card-copy">A finished task hashes its own output and writes the record to chain. The claim that the work happened stops being the agent's word for it and becomes something anyone can check.</p>
     </article>
   </div>
 </section>
@@ -1232,10 +1301,10 @@ body[data-layout-footer="b"] .foot-base span:last-child{ text-align:right; }
       <p>A goal-driven agent system. One sentence becomes a task graph, specialised agents execute it with real tools, and every finished task mints a proof on chain.</p>
     </div>
     <div><h4>Sections</h4><ul>
-      <li><a href="#gate" data-cursor>The run</a></li>
-      <li><a href="#pathways" data-cursor>Agents</a></li>
-      <li><a href="#lessons" data-cursor>Proof</a></li>
-      <li><a href="#eternity" data-cursor>Stack</a></li>
+      <li><a href="#gate" data-cursor>The plan</a></li>
+      <li><a href="#pathways" data-cursor>The graph</a></li>
+      <li><a href="#lessons" data-cursor>The run</a></li>
+      <li><a href="#eternity" data-cursor>Settlement</a></li>
     </ul></div>
     <div><h4>Tools</h4><ul>
       <li><a href="#lessons" data-cursor>github_pr</a></li>
@@ -1243,10 +1312,10 @@ body[data-layout-footer="b"] .foot-base span:last-child{ text-align:right; }
       <li><a href="#lessons" data-cursor>tavily_search</a></li>
       <li><a href="#lessons" data-cursor>slack_post</a></li>
     </ul></div>
-    <div><h4>Elsewhere</h4><ul>
-      <li><a href="#top" data-cursor>GitHub</a></li>
-      <li><a href="#top" data-cursor>Console</a></li>
-      <li><a href="#top" data-cursor>Docs</a></li>
+    <div><h4>Product</h4><ul>
+      <li><a href="#mergit:/app" data-cursor>Open the console</a></li>
+      <li><a href="#mergit:/app" data-cursor>Delegate a goal</a></li>
+      <li><a href="#mergit:/login" data-cursor>Sign in</a></li>
     </ul></div>
   </div>
   <div class="foot-base">
@@ -3110,15 +3179,15 @@ function buildWordmark() {
     /* the vertical wash is baked per glyph so the whole word shares one ramp */
     const gy0 = PAD + g.asc - ascMax, gy1 = PAD + g.asc + descMax * .4;
     const grad = x.createLinearGradient(0, gy0, 0, gy1);
-    grad.addColorStop(0, 'rgb(226,236,229)');
-    grad.addColorStop(.52, 'rgb(198,214,203)');
-    grad.addColorStop(1, 'rgb(150,170,157)');
+    grad.addColorStop(0, 'rgb(255,255,255)');
+    grad.addColorStop(.52, 'rgb(240,246,242)');
+    grad.addColorStop(1, 'rgb(206,220,211)');
     x.fillStyle = grad;
     x.fillText(g.ch, PAD + g.l, PAD + g.asc);
 
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(cw, chh),
       new THREE.MeshBasicMaterial({ map: tx(c, { aniso: 16 }), transparent: true,
-        depthWrite: false, side: THREE.DoubleSide, fog: true, opacity: 1 }));
+        depthWrite: false, depthTest: false, side: THREE.DoubleSide, fog: false, opacity: 1 }));
     mesh.position.set(g.pen + (g.r - g.l) / 2, (g.asc - g.desc) / 2 + (PAD - PAD) , 0);
     mesh.position.y = (g.asc - g.desc) / 2;
     mesh.renderOrder = 12;
@@ -3911,6 +3980,7 @@ function buildCardCloth() {
     const url = (getComputedStyle(fr).backgroundImage.match(/url\(["']?([^"')]+)/) || [])[1];
     if (!url) return;
     const img = new Image();
+    img.crossOrigin = 'anonymous';
     img.onload = () => {
       const dpr = Math.min(devicePixelRatio || 1, 2);
       let plate = null, pw = 0, ph = 0;
@@ -3922,9 +3992,16 @@ function buildCardCloth() {
       const out = document.createElement('canvas');
       out.className = 'cloth-out'; out.setAttribute('aria-hidden', 'true');
       fr.appendChild(out);
-      const inst = createCloth(out, get, { wind: 3, speed: .5, amplitude: 30, drape: 40,
-        brush: 2.05, brushSize: 150, damping: 1, light: .5, sheen: .1, shadow: .25,
-        cornerRadius: 20, perspective: 1200, pin: 'top' });
+      let inst = null;
+      try {
+        inst = createCloth(out, get, { wind: 3, speed: .5, amplitude: 30, drape: 40,
+          brush: 2.05, brushSize: 150, damping: 1, light: .5, sheen: .1, shadow: .25,
+          cornerRadius: 20, perspective: 1200, pin: 'top' });
+      } catch {
+        /* a tainted canvas, or no WebGL left to give — either way the card keeps
+           the painting it already has */
+        inst = null;
+      }
       /* only hide the card's own painting once the fabric is really carrying it */
       if (!inst) { out.remove(); return; }
       fr.classList.add('on-cloth');
@@ -4191,11 +4268,11 @@ function layoutWord() {
      as the six-letter word could afford to, decapitates the K and the E. The
      narrow branch is held a little inside the edge because a phone frame has
      no gutter to lose the tracking that trails the final letter into. */
-  const fill = narrow ? .96 : 1.00;
+  const fill = narrow ? .93 : .955;
   const s = (R.x - L.x) * fill / WORD.ink.w;
   /* on a tall frame the mounds sit near mid-height, so the baseline has to
      ride above them or the whole word disappears into the grass */
-  const base = hit(0, narrow ? -.16 : -.585);
+  const base = hit(0, narrow ? -.20 : -.50);
   WORD.group.scale.setScalar(s);
   WORD.group.position.set(-WORD.ink.cx * s, base.y, WORD_Z);
   WORD.rise = WORD.ink.asc * s * 1.25;
@@ -4896,82 +4973,33 @@ else addEventListener('DOMContentLoaded', boot);
   });
 })();
 </script>
-<script data-mergit-scene-theme>
+<script data-mergit-menu>
 (function () {
-  var DAY = {
-    "05070a": "cfd8e6", "050a0e": "d7e0ec", "060a0d": "cdd7e8",
-    "2b343a": "9fb0c0", "525c60": "b9c4cc", "58636a": "aab6c0", "69757a": "c2ccd4",
-    "9aa5a5": "d3dadd", "565150": "b2a294", "8a746d": "c8b2a4", "171413": "6a5b52",
-    "141a1c": "8d9aa4", "120c0c": "7a6a62", "06090d": "b9c6d6", "0a1015": "c3cfdd",
-    "2b0406": "9c4a3c", "40080a": "b05a44", "780200": "8a3b2a", "080000": "6b4a3e",
-    "7a5d2a": "c2a35c", "8f6f2e": "d8bb74", "d8c2b6": "efe2d6",
-    "53838f": "9fc4dc", "060a08": "c6d2c8", "b6dbe4": "fff6e6", "86c6d2": "cfe6f2",
-    "ff3a1c": "ffd9a0", "ff6a42": "ffe2b4", "ff5a24": "ffcf94", "ff8420": "ffd9a6",
-    "ff8a26": "ffdca8", "ffa049": "ffe6bd"
-  };
-  /* Lantern flames carry a night scene and blow out a day one. */
-  var LIGHT_SCALE = { day: 0.35, night: 1 };
-  var applied = "night";
+  var root = document.documentElement;
+  var burger = document.querySelector(".nav-burger");
+  var menu = document.getElementById("menu");
+  if (!burger || !menu) return;
+  var WIDE = 820;
 
-  function hex(c) { return ("000000" + c.getHexString()).slice(-6); }
-
-  function walk(theme) {
-    var api = window.__kage;
-    if (!api || !api.scene) return false;
-    var day = theme === "light";
-    api.scene.traverse(function (o) {
-      if (o.isLight) {
-        if (o.userData._i0 === undefined) o.userData._i0 = o.intensity;
-        o.intensity = o.userData._i0 * (day ? LIGHT_SCALE.day : LIGHT_SCALE.night);
-      }
-      var mats = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
-      mats.concat(o.isLight ? [o] : []).forEach(function (m) {
-        ["color", "emissive", "groundColor"].forEach(function (key) {
-          var c = m && m[key];
-          if (!c || !c.getHexString) return;
-          if (m.userData && m.userData["_" + key] === undefined) {
-            m.userData = m.userData || {};
-            m.userData["_" + key] = hex(c);
-          }
-          var original = (m.userData && m.userData["_" + key]) || hex(c);
-          var mapped = day ? DAY[original] : original;
-          if (mapped) c.setHex(parseInt(mapped, 16));
-        });
-      });
-    });
-    if (api.scene.fog && api.scene.fog.color) {
-      if (!api.scene.fog.userData) api.scene.fog.userData = { _c: hex(api.scene.fog.color) };
-      var f = day ? DAY[api.scene.fog.userData._c] : api.scene.fog.userData._c;
-      if (f) api.scene.fog.color.setHex(parseInt(f, 16));
-    }
-    if (api.scene.background && api.scene.background.getHexString) {
-      window.__bg0 = window.__bg0 || hex(api.scene.background);
-      var b = day ? DAY[window.__bg0] : window.__bg0;
-      if (b) api.scene.background.setHex(parseInt(b, 16));
-    }
-    if (api.renderer) api.renderer.setClearColor(parseInt(day ? "0xcfd8e6" : "0x05070a", 16), 1);
-    applied = theme;
-    return true;
+  function set(open) {
+    root.classList.toggle("menu-open", open);
+    burger.classList.toggle("active", open);
+    burger.setAttribute("aria-expanded", String(open));
+    menu.setAttribute("aria-hidden", String(!open));
   }
+  function close() { if (root.classList.contains("menu-open")) set(false); }
 
-  function request(theme) {
-    document.documentElement.dataset.theme = theme;
-    /* The scene may not have booted yet; retry until it has, then stop. */
-    var tries = 0;
-    (function attempt() {
-      if (walk(theme) || ++tries > 60) return;
-      setTimeout(attempt, 250);
-    })();
-  }
-
-  window.addEventListener("message", function (event) {
-    if (event.source !== window.parent) return;
-    var data = event.data;
-    if (!data || data.kind !== "mergit:theme") return;
-    if (data.theme !== "light" && data.theme !== "dark") return;
-    if (data.theme === applied && document.documentElement.dataset.theme === data.theme) return;
-    request(data.theme);
+  burger.addEventListener("click", function () {
+    if (innerWidth <= WIDE) return;
+    set(!root.classList.contains("menu-open"));
   });
+  /* Anything that navigates closes it, including the console links — those are
+     handled by the nav bridge, which does not touch this class. */
+  menu.addEventListener("click", function (event) {
+    if (event.target.closest("a")) close();
+  });
+  addEventListener("keydown", function (event) { if (event.key === "Escape") close(); });
+  addEventListener("resize", function () { if (innerWidth <= WIDE) close(); }, { passive: true });
 })();
 </script>
 </body>

@@ -22,7 +22,7 @@
  [
   4,
   "Temples",
-  "The run"
+  "The plan"
  ],
  [
   5,
@@ -32,7 +32,7 @@
  [
   6,
   "Gardens",
-  "Agents"
+  "The graph"
  ],
  [
   7,
@@ -42,22 +42,22 @@
  [
   8,
   "Rituals",
-  "Proof"
+  "The run"
  ],
  [
   9,
   "神事",
-  "sha256"
+  "chain"
  ],
  [
   10,
   "Afterlight",
-  "Stack"
+  "Settlement"
  ],
  [
   11,
   "残光",
-  "deps"
+  "proof"
  ],
  [
   12,
@@ -377,22 +377,22 @@
  [
   90,
   "The Sanmon",
-  "The run"
+  "The plan"
  ],
  [
   91,
   "Still Gardens",
-  "Agents"
+  "The graph"
  ],
  [
   92,
   "Sacred Craft",
-  "Proof"
+  "The run"
  ],
  [
   93,
   "Afterlight",
-  "Stack"
+  "Settlement"
  ],
  [
   94,
@@ -420,19 +420,24 @@
   "slack_post"
  ],
  [
+  99,
+  "Elsewhere",
+  "Product"
+ ],
+ [
   100,
   "Journal",
-  "GitHub"
+  "Open the console"
  ],
  [
   101,
   "Field notes",
-  "Console"
+  "Delegate a goal"
  ],
  [
   102,
   "Colophon",
-  "Docs"
+  "Sign in"
  ],
  [
   103,
