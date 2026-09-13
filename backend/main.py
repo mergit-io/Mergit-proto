@@ -8,6 +8,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 import db
 import worker
@@ -66,7 +67,14 @@ async def lifespan(app: FastAPI):
 
 # ── App ───────────────────────────────────────────────────────────────────────────
 
-app = FastAPI(title="Mergit", version="0.1.0", lifespan=lifespan)
+app = FastAPI(
+    title="Mergit",
+    version="0.1.0",
+    lifespan=lifespan,
+    docs_url="/api/docs",
+    openapi_url="/api/openapi.json",
+    redoc_url="/api/redoc",
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -132,9 +140,23 @@ app.include_router(health.router)
 
 # ── Frontend static files (production) ────────────────────────────────────────────
 
+
+class SPAStaticFiles(StaticFiles):
+    """Static files with SPA fallback: serve index.html for any unmatched path so
+    client-side routes (/app, /app/economy, /login, …) work on direct load/refresh."""
+
+    async def get_response(self, path: str, scope):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            if exc.status_code == 404:
+                return await super().get_response("index.html", scope)
+            raise
+
+
 _frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
 if _frontend_dist.exists():
-    app.mount("/", StaticFiles(directory=str(_frontend_dist), html=True), name="static")
+    app.mount("/", SPAStaticFiles(directory=str(_frontend_dist), html=True), name="static")
     logger.info("Serving frontend from %s", _frontend_dist)
 
 
