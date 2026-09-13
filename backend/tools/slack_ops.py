@@ -20,6 +20,7 @@ and working at all:
   invited to.
 """
 import html
+import json
 import logging
 
 import httpx
@@ -310,23 +311,105 @@ async def _post(args: dict, *, thread_ts: str = "") -> dict:
             "thread_ts": thread_ts or ts, "url": url, "text": text}
 
 
+async def thread_read_in_goal(goal_id: str | None, channel_id: str) -> str:
+    """The thread this goal opened in `channel_id`, or "" if it never read one.
+
+    Reading a thread is an unambiguous statement of intent: the run went and fetched one
+    specific conversation, by timestamp, because that is what it was asked to act on.
+    Anything it posts to that channel afterwards belongs in that thread unless it says
+    otherwise.
+
+    Deliberately keyed on `slack_read_thread` and not on `slack_read_channel`. Plenty of
+    goals legitimately read a channel and then post a new top-level message — "summarise
+    this file in #eng-bugs" is one — and refusing those would be a false refusal on a
+    perfectly ordinary shape.
+
+    Never raises. An unreadable ledger means the guard cannot judge, and a guard that
+    cannot judge must not be the reason a message goes unsent.
+    """
+    if not goal_id:
+        return ""
+    try:
+        import db
+        async with db.get_conn() as conn:
+            rows = await (
+                await conn.execute(
+                    """SELECT tc.result_json FROM tool_calls tc
+                         JOIN tasks t ON t.id = tc.task_id
+                        WHERE t.goal_id = ? AND tc.tool_name = 'slack_read_thread'
+                          AND tc.status = 'SUCCESS'
+                     ORDER BY tc.created_at DESC""",
+                    (goal_id,),
+                )
+            ).fetchall()
+        for row in rows:
+            try:
+                body = json.loads(row["result_json"] or "{}")
+            except (ValueError, TypeError):
+                continue
+            if isinstance(body, dict) and body.get("channel") == channel_id:
+                return str(body.get("thread_ts") or "")
+    except Exception as e:
+        logger.debug("thread lookup skipped for %s: %s", goal_id, e)
+    return ""
+
+
 async def slack_post_message(args: dict) -> dict:
     missing = await _credential_check(_PROVIDER, args)
     if missing:
         return missing
+
+    # Run 5a3e9462 was asked to "reply in the same #eng-bugs thread". It read the thread,
+    # got `ts: 1789286027.409169` back, and then called this tool without it — posting a
+    # new top-level message into the channel while reporting the task complete. The
+    # reporter watching the thread saw nothing.
+    #
+    # Nothing was missing at the point of the call: the timestamp was in hand. So the
+    # schema saying "use slack_reply_in_thread instead" was advice, and advice is not a
+    # mechanism. This is the mechanism.
+    # Order matters and is asserted by test_a_blank_never_reaches_a_slack_channel: a
+    # message carrying an unfilled `{{...}}` is refused before anything is looked up,
+    # because there is no reason to spend a paginated channel listing on a message that
+    # was never going to be sent. The thread guard resolves a channel, so it goes second.
+    text = (args.get("text") or "").strip()
+    if not text:
+        return {"ok": False, "error": "text is required"}
+    blanks = _refuse_if_unfilled(text, "this Slack message")
+    if blanks:
+        return blanks
+
+    if not args.get("new_thread"):
+        channel_id, err = await _resolve_channel(args, args.get("channel", ""))
+        if err:
+            return {"ok": False, "error": err}
+        thread_ts = await thread_read_in_goal(args.get("_goal_id"), channel_id)
+        if thread_ts:
+            return {"ok": False, "error":
+                    f"this run already read the thread at {thread_ts} in this channel, so a "
+                    f"new top-level message would be answering somewhere the reporter is not "
+                    f"looking. Reply in it: slack_reply_in_thread with thread_ts=\"{thread_ts}\". "
+                    f"If you genuinely mean to start a separate conversation, pass "
+                    f"new_thread=true and say why in the text."}
+
     return await _post(args)
 
 
 SLACK_POST_MESSAGE_SCHEMA = {
     "description": (
-        "Post a new message to a Slack channel. Returns the message `ts` and a permalink. "
-        "To answer an existing report, use slack_reply_in_thread instead — a new top-level "
-        "message loses the context the reporter is watching."
+        "Start a NEW top-level message in a Slack channel. Returns the message `ts` and a "
+        "permalink. If this run read a thread in that channel, use slack_reply_in_thread "
+        "instead — this tool refuses, because a new message answers where the reporter is "
+        "not looking."
     ),
     "type": "object",
     "properties": {
         "channel": {"type": "string", "description": "Channel name (#eng-bugs) or id"},
         "text": {"type": "string", "description": "Message text. Slack mrkdwn: *bold*, `code`, <url|label>"},
+        "new_thread": {
+            "type": "boolean",
+            "description": ("Set true only when a separate conversation is genuinely "
+                            "intended, even though this run read a thread in the channel."),
+        },
     },
     "required": ["channel", "text"],
 }
