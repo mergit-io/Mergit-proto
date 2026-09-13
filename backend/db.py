@@ -1,4 +1,5 @@
 import json
+import logging
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -8,6 +9,8 @@ import aiosqlite
 
 from config import settings
 from state import GoalRow, GoalStatus, MessageRow, TaskRow, TaskStatus, ToolCallRow
+
+logger = logging.getLogger(__name__)
 
 _db_path = settings.db_path
 
@@ -408,14 +411,46 @@ async def claim_ready_task(worker_id: str, lease_secs: int) -> TaskRow | None:
     return _row_to_task(row) if row else None
 
 
-async def settle_task(task_id: str, status: str, output: dict | None = None, error: str | None = None) -> None:
+async def settle_task(task_id: str, status: str, output: dict | None = None,
+                      error: str | None = None, worker_id: str | None = None) -> bool:
+    """Record a task's outcome. Returns False when the write was refused.
+
+    `worker_id` fences the write against a lost lease. `reclaim_expired_leases` hands a
+    still-RUNNING task back to the pool after `lease_seconds`, without knowing whether the
+    original coroutine is still going — so a slow task gets executed twice, and this used
+    to write by id alone, letting whoever finished last win.
+
+    Goal 60d42a5f recorded an impossible result that way: coder t2 FAILED while the
+    integrator t3 that depends on it ran and opened PR #40. t2 was DONE when t3 was
+    promoted, and a straggling duplicate overwrote it with FAILED afterwards. The same
+    race is why goal 00605510's coder output changed between two reads of a goal that had
+    already completed.
+
+    Passing no worker_id is an administrative settle — a retry, a requeue, a reclaim — and
+    still applies unconditionally, because those callers are the scheduler itself rather
+    than a competing lease holder.
+    """
     now = _now()
+    payload = json.dumps(output) if output is not None else None
     async with get_conn() as conn:
-        await conn.execute(
-            "UPDATE tasks SET status=?, output=?, error=?, worker_id=NULL, lease_expires_at=NULL, updated_at=? WHERE id=?",
-            (status, json.dumps(output) if output is not None else None, error, now, task_id),
-        )
+        if worker_id is None:
+            cur = await conn.execute(
+                "UPDATE tasks SET status=?, output=?, error=?, worker_id=NULL, "
+                "lease_expires_at=NULL, updated_at=? WHERE id=?",
+                (status, payload, error, now, task_id),
+            )
+        else:
+            cur = await conn.execute(
+                "UPDATE tasks SET status=?, output=?, error=?, worker_id=NULL, "
+                "lease_expires_at=NULL, updated_at=? WHERE id=? AND worker_id=?",
+                (status, payload, error, now, task_id, worker_id),
+            )
         await conn.commit()
+        if cur.rowcount == 0:
+            logger.warning("settle_task refused for task=%s by worker=%s — the lease is no "
+                           "longer theirs; discarding this result", task_id, worker_id)
+            return False
+    return True
 
 
 async def promote_ready_tasks(goal_id: str) -> list[str]:

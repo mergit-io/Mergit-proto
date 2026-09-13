@@ -129,6 +129,10 @@ def _inherit_target_path(resolved: dict, task: Any, task_outputs: dict[str, Any]
 
 async def _execute_task(task: Any) -> None:
     goal_id = task.goal_id
+    # Settle as whoever actually holds the lease on this row, not as whichever worker
+    # object happens to be running. They are the same in the executor loop, and fencing
+    # on the row's own holder keeps the check correct for any other caller too.
+    lease_holder = task.worker_id or _worker_id
 
     events.emit(goal_id, "task_update", {
         "task_id": task.id, "status": TaskStatus.RUNNING, "agent": task.agent_name,
@@ -150,14 +154,14 @@ async def _execute_task(task: Any) -> None:
     except KeyError as e:
         error_msg = f"Interpolation error: {e}"
         logger.error("Interpolation failed for task %s: %s", task.id, e)
-        await db.settle_task(task.id, TaskStatus.FAILED, error=error_msg)
+        await db.settle_task(task.id, TaskStatus.FAILED, error=error_msg, worker_id=lease_holder)
         events.emit(goal_id, "task_update", {"task_id": task.id, "status": TaskStatus.FAILED, "error": error_msg})
         await _handle_goal_failure(goal_id, task.id, error_msg)
         return
 
     try:
         output = await agent_run(task, resolved, emit=emit)
-        await db.settle_task(task.id, TaskStatus.DONE, output=output)
+        await db.settle_task(task.id, TaskStatus.DONE, output=output, worker_id=lease_holder)
         events.emit(goal_id, "task_done", {"task_id": task.id, "output": output})
         logger.info("Task %s DONE (goal=%s)", task.id, goal_id)
         await _after_task_done(task, output)
@@ -185,7 +189,7 @@ async def _execute_task(task: Any) -> None:
         logger.error("Task %s FAILED: %s", task.id, e)
         fresh = await db.get_task(task.id)
         if fresh and fresh.attempt_count >= fresh.max_attempts:
-            await db.settle_task(task.id, TaskStatus.FAILED, error=str(e))
+            await db.settle_task(task.id, TaskStatus.FAILED, error=str(e), worker_id=lease_holder)
             events.emit(goal_id, "task_update", {"task_id": task.id, "status": TaskStatus.FAILED, "error": str(e)})
             # Before giving up, try to dynamically replan around the failure
             if await replanner.should_replan(goal_id):
@@ -199,7 +203,7 @@ async def _execute_task(task: Any) -> None:
             await _handle_goal_failure(goal_id, task.id, str(e))
         else:
             # Retry — inject failure context so next attempt knows what went wrong
-            await db.settle_task(task.id, TaskStatus.READY, error=str(e))
+            await db.settle_task(task.id, TaskStatus.READY, error=str(e), worker_id=lease_holder)
             events.emit(goal_id, "task_update", {"task_id": task.id, "status": TaskStatus.READY,
                                                   "retry_reason": str(e)[:200]})
 
