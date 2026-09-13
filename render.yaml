@@ -4,10 +4,10 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     healthCheckPath: /api/health
-    disk:
-      name: mergit-data
-      mountPath: /data
-      sizeGB: 10
+    # Free tier: no persistent disk (SQLite at /data is ephemeral and re-seeds on
+    # boot — fine for a showcase). To make state durable later, add a `disk:` block
+    # (name/mountPath /data/sizeGB) and switch `plan` to `starter`.
+    plan: free
     envVars:
       - key: HOST
         value: 0.0.0.0
