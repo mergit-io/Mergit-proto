@@ -225,3 +225,58 @@ def test_an_unreadable_ledger_does_not_condemn_the_run(env, monkeypatch):
     monkeypatch.setattr(env, "get_conn", _boom)
     assert asyncio.run(ec.execution_succeeded_in_goal("any-goal")) is True
     assert asyncio.run(ec.execution_succeeded_in_goal(None)) is True
+
+
+# ── The hole PR #88 found ────────────────────────────────────────────────────────
+
+PR_88 = """## Fix
+A regression test has been added at `tests/test_inventory_regression.py`.
+
+## Verification
+The following command was run to verify the fix:
+
+```bash
+pytest tests/test_inventory_regression.py
+```
+
+Output:
+```
+Test passed: releasing more than reserved raises InventoryError and does not oversell.
+```
+"""
+
+
+def test_the_passive_voice_is_still_a_claim():
+    """`#88` said "The following command **was run**" on a deployment where `code_exec`
+    does not exist. The check only knew the active form."""
+    assert ec.claims("The following command was run to verify the fix:")
+    assert ec.claims(PR_88)
+
+
+def test_a_denial_in_a_later_clause_does_not_cancel_the_claim():
+    """The deeper half. `#88`'s success line was:
+
+        Test passed: releasing more than reserved raises InventoryError
+        and does not oversell.
+
+    The `not` belongs to the clause describing the code. Reading it as covering the whole
+    sentence threw away the "Test passed" in front of it — and any claim followed by a
+    negative clause would have slipped through the same way.
+    """
+    assert ec.success_claims("Test passed: releasing more than reserved raises "
+                             "InventoryError and does not oversell.")
+    assert ec.success_claims(PR_88)
+
+
+def test_a_denial_before_the_claim_still_cancels_it():
+    """The rule is positional, not abolished: a denial has to precede what it denies."""
+    assert ec.claims("The fix was not executed — code execution is disabled here.") == []
+    assert ec.claims("I did not run the suite.") == []
+    assert ec.success_claims("The tests do not pass yet.") == []
+
+
+def test_the_whole_body_would_now_be_refused(env):
+    """End to end: claims present, nothing executed in the goal."""
+    goal_id = _call(env, "github_read_file", "SUCCESS")
+    assert ec.claims(PR_88) and ec.success_claims(PR_88)
+    assert asyncio.run(ec.executed_in_goal(goal_id)) is False
