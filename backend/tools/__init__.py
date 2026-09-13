@@ -35,6 +35,27 @@ from tools.github_pr import github_pr
 from tools.github_pr import SCHEMA as GITHUB_PR_SCHEMA
 from tools.http_request import http_request
 from tools.http_request import SCHEMA as HTTP_REQUEST_SCHEMA
+from tools.slack_ops import (
+    slack_list_channels, SLACK_LIST_CHANNELS_SCHEMA,
+    slack_read_channel, SLACK_READ_CHANNEL_SCHEMA,
+    slack_read_thread, SLACK_READ_THREAD_SCHEMA,
+    slack_post_message, SLACK_POST_MESSAGE_SCHEMA,
+    slack_reply_in_thread, SLACK_REPLY_IN_THREAD_SCHEMA,
+)
+from tools.linear_ops import (
+    linear_list_teams, LINEAR_LIST_TEAMS_SCHEMA,
+    linear_list_states, LINEAR_LIST_STATES_SCHEMA,
+    linear_create_issue, LINEAR_CREATE_ISSUE_SCHEMA,
+    linear_get_issue, LINEAR_GET_ISSUE_SCHEMA,
+    linear_update_issue, LINEAR_UPDATE_ISSUE_SCHEMA,
+    linear_comment, LINEAR_COMMENT_SCHEMA,
+)
+from tools.notion_ops import (
+    notion_search, NOTION_SEARCH_SCHEMA,
+    notion_create_page, NOTION_CREATE_PAGE_SCHEMA,
+    notion_append_blocks, NOTION_APPEND_BLOCKS_SCHEMA,
+    notion_get_page, NOTION_GET_PAGE_SCHEMA,
+)
 from tools.wait_webhook import wait_webhook
 from tools.wait_webhook import SCHEMA as WAIT_WEBHOOK_SCHEMA
 from tools.web_search import web_search
@@ -72,6 +93,25 @@ TOOL_REGISTRY: dict[str, ToolEntry] = {
     "github_request_review": ToolEntry(fn=github_request_review, schema=GITHUB_REQUEST_REVIEW_SCHEMA),
     "github_update_pr":      ToolEntry(fn=github_update_pr, schema=GITHUB_UPDATE_PR_SCHEMA),
     "github_merge_pr":       ToolEntry(fn=github_merge_pr, schema=GITHUB_MERGE_PR_SCHEMA),
+
+    # ── Slack ────────────────────────────────────────────────────────────────────
+    "slack_list_channels":  ToolEntry(fn=slack_list_channels, schema=SLACK_LIST_CHANNELS_SCHEMA),
+    "slack_read_channel":   ToolEntry(fn=slack_read_channel, schema=SLACK_READ_CHANNEL_SCHEMA),
+    "slack_read_thread":    ToolEntry(fn=slack_read_thread, schema=SLACK_READ_THREAD_SCHEMA),
+    "slack_post_message":   ToolEntry(fn=slack_post_message, schema=SLACK_POST_MESSAGE_SCHEMA),
+    "slack_reply_in_thread": ToolEntry(fn=slack_reply_in_thread, schema=SLACK_REPLY_IN_THREAD_SCHEMA),
+    # ── Linear ───────────────────────────────────────────────────────────────────
+    "linear_list_teams":    ToolEntry(fn=linear_list_teams, schema=LINEAR_LIST_TEAMS_SCHEMA),
+    "linear_list_states":   ToolEntry(fn=linear_list_states, schema=LINEAR_LIST_STATES_SCHEMA),
+    "linear_create_issue":  ToolEntry(fn=linear_create_issue, schema=LINEAR_CREATE_ISSUE_SCHEMA),
+    "linear_get_issue":     ToolEntry(fn=linear_get_issue, schema=LINEAR_GET_ISSUE_SCHEMA),
+    "linear_update_issue":  ToolEntry(fn=linear_update_issue, schema=LINEAR_UPDATE_ISSUE_SCHEMA),
+    "linear_comment":       ToolEntry(fn=linear_comment, schema=LINEAR_COMMENT_SCHEMA),
+    # ── Notion ───────────────────────────────────────────────────────────────────
+    "notion_search":        ToolEntry(fn=notion_search, schema=NOTION_SEARCH_SCHEMA),
+    "notion_create_page":   ToolEntry(fn=notion_create_page, schema=NOTION_CREATE_PAGE_SCHEMA),
+    "notion_append_blocks": ToolEntry(fn=notion_append_blocks, schema=NOTION_APPEND_BLOCKS_SCHEMA),
+    "notion_get_page":      ToolEntry(fn=notion_get_page, schema=NOTION_GET_PAGE_SCHEMA),
     "spawn_goal":          ToolEntry(fn=spawn_goal, schema=SPAWN_GOAL_SCHEMA),
     "code_exec":           ToolEntry(fn=code_exec, schema=CODE_EXEC_SCHEMA),
     "wait_webhook":        ToolEntry(fn=wait_webhook, schema=WAIT_WEBHOOK_SCHEMA),

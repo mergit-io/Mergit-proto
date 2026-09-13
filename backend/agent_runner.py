@@ -373,7 +373,17 @@ def _fabricated_urls(result: Any, known: set[str]) -> list[str]:
 #: weak signal. The tool-shaped names below are the ones the live failures used.
 _PRODUCES_A_URL = re.compile(
     r"create[_ ]?pr|open(?:ed)?[_ ]?(?:a )?pull|pull[_ ]?request"
-    r"|post[_ ]?comment|create[_ ]?repo", re.I)
+    r"|post[_ ]?comment|create[_ ]?repo"
+    # The same question, asked of the three services added after GitHub. Each of their
+    # write tools returns a real URL — a Slack permalink, a Linear issue URL, a Notion
+    # page URL — so "I posted it" with nothing to click is the same lie in a new costume.
+    #
+    # A write VERB is required, not merely the service name. "read the slack thread" is an
+    # ordinary integrator action that produces no address, and a pattern matching the bare
+    # word would demand one and fail a task that did exactly what it was asked.
+    r"|post(?:ed)?[_ ]?(?:a )?message|repl(?:y|ied)[_ ]?in[_ ]?thread"
+    r"|creat(?:e|ed)[_ ]?(?:a )?(?:issue|ticket|page)"
+    r"|(?:post|repl|creat|open|file|updat)\w*[^\n]{0,24}\b(?:slack|linear|notion)\b", re.I)
 
 
 def _claimed_without_artifact(result: Any) -> str | None:

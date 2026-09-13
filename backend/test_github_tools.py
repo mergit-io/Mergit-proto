@@ -744,7 +744,12 @@ def test_a_complete_file_with_the_fix_applied_is_committed(monkeypatch):
 
     whole_file = STATS_PY.replace("    return max(numbers) - min(numbers)",
                                   "    if not numbers:\n        return 0\n    return max(numbers) - min(numbers)")
-    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+    # The body says what the change does, because the change adds an empty-input guard and
+    # `tools/scope_creep` refuses one that arrives unannounced. That rule is not what this
+    # test is about — it is about truncation — so the fixture states the change rather than
+    # tripping a guard it was written years before.
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t",
+                                "body": "Handles empty input by returning 0.",
                                 "head_branch": "fix/x",
                                 "files": [{"path": "stats.py", "content": whole_file}]}))
 

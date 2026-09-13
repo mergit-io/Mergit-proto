@@ -3,6 +3,7 @@ import logging
 import re
 
 import language
+from tools import grounding, scope_creep
 from tools.github_client import (
     TOKEN_MISSING,
     client as _client,
@@ -202,6 +203,30 @@ def _changes_nothing(repo, files, ref) -> bool:
         if _significant(before) != _significant(f.get("content") or ""):
             return False
     return True
+
+
+def _before_after(repo, files, ref) -> list[tuple[str, str, str]]:
+    """[(path, before, after)] for every file whose current content can be read.
+
+    A file that does not exist yet, or that cannot be decoded, is left out rather than
+    guessed at: `grounding.unsupported_claims` reports nothing when it was handed nothing,
+    which is the correct behaviour for a check whose false positives cost a real PR.
+    """
+    from github import GithubException
+    out: list[tuple[str, str, str]] = []
+    for f in files:
+        try:
+            existing = repo.get_contents(f["path"], ref=ref)
+        except GithubException:
+            continue
+        if isinstance(existing, list):
+            continue
+        try:
+            before = existing.decoded_content.decode("utf-8", "replace")
+        except Exception:
+            continue
+        out.append((f["path"], before, f.get("content") or ""))
+    return out
 
 
 def _same_file_name(name: str) -> str:
@@ -514,6 +539,38 @@ async def github_pr(args: dict) -> dict:
                          "— that is a complete and successful answer. A goal that asks for a "
                          "pull request does not require one to exist when there is no fix to "
                          "make."}
+
+    # The diff is real by this point; whether the prose describing it is true is a separate
+    # question, and until run 0e067775 nothing asked it. That PR's body opened with "the
+    # `average` function did not handle empty lists properly" while the diff changed only
+    # `largest`. Nothing was fabricated — every tool succeeded and the fix was correct — so
+    # no fabrication guard could see it. See tools/grounding.py.
+    before_after = _before_after(upstream, files, base_branch)
+    ungrounded = grounding.unsupported_claims(body, before_after)
+    if ungrounded:
+        logger.warning("Refusing PR on %s — body claims what the diff does not do: %s",
+                       repo_name, ungrounded)
+        return {"action": "create_pr", "result": None, "url": None, "ok": False,
+                "error": f"{'; '.join(ungrounded)}. Describe the change you actually made: "
+                         "the Problem and Fix sections must be about the code in this diff, "
+                         "not about code you did not touch. Re-read your own files[] content "
+                         "against what is already in the repository, then rewrite the body."}
+
+    # Grounding asks whether the description is true of the diff. This asks the other
+    # half: whether the diff contains anything the description does not account for.
+    # Both live failures it exists for were entirely truthful — PR #52 shipped asserts that
+    # run on import, PR #53 said "No code-level issue was found" and changed the file
+    # anyway. See tools/scope_creep.py.
+    unrequested = scope_creep.unrequested_changes(before_after, body)
+    if unrequested:
+        logger.warning("Refusing PR on %s — changes the description does not account for: %s",
+                       repo_name, unrequested)
+        return {"action": "create_pr", "result": None, "url": None, "ok": False,
+                "error": f"{'; '.join(unrequested[:4])}. Either leave these out and ship only "
+                         "the change that was asked for, or say plainly in the body that you "
+                         "are making them and why. If you found nothing wrong, report that "
+                         "— it is a complete and successful answer, and it does not need a "
+                         "pull request."}
 
     # `g.get_user()` needs a token that HAS a user. An installation token does not — it
     # authenticates as the app, and this call fails against it. So the fork path (and only

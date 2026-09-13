@@ -23,6 +23,17 @@ class Settings(BaseSettings):
     # Tools
     tavily_api_key: str = ""
     github_token: str = ""
+    # ── Single-tenant service tokens ────────────────────────────────────────────
+    # The same shape as `github_token`: a deployment-wide credential used only when the
+    # per-user connection is absent. `tools/service_client.py` prefers the user's stored
+    # connection and falls back here, so a laptop with three keys in `.env` behaves like
+    # a multi-tenant deployment without anyone having to click Connect.
+    slack_bot_token: str = ""
+    linear_api_key: str = ""
+    notion_api_key: str = ""
+    #: The Notion page every generated page is filed under. Notion refuses a workspace-root
+    #: parent for internal integrations, so a parent is required, not optional.
+    notion_parent_page_id: str = ""
     github_default_repo: str = ""
     mergit_repo: str = "mergit-io/Mergit-proto"  # repo where self-heal issues/PRs are filed
 
@@ -82,6 +93,14 @@ class Settings(BaseSettings):
     slack_client_id: str = ""
     slack_client_secret: str = ""
     slack_signing_secret: str = ""
+
+    # ── Delegated authority: Linear and Notion ──────────────────────────────────
+    # Set these and the deployment stops using its own key on behalf of a user who has
+    # not connected — see `tools/service_client.oauth_configured`.
+    linear_client_id: str = ""
+    linear_client_secret: str = ""
+    notion_client_id: str = ""
+    notion_client_secret: str = ""
 
     #: Wraps the per-row data keys that encrypt stored OAuth tokens. Read once at startup
     #: and popped from os.environ before the worker starts, because `PUT /api/config/keys`
