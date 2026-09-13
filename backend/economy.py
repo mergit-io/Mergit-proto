@@ -152,6 +152,18 @@ async def record_proof(task, output) -> dict | None:
         rep = await recompute_role(role)
         events.emit(ECONOMY_CHANNEL, "proof_recorded", dict(proof))
         events.emit(ECONOMY_CHANNEL, "reputation_update", dict(rep))
+
+        # Queue the real on-chain submission. Deliberately after the local proof is durable:
+        # the ledger updates instantly while the chain settles asynchronously (PRD §5.4).
+        try:
+            if await db.enqueue_proof(task.id, task.goal_id, role, rhash):
+                events.emit(ECONOMY_CHANNEL, "proof_pending", {
+                    "task_id": task.id, "goal_id": task.goal_id,
+                    "agent_role": role, "result_hash": rhash,
+                })
+        except Exception as e:
+            logger.warning("economy: failed to enqueue chain proof for %s: %s", task.id, e)
+
         return proof
     except Exception as e:  # never break the worker
         logger.warning("economy.record_proof failed for task %s: %s", getattr(task, "id", "?"), e)

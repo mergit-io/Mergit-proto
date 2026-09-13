@@ -47,6 +47,15 @@ class Settings(BaseSettings):
     oauth_github_redirect_uri: str = "http://localhost:8000/api/auth/github/callback"
     auth_secret_key: str = "change-me-in-env"
 
+    # Chain — see docs/superpowers/specs/2026-08-12-onchain-proof-layer.md
+    # "local" runs a real EVM in-process: no RPC, no key, no tokens. "monad-testnet" needs
+    # chain_rpc_url + a funded chain_private_key. Switching targets requires no code change.
+    chain_enabled: bool = True
+    chain_target: str = "local"
+    chain_rpc_url: str = ""
+    chain_private_key: str = ""
+    chain_submit_interval_seconds: float = 2.0
+
     # Worker
     max_concurrent_tasks: int = 5
     lease_seconds: int = 300

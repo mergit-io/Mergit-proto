@@ -27,3 +27,6 @@ backend/contracts/out/
 .DS_Store
 
 backend/logs/
+
+# Local-EVM deployment record is regenerated on every boot (ephemeral in-process chain)
+backend/deployments/31337.json
