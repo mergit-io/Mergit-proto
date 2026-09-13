@@ -1,12 +1,12 @@
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import type { AgentPassport } from "../../lib/api";
+import type { Passport } from "../../lib/api";
 
-function truncate(address: string): string {
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+function truncate(addr: string): string {
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
-export function PassportCard({ passport, index = 0 }: { passport: AgentPassport; index?: number }) {
+export function PassportCard({ passport, index = 0 }: { passport: Passport; index?: number }) {
   const nav = useNavigate();
 
   return (
@@ -14,27 +14,48 @@ export function PassportCard({ passport, index = 0 }: { passport: AgentPassport;
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05, duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-      onClick={() => nav(`/app/economy/agents/${passport.agent_name}`)}
-      className="card p-5 cursor-pointer hover:border-accent/25 transition-colors"
+      onClick={() => nav(`/app/economy/agents/${passport.role}`)}
+      className="relative rounded-2xl p-[1px] cursor-pointer bg-gradient-to-br from-accent/40 via-cyan/25 to-transparent hover:from-accent/70 hover:via-cyan/40 transition-colors"
     >
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-sm font-semibold text-white capitalize">{passport.agent_name}</p>
-        <span className="text-[10px] font-semibold uppercase tracking-widest px-2 py-1 rounded-full bg-accent/10 text-accent border border-accent/20">
-          Level {passport.level}
-        </span>
-      </div>
-
-      <p className="text-xs font-mono text-text-muted mb-4">{truncate(passport.address)}</p>
-
-      <div className="flex items-end justify-between">
-        <div>
-          <p className="font-mono text-2xl font-bold text-cyan">{passport.reputation.toLocaleString()}</p>
-          <p className="text-[11px] text-text-muted uppercase tracking-wide">Reputation</p>
+      <div className="rounded-2xl bg-black/70 backdrop-blur-sm p-5 h-full">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <p className="text-sm font-semibold text-white capitalize">{passport.role}</p>
+            <p className="text-[11px] font-mono text-text-muted">AgentPassport #{passport.token_id}</p>
+          </div>
+          {passport.soulbound && (
+            <span className="text-[9px] font-semibold uppercase tracking-widest px-2 py-1 rounded-full bg-accent/10 text-accent-2 border border-accent/25">
+              Soulbound
+            </span>
+          )}
         </div>
-        <div className="text-right">
-          <p className="font-mono text-sm text-proof-green">{passport.tasks_completed} done</p>
-          {passport.tasks_failed > 0 && (
-            <p className="font-mono text-xs text-danger">{passport.tasks_failed} failed</p>
+
+        <dl className="space-y-1.5 mb-4">
+          <div className="flex items-center justify-between gap-3">
+            <dt className="text-[11px] text-text-muted">DID</dt>
+            <dd className="text-[11px] font-mono text-text-dim truncate max-w-[70%]">{passport.did}</dd>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <dt className="text-[11px] text-text-muted">Owner</dt>
+            <dd className="text-[11px] font-mono text-text-dim">{truncate(passport.owner_address)}</dd>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <dt className="text-[11px] text-text-muted">Mint block</dt>
+            <dd className="text-[11px] font-mono text-cyan">#{passport.mint_block.toLocaleString()}</dd>
+          </div>
+        </dl>
+
+        <div className="flex flex-wrap gap-1.5">
+          {passport.capabilities.slice(0, 6).map((cap) => (
+            <span
+              key={cap}
+              className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/5 text-text-dim border border-white/8"
+            >
+              {cap}
+            </span>
+          ))}
+          {passport.capabilities.length === 0 && (
+            <span className="text-[10px] text-text-muted">no tools</span>
           )}
         </div>
       </div>

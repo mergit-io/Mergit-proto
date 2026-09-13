@@ -76,43 +76,52 @@ export interface ModelConfig {
   defaults: Record<string, string>;
 }
 
-export interface AgentPassport {
-  agent_name: string;
-  address: string;
-  level: number;
-  reputation: number;
-  tasks_completed: number;
-  tasks_failed: number;
-  first_seen: number;
+// Economy view-models — mirror the backend /api/economy/* responses exactly.
+export interface Passport {
+  role: string;
+  did: string;
+  token_id: number;
+  soulbound: boolean;
+  capabilities: string[];
+  owner_address: string;
+  minted_at: number;
+  mint_block: number;
 }
 
-export interface LeaderboardEntry {
-  rank: number;
-  agent_name: string;
-  address: string;
-  reputation: number;
-  tasks_completed: number;
+export interface RepEntry {
+  role: string;
+  composite: number;
+  success_rate: number;
+  speed: number;
+  volume: number;
+  badge: string;
+  updated_at: number;
+  rank?: number;
+  token_id?: number;
+  did?: string;
 }
 
-export interface ProofRecord {
-  proof_id: string;
-  agent_name: string;
+export interface Proof {
   task_id: string;
   goal_id: string;
+  agent_role: string;
+  result_hash: string;
   tx_hash: string;
   block_number: number;
-  reputation_delta: number;
-  timestamp: number;
+  recorded_at: number;
 }
 
-export interface AgentDetail extends AgentPassport {
-  proofs: ProofRecord[];
+export interface AgentDetail {
+  passport: Passport;
+  reputation: RepEntry | null;
+  proofs: Proof[];
 }
 
 export interface ChainInfo {
+  chainId: number;
   network: string;
-  block_number: number;
-  total_proofs: number;
+  explorer: string;
+  contracts: Record<string, string>;
 }
 
 export const api = {
@@ -163,13 +172,13 @@ export const api = {
       body: JSON.stringify(ctx),
     }),
 
-  getPassports: () => request<{ passports: AgentPassport[] }>("/economy/passports"),
+  getPassports: () => request<Passport[]>("/economy/passports"),
 
-  getLeaderboard: () => request<{ leaderboard: LeaderboardEntry[] }>("/economy/leaderboard"),
+  getLeaderboard: () => request<RepEntry[]>("/economy/leaderboard"),
 
-  getProofs: (limit = 50) => request<{ proofs: ProofRecord[] }>(`/economy/proofs?limit=${limit}`),
+  getProofs: (limit = 50) => request<Proof[]>(`/economy/proofs?limit=${limit}`),
 
-  getAgentDetail: (agentName: string) => request<AgentDetail>(`/economy/agents/${agentName}`),
+  getAgentDetail: (role: string) => request<AgentDetail>(`/economy/agents/${role}`),
 
   getChain: () => request<ChainInfo>("/economy/chain"),
 };

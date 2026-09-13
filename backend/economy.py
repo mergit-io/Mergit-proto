@@ -106,6 +106,11 @@ async def seed_passports() -> None:
             capabilities=CAPABILITIES.get(role, []), owner_address=owner_address(role),
             minted_at=now, mint_block=mint_block_for(role),
         )
+    # Ensure every role has a reputation row so all 6 appear on the leaderboard,
+    # even those with no task history yet (neutral prior). Never overwrites existing.
+    for role in ROLES:
+        if not await db.get_reputation(role):
+            await recompute_role(role)
 
 
 async def recompute_role(role: str) -> dict:

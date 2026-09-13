@@ -66,7 +66,7 @@ export default function App() {
           }
         />
         <Route
-          path="/app/economy/agents/:agentName"
+          path="/app/economy/agents/:role"
           element={
             <ProtectedRoute>
               <AgentDetail />

@@ -6,18 +6,38 @@ import { AppNav } from "../components/AppNav";
 import { AppBackground } from "../components/AppBackground";
 import { api } from "../lib/api";
 import { ProofLedger } from "../components/economy/ProofLedger";
+import { badgeStyle } from "../components/economy/Leaderboard";
 
-function truncate(address: string): string {
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+function truncate(addr: string): string {
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+}
+
+function ScoreBar({ label, value }: { label: string; value: number }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[11px] text-text-muted uppercase tracking-wide">{label}</span>
+        <span className="text-[11px] font-mono text-text-dim">{(value * 100).toFixed(0)}%</span>
+      </div>
+      <div className="h-1.5 rounded-full bg-white/6 overflow-hidden">
+        <motion.div
+          className="h-full rounded-full bg-gradient-to-r from-accent to-cyan"
+          initial={{ width: 0 }}
+          animate={{ width: `${value * 100}%` }}
+          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+        />
+      </div>
+    </div>
+  );
 }
 
 export function AgentDetail() {
-  const { agentName = "" } = useParams();
+  const { role = "" } = useParams();
   const nav = useNavigate();
 
   const { data, error, isLoading } = useSWR(
-    `/api/economy/agents/${agentName}`,
-    () => api.getAgentDetail(agentName),
+    `/api/economy/agents/${role}`,
+    () => api.getAgentDetail(role),
     { refreshInterval: 5000 }
   );
 
@@ -68,28 +88,42 @@ export function AgentDetail() {
                       className="font-display font-bold text-white capitalize mb-1"
                       style={{ fontSize: "clamp(1.6rem, 3.5vw, 2.2rem)" }}
                     >
-                      {data.agent_name}
+                      {data.passport.role}
                     </h1>
-                    <p className="text-xs font-mono text-text-muted">{truncate(data.address)}</p>
+                    <p className="text-xs font-mono text-text-muted">
+                      AgentPassport #{data.passport.token_id} · {truncate(data.passport.owner_address)}
+                    </p>
                   </div>
-                  <span className="text-[10px] font-semibold uppercase tracking-widest px-2.5 py-1.5 rounded-full bg-accent/10 text-accent border border-accent/20">
-                    Level {data.level}
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={`text-[10px] font-semibold uppercase tracking-widest px-2.5 py-1.5 rounded-full border ${badgeStyle(data.reputation?.badge ?? "Bronze")}`}
+                    >
+                      {data.reputation?.badge ?? "Bronze"}
+                    </span>
+                    <div className="text-right">
+                      <p className="font-mono text-2xl font-bold text-cyan leading-none">
+                        {data.reputation?.composite ?? 0}
+                      </p>
+                      <p className="text-[10px] text-text-muted uppercase tracking-wide">Composite</p>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <p className="font-mono text-2xl font-bold text-cyan">{data.reputation.toLocaleString()}</p>
-                    <p className="text-[11px] text-text-muted uppercase tracking-wide">Reputation</p>
-                  </div>
-                  <div>
-                    <p className="font-mono text-2xl font-bold text-proof-green">{data.tasks_completed}</p>
-                    <p className="text-[11px] text-text-muted uppercase tracking-wide">Tasks Done</p>
-                  </div>
-                  <div>
-                    <p className="font-mono text-2xl font-bold text-white">{data.tasks_failed}</p>
-                    <p className="text-[11px] text-text-muted uppercase tracking-wide">Tasks Failed</p>
-                  </div>
+                <div className="grid sm:grid-cols-3 gap-5">
+                  <ScoreBar label="Success" value={data.reputation?.success_rate ?? 0} />
+                  <ScoreBar label="Speed" value={data.reputation?.speed ?? 0} />
+                  <ScoreBar label="Volume" value={data.reputation?.volume ?? 0} />
+                </div>
+
+                <div className="mt-6 pt-5 border-t border-white/6 flex flex-wrap gap-1.5">
+                  {data.passport.capabilities.map((cap) => (
+                    <span
+                      key={cap}
+                      className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/5 text-text-dim border border-white/8"
+                    >
+                      {cap}
+                    </span>
+                  ))}
                 </div>
               </motion.div>
 
