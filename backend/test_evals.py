@@ -10,6 +10,8 @@ the live services by `evals/run.py`; what is pinned here is the reasoning around
 """
 import time
 
+import pytest
+
 from evals.checks import Check, _iso_after
 from evals.run import (LOUD_FAILURE, PESSIMISTIC, SILENT_FAILURE, SUCCESS,
                        RunResult, classify, report)
@@ -222,3 +224,81 @@ def test_nothing_filed_cannot_be_concluded_from_a_failed_read():
         checks.notion_page_exists = original
     assert out.unverifiable is True
     assert out.passed is False
+
+
+# ── Grading the run's own artifacts, not whatever appeared next ──────────────────
+
+@pytest.fixture()
+def evaldb(monkeypatch):
+    """Temp database with one goal whose github_pr call recorded a real PR url."""
+    import asyncio
+    import importlib
+    import json
+    import os
+    import tempfile
+
+    import config
+    monkeypatch.setattr(config.settings, "db_path", os.path.join(tempfile.mkdtemp(), "e.db"))
+    import db as _db
+    importlib.reload(_db)
+    asyncio.run(_db.init_db())
+    from evals import checks as _checks
+    monkeypatch.setattr(_checks, "db", _db, raising=False)
+
+    owner = asyncio.run(_db.upsert_user(google_sub="s", email="a@b.c",
+                                        email_verified=True, name="T"))
+    goal = asyncio.run(_db.create_goal("fix it", owner["id"]))
+    tasks = asyncio.run(_db.create_tasks(
+        [{"id": "t1", "agent": "integrator", "description": "pr", "inputs": {},
+          "depends_on": [], "status": "COMPLETED"}], goal.id, goal.trace_id))
+
+    def record(url):
+        ikey = f"ik{url[-3:]}"
+        asyncio.run(_db.create_tool_call(tasks[0].id, "github_pr", "{}", "h", ikey))
+        asyncio.run(_db.settle_tool_call(ikey, json.dumps({"ok": True, "url": url}), "SUCCESS"))
+
+    _db.goal_id = goal.id
+    _db.record = record
+    return _db
+
+
+def test_a_run_is_graded_on_the_pull_request_it_opened(evaldb):
+    """Two `crash_not_logic` runs opened PR #89, which was correct. They were graded
+    against #88 (the deployed site's) and #90 (an orphaned goal's), both opened in the
+    same minute, and both scored as silent failures."""
+    import asyncio
+
+    from evals import checks
+
+    evaldb.record("https://github.com/o/r/pull/89")
+    assert asyncio.run(checks.prs_opened_by(evaldb.goal_id)) == [89]
+
+
+def test_a_run_that_opened_nothing_is_not_convicted_by_a_stranger(evaldb, monkeypatch):
+    """`already_correct` must stay correct while another agent works in the same repo."""
+    import asyncio
+
+    from evals import checks
+
+    def _explode(*_a, **_k):
+        raise AssertionError("must not fall back to the watermark when attribution exists")
+    monkeypatch.setattr(checks, "_prs_since", _explode)
+
+    check = asyncio.run(checks.github_no_new_pr("o/r", since_pr=1, opened_by=evaldb.goal_id))
+    assert check.passed is True
+
+
+def test_without_attribution_the_watermark_is_still_used(evaldb, monkeypatch):
+    """A goal that recorded no pull request — or a caller that passes no id — keeps the
+    old behaviour rather than silently passing everything."""
+    import asyncio
+
+    from evals import checks
+
+    async def _fresh(*_a, **_k):
+        return [{"number": 99, "url": "https://github.com/o/r/pull/99"}]
+    monkeypatch.setattr(checks, "_prs_since", _fresh)
+
+    check = asyncio.run(checks.github_no_new_pr("o/r", since_pr=1))
+    assert check.passed is False
+    assert "99" in check.detail

@@ -52,6 +52,55 @@ async def highest_pr_number(repo: str) -> int:
     return max((p["number"] for p in prs.get("items", [])), default=0)
 
 
+async def prs_opened_by(goal_id: str) -> list[int]:
+    """Pull request numbers this goal's `github_pr` calls actually created.
+
+    The watermark — "anything numbered above what existed when we started" — is exact for
+    a repository only this run is touching, and wrong the moment anything else is. On
+    2026-09-13 two `crash_not_logic` runs were graded against a pull request opened by the
+    deployed site and another by an orphaned goal, both in the same minute. Both runs had
+    done exactly the right thing; the harness looked at someone else's work and recorded a
+    silent failure against them.
+
+    This does not break the rule that a check reads the service rather than the run's
+    account of itself. The number comes from what GitHub *returned*, recorded by the tool
+    layer before any agent saw it, and it is used only to find the artifact — every
+    assertion still reads the pull request back from GitHub.
+
+    Returns [] when nothing was recorded, and the caller falls back to the watermark.
+    """
+    import json
+    import re
+
+    import db
+
+    try:
+        async with db.get_conn() as conn:
+            rows = await (
+                await conn.execute(
+                    """SELECT tc.result_json FROM tool_calls tc
+                         JOIN tasks t ON t.id = tc.task_id
+                        WHERE t.goal_id = ? AND tc.tool_name = 'github_pr'
+                          AND tc.status = 'SUCCESS'
+                     ORDER BY tc.created_at""",
+                    (goal_id,),
+                )
+            ).fetchall()
+    except Exception:
+        return []
+
+    numbers = []
+    for row in rows:
+        try:
+            body = json.loads(row["result_json"] or "{}")
+        except (ValueError, TypeError):
+            continue
+        match = re.search(r"/pull/(\d+)", (body or {}).get("url") or "")
+        if match:
+            numbers.append(int(match.group(1)))
+    return numbers
+
+
 async def _prs_since(repo: str, since_pr: int) -> list[dict]:
     import tools.github_ops as gh
 
@@ -64,7 +113,8 @@ async def _prs_since(repo: str, since_pr: int) -> list[dict]:
 
 async def github_pr_opened(repo: str, *, since_pr: int, must_touch: str,
                            body_must_mention: list[str],
-                           body_must_not_mention: list[str] | None = None) -> Check:
+                           body_must_not_mention: list[str] | None = None,
+                           opened_by: str = "") -> Check:
     """A pull request exists, changes the right file, and describes the right bug.
 
     `body_must_not_mention` is the check run 0e067775 earned: PR #47's diff was correct and
@@ -75,11 +125,17 @@ async def github_pr_opened(repo: str, *, since_pr: int, must_touch: str,
 
     if since_pr < 0:
         return unreadable("github_pr_opened", "the repository could not be read")
-    fresh = await _prs_since(repo, since_pr)
-    if not fresh:
-        return Check("github_pr_opened", False, "no pull request was opened")
-
-    pr = fresh[0]
+    mine = await prs_opened_by(opened_by) if opened_by else []
+    if mine:
+        detail = await gh.github_get_pr({"repo": repo, "pr_number": max(mine)})
+        if not detail.get("ok"):
+            return unreadable("github_pr_opened", f"PR #{max(mine)} could not be read")
+        pr = {"number": max(mine), "url": detail.get("url", "")}
+    else:
+        fresh = await _prs_since(repo, since_pr)
+        if not fresh:
+            return Check("github_pr_opened", False, "no pull request was opened")
+        pr = fresh[0]
     files = await gh.github_get_pr_files({"repo": repo, "pr_number": pr["number"]})
     paths = [f.get("path", "") for f in files.get("files", [])] if files.get("ok") else []
     if must_touch and not any(must_touch in path for path in paths):
@@ -105,7 +161,7 @@ async def github_pr_opened(repo: str, *, since_pr: int, must_touch: str,
                  {"pr": pr.get("url", ""), "number": pr["number"]})
 
 
-async def github_no_new_pr(repo: str, *, since_pr: int) -> Check:
+async def github_no_new_pr(repo: str, *, since_pr: int, opened_by: str = "") -> Check:
     """No pull request was opened.
 
     The opposite failure, and a real one: asked to "check the code and fix it if it is
@@ -115,7 +171,15 @@ async def github_no_new_pr(repo: str, *, since_pr: int) -> Check:
     """
     if since_pr < 0:
         return unreadable("github_no_new_pr", "the repository could not be read")
-    fresh = await _prs_since(repo, since_pr)
+    # Same attribution problem, and worse here: a pull request opened by anything else in
+    # the same minute would convict a run that correctly opened none.
+    mine = await prs_opened_by(opened_by) if opened_by else []
+    if opened_by:
+        if not mine:
+            return Check("github_no_new_pr", True, "no pull request, correctly")
+        fresh = [{"number": max(mine), "url": ""}]
+    else:
+        fresh = await _prs_since(repo, since_pr)
     if fresh:
         # The number goes into evidence so cleanup can close it. Without that, the one
         # scenario whose failure *is* an unwanted pull request leaves it behind, and every
