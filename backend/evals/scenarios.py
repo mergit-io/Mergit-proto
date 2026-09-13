@@ -89,7 +89,8 @@ async def _watermarks(cfg: Config) -> dict:
 
 async def _verify_ship(cfg: Config, before: dict) -> list[checks.Check]:
     pr = await checks.github_pr_opened(
-        cfg.repo, since_pr=before["pr"], must_touch="fulfilment/inventory.py",
+        cfg.repo, since_pr=before["pr"], opened_by=before.get("goal_id", ""),
+        must_touch="fulfilment/inventory.py",
         # The reported symptom is a release giving back more than was held. Run 0e067775
         # shipped a correct diff under a body about a function it never touched, and every
         # downstream artifact repeated it, so the body is checked as well as the diff.
@@ -132,7 +133,8 @@ SHIP_THE_FIX = Scenario(
 # ── 2. Nothing to fix ────────────────────────────────────────────────────────────
 
 async def _verify_already_correct(cfg: Config, before: dict) -> list[checks.Check]:
-    return [await checks.github_no_new_pr(cfg.repo, since_pr=before["pr"])]
+    return [await checks.github_no_new_pr(cfg.repo, since_pr=before["pr"],
+                                            opened_by=before.get("goal_id", ""))]
 
 
 ALREADY_CORRECT = Scenario(
@@ -155,7 +157,8 @@ async def _verify_report_only(cfg: Config, before: dict) -> list[checks.Check]:
         await checks.slack_message_posted(
             cfg.report_channel or cfg.channel, since=float(before["t"]),
             must_contain=["reserv"]),
-        await checks.github_no_new_pr(cfg.repo, since_pr=before["pr"]),
+        await checks.github_no_new_pr(cfg.repo, since_pr=before["pr"],
+                                            opened_by=before.get("goal_id", "")),
     ]
 
 
@@ -174,7 +177,8 @@ REPORT_ONLY = Scenario(
 
 async def _verify_degraded(cfg: Config, before: dict) -> list[checks.Check]:
     out = [await checks.github_pr_opened(
-        cfg.repo, since_pr=before["pr"], must_touch="fulfilment/inventory.py",
+        cfg.repo, since_pr=before["pr"], opened_by=before.get("goal_id", ""),
+        must_touch="fulfilment/inventory.py",
         body_must_mention=["releas"])]
     if cfg.notion_parent:
         out.append(await checks.notion_nothing_filed(cfg.notion_parent, since=before["t"]))
@@ -198,7 +202,8 @@ DEGRADED = Scenario(
 
 async def _verify_crash(cfg: Config, before: dict) -> list[checks.Check]:
     return [await checks.github_pr_opened(
-        cfg.repo, since_pr=before["pr"], must_touch="fulfilment/reporting.py",
+        cfg.repo, since_pr=before["pr"], opened_by=before.get("goal_id", ""),
+        must_touch="fulfilment/reporting.py",
         body_must_mention=["percentile"],
         # The dashboard tile is the symptom, not the defect. A body blaming `dashboard`
         # describes the place the exception surfaced rather than the arithmetic that
@@ -223,7 +228,8 @@ CRASH_NOT_LOGIC = Scenario(
 
 async def _verify_silent_loss(cfg: Config, before: dict) -> list[checks.Check]:
     return [await checks.github_pr_opened(
-        cfg.repo, since_pr=before["pr"], must_touch="fulfilment/supplier_feed.py",
+        cfg.repo, since_pr=before["pr"], opened_by=before.get("goal_id", ""),
+        must_touch="fulfilment/supplier_feed.py",
         # Both halves, because fixing only the parser leaves the reporting lie in place:
         # rows would still vanish silently the next time a supplier sends something else
         # this code cannot read.
