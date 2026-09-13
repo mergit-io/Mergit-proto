@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 import db
 import worker
-from api import config, goals, health, stream, tasks, webhooks
+from api import config, goals, health, keys, stream, tasks, webhooks
 from config import settings
 from tracing import init_tracing
 
@@ -27,6 +27,7 @@ logging.getLogger("httpcore").setLevel(logging.WARNING)
 logging.getLogger("litellm").setLevel(logging.WARNING)
 logging.getLogger("openai").setLevel(logging.WARNING)
 logging.getLogger("anthropic").setLevel(logging.WARNING)
+logging.getLogger("watchfiles").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +101,7 @@ async def request_logging_middleware(request: Request, call_next):
 # ── Routers ───────────────────────────────────────────────────────────────────────
 
 app.include_router(config.router)
+app.include_router(keys.router)
 app.include_router(goals.router)
 app.include_router(tasks.router)
 app.include_router(stream.router)
@@ -117,4 +119,12 @@ if _frontend_dist.exists():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host=settings.host, port=settings.port, reload=True, log_level="warning")
+    uvicorn.run(
+        "main:app",
+        host=settings.host,
+        port=settings.port,
+        reload=True,
+        reload_includes=["*.py"],
+        reload_excludes=["*/__pycache__/*", "*.pyc", "*.db", "*.db-wal", "*.db-shm"],
+        log_level="warning",
+    )

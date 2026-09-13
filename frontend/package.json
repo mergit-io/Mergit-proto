@@ -12,6 +12,7 @@
   "dependencies": {
     "@fontsource/dm-sans": "^5.2.8",
     "@fontsource/inter": "^5.2.8",
+    "firebase": "^12.13.0",
     "framer-motion": "^11.18.2",
     "lucide-react": "^1.16.0",
     "react": "^19.2.6",

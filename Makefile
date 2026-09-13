@@ -11,7 +11,7 @@ install-frontend:
 	cd frontend && npm install
 
 dev-backend:
-	cd backend && $(PYTHON) main.py
+	cd backend && .venv/bin/python main.py
 
 dev-frontend:
 	cd frontend && npm run dev

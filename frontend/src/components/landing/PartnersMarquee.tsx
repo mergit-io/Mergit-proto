@@ -1,22 +1,36 @@
 import { motion } from "framer-motion";
 
 const PARTNERS = [
-  { name: "Anthropic",   abbr: "Anthropic" },
-  { name: "Groq",        abbr: "Groq" },
-  { name: "Tavily",      abbr: "Tavily" },
-  { name: "LiteLLM",    abbr: "LiteLLM" },
-  { name: "FastAPI",     abbr: "FastAPI" },
-  { name: "React Flow",  abbr: "ReactFlow" },
-  { name: "Framer",      abbr: "Framer Motion" },
-  { name: "SQLite",      abbr: "SQLite" },
+  { name: "Anthropic", abbr: "Anthropic", mark: "A", accent: "#D4A373" },
+  { name: "Groq", abbr: "Groq", mark: "GQ", accent: "#F55036" },
+  { name: "Tavily", abbr: "Tavily", mark: "TV", accent: "#F97316" },
+  { name: "LiteLLM", abbr: "LiteLLM", mark: "LL", accent: "#7C3AED" },
+  { name: "FastAPI", abbr: "FastAPI", mark: "FA", accent: "#10B981" },
+  { name: "React Flow", abbr: "ReactFlow", mark: "RF", accent: "#61DAFB" },
+  { name: "Framer", abbr: "Framer Motion", mark: "FM", accent: "#2563EB" },
+  { name: "SQLite", abbr: "SQLite", mark: "DB", accent: "#0F80CC" },
 ];
 
-function PartnerLogo({ abbr }: { name: string; abbr: string }) {
+type Partner = (typeof PARTNERS)[number];
+
+function PartnerLogo({ abbr, mark, accent }: Partner) {
   return (
-    <div className="flex items-center gap-2 px-8 py-4 rounded-xl border border-white/5 bg-white/2 mx-4 group cursor-default hover:border-accent/30 hover:bg-accent/5 transition-all duration-300 shrink-0">
-      {/* Generic geometric icon placeholder */}
-      <div className="w-6 h-6 rounded-md bg-white/10 group-hover:bg-accent/20 transition-colors duration-300 shrink-0" />
-      <span className="text-sm font-medium text-white/30 group-hover:text-white/90 transition-colors duration-300 whitespace-nowrap">
+    <div
+      className="flex items-center gap-3 px-7 py-4 rounded-xl border border-white/10 bg-white/[0.035] mx-4 group cursor-default transition-all duration-300 shrink-0 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.055]"
+      style={{ boxShadow: `0 12px 34px -28px ${accent}` }}
+    >
+      <div
+        className="flex h-10 w-10 items-center justify-center rounded-xl border bg-black/50 shrink-0 transition-transform duration-300 group-hover:scale-105"
+        style={{
+          borderColor: `${accent}55`,
+          boxShadow: `inset 0 0 0 1px rgba(255,255,255,0.05), 0 0 24px -12px ${accent}`,
+        }}
+      >
+        <span className="text-[10px] font-bold" style={{ color: accent }}>
+          {mark}
+        </span>
+      </div>
+      <span className="text-sm font-medium text-white/70 group-hover:text-white transition-colors duration-300 whitespace-nowrap">
         {abbr}
       </span>
     </div>

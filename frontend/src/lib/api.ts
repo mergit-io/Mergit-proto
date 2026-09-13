@@ -50,6 +50,12 @@ export interface GoalDetail {
   updated_at: number;
 }
 
+export interface ProviderKeyStatus {
+  env_var: string;
+  set: boolean;
+  masked: string | null;
+}
+
 export interface ModelOption {
   id: string;
   label: string;
@@ -89,5 +95,14 @@ export const api = {
     request<{ models: Record<string, string>; ok: boolean }>("/config/models", {
       method: "PUT",
       body: JSON.stringify({ models }),
+    }),
+
+  getApiKeys: () =>
+    request<Record<string, ProviderKeyStatus>>("/config/keys"),
+
+  updateApiKey: (provider: string, key: string) =>
+    request<{ ok: boolean; masked: string }>("/config/keys", {
+      method: "PUT",
+      body: JSON.stringify({ provider, key }),
     }),
 };

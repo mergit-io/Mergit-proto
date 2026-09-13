@@ -8,6 +8,8 @@ import { StatusBadge } from "../components/StatusBadge";
 import { TaskDAG } from "../components/TaskDAG";
 import { TaskPanel } from "../components/TaskPanel";
 import { AppNav } from "../components/AppNav";
+import { AppBackground } from "../components/AppBackground";
+import { ModelErrorBanner } from "../components/ModelErrorBanner";
 import { api } from "../lib/api";
 import { useSSE } from "../lib/sse";
 
@@ -31,12 +33,15 @@ export function GoalDetail() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-black flex flex-col">
-        <AppNav />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="flex items-center gap-2.5 text-text-muted">
-            <RefreshCw className="w-4 h-4 animate-spin" />
-            <span className="text-sm">Loading goal…</span>
+      <div className="relative min-h-screen" style={{ background: "#000" }}>
+        <AppBackground />
+        <div className="relative z-10 flex flex-col min-h-screen">
+          <AppNav />
+          <div className="flex-1 flex items-center justify-center">
+            <div className="flex items-center gap-2.5 text-text-muted">
+              <RefreshCw className="w-4 h-4 animate-spin" />
+              <span className="text-sm">Loading goal…</span>
+            </div>
           </div>
         </div>
       </div>
@@ -45,20 +50,23 @@ export function GoalDetail() {
 
   if (error || !data) {
     return (
-      <div className="min-h-screen bg-black flex flex-col">
-        <AppNav />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-3 text-center">
-            <AlertCircle className="w-8 h-8 text-danger/70" />
-            <p className="text-sm text-text-muted">
-              {error ? `Error: ${error.message}` : "Goal not found."}
-            </p>
-            <button
-              onClick={() => nav("/app")}
-              className="text-xs text-accent hover:text-accent/80 transition-colors"
-            >
-              ← Back to Dashboard
-            </button>
+      <div className="relative min-h-screen" style={{ background: "#000" }}>
+        <AppBackground />
+        <div className="relative z-10 flex flex-col min-h-screen">
+          <AppNav />
+          <div className="flex-1 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-3 text-center">
+              <AlertCircle className="w-8 h-8 text-danger/70" />
+              <p className="text-sm text-text-muted">
+                {error ? `Error: ${error.message}` : "Goal not found."}
+              </p>
+              <button
+                onClick={() => nav("/app")}
+                className="text-xs text-accent hover:text-accent/80 transition-colors"
+              >
+                ← Back to Dashboard
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -68,11 +76,14 @@ export function GoalDetail() {
   const tasks = data.tasks ?? [];
 
   return (
-    <div className="min-h-screen bg-black flex flex-col">
+    <div className="relative min-h-screen" style={{ background: "#000" }}>
+      <AppBackground />
+
+      <div className="relative z-10 flex flex-col min-h-screen">
       <AppNav />
 
       {/* Goal header */}
-      <div className="border-b border-white/6 bg-black/60 backdrop-blur-sm">
+      <div className="border-b border-white/6 bg-black/40 backdrop-blur-md">
         <div className="max-w-none px-6 py-4 flex items-center gap-4">
           <button
             onClick={() => nav("/app")}
@@ -90,7 +101,7 @@ export function GoalDetail() {
       {/* Body */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* Left: DAG + Tasks */}
-        <div className="flex-1 flex flex-col overflow-hidden border-r border-white/6">
+        <div className="flex-1 flex flex-col overflow-hidden border-r border-white/8 bg-black/20 backdrop-blur-sm">
           {/* DAG */}
           {tasks.length > 0 && (
             <div className="h-64 lg:h-80 border-b border-white/6">
@@ -146,11 +157,14 @@ export function GoalDetail() {
                 <p className="text-xs text-red-300 font-mono leading-relaxed">{data.error}</p>
               </div>
             )}
+
+            {/* Model error toast */}
+            {data.error && <ModelErrorBanner error={data.error} />}
           </div>
         </div>
 
         {/* Right: Live Log */}
-        <div className="w-full lg:w-96 flex flex-col border-t lg:border-t-0 border-white/6">
+        <div className="w-full lg:w-96 flex flex-col border-t lg:border-t-0 border-white/8 bg-black/30 backdrop-blur-sm">
           <div className="border-b border-white/6 px-5 py-3 flex items-center justify-between">
             <p className="text-xs text-text-muted uppercase tracking-widest font-semibold">
               Live Log
@@ -166,6 +180,7 @@ export function GoalDetail() {
             <LiveLog events={sseEvents} />
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

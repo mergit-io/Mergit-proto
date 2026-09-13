@@ -28,6 +28,11 @@ def is_running() -> bool:
     return _running
 
 
+def _is_rate_limit_error(error: Exception) -> bool:
+    message = str(error).lower()
+    return "rate_limit" in message or "rate limit" in message or "429" in message
+
+
 async def start() -> None:
     global _running
     _running = True
@@ -142,6 +147,14 @@ async def _execute_task(task: Any) -> None:
         events.emit(goal_id, "task_update", {"task_id": task.id, "status": TaskStatus.WAITING_WEBHOOK})
 
     except Exception as e:
+        if _is_rate_limit_error(e):
+            delay = min(2 ** max(task.attempt_count, 0), 30)
+            logger.warning("Task %s rate limited; requeueing in %ds: %s", task.id, delay, e)
+            await db.settle_task(task.id, TaskStatus.PENDING, error=f"Rate limited; retrying in {delay}s")
+            events.emit(goal_id, "task_update", {"task_id": task.id, "status": TaskStatus.PENDING, "error": f"Rate limited; retrying in {delay}s"})
+            asyncio.create_task(_requeue_task_later(task.id, goal_id, delay), name=f"rate-limit-{task.id}")
+            return
+
         logger.error("Task %s FAILED: %s", task.id, e)
         fresh = await db.get_task(task.id)
         if fresh and fresh.attempt_count >= fresh.max_attempts:
@@ -151,6 +164,15 @@ async def _execute_task(task: Any) -> None:
         else:
             await db.settle_task(task.id, TaskStatus.READY, error=str(e))
             events.emit(goal_id, "task_update", {"task_id": task.id, "status": TaskStatus.READY})
+
+
+async def _requeue_task_later(task_id: str, goal_id: str, delay: int) -> None:
+    await asyncio.sleep(delay)
+    task = await db.get_task(task_id)
+    if not task or task.status != TaskStatus.PENDING:
+        return
+    await db.settle_task(task_id, TaskStatus.READY, error=None)
+    events.emit(goal_id, "task_update", {"task_id": task_id, "status": TaskStatus.READY})
 
 
 async def _after_task_done(task: Any, output: dict) -> None:

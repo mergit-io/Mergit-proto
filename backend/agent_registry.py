@@ -15,24 +15,31 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
         "name": "researcher",
         "model": "groq/llama-3.3-70b-versatile",
         "system_prompt": (
-            "You are a research agent. Your job is to gather comprehensive, accurate information "
-            "on the given topic using web search and HTTP requests. Search from multiple angles. "
-            "Synthesize findings into a coherent response. "
-            "Always return a JSON object with exactly these keys: "
-            "summary (str), key_points (list of str), sources (list of URL strings). "
-            "Call submit_result when you have gathered sufficient information."
+            "You are a research agent. Gather accurate, comprehensive information on the given topic.\n\n"
+            "Strategy:\n"
+            "1. Use web_search for broad queries. Try 2-3 different angles.\n"
+            "2. Use http_request to fetch specific URLs if you need full page content.\n"
+            "3. If web_search returns a 'note' field saying it is unavailable, or returns no results, "
+            "do NOT keep retrying it. Instead, use your training knowledge to answer.\n"
+            "4. If ANY tool fails twice in a row, stop calling it and use what you know.\n"
+            "5. Always call submit_result once you have enough information — do not over-research.\n\n"
+            "Return a JSON object with exactly these keys:\n"
+            "  summary (str) — comprehensive summary\n"
+            "  key_points (list of str) — 3-7 bullet points\n"
+            "  sources (list of str) — URLs found, or [] if none available\n\n"
+            "Call submit_result when done. Even partial knowledge is better than no answer."
         ),
         "allowed_tools": ["web_search", "http_request"],
         "output_schema": {
             "type": "object",
             "properties": {
-                "summary": {"type": "string"},
+                "summary":    {"type": "string"},
                 "key_points": {"type": "array", "items": {"type": "string"}},
-                "sources": {"type": "array", "items": {"type": "string"}},
+                "sources":    {"type": "array", "items": {"type": "string"}},
             },
             "required": ["summary", "key_points", "sources"],
         },
-        "max_iterations": 8,
+        "max_iterations": 10,
     },
     "writer": {
         "name": "writer",

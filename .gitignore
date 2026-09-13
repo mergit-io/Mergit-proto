@@ -2,6 +2,7 @@
 __pycache__/
 *.pyc
 *.pyo
+*.py[cod]
 .venv/
 *.egg-info/
 dist/
@@ -11,6 +12,7 @@ build/
 backend/.env
 backend/model_config.json
 backend/omnibox.db
+backend/omnibox.db-*
 backend/workspace/
 
 # Frontend

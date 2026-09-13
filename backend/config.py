@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     # Tracing
     omium_api_key: str = ""
     omium_project: str = "omnibox"
+    omium_skip_workflow_register: bool = False
 
     # Server
     host: str = "0.0.0.0"

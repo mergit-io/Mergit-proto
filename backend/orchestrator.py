@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import re
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
@@ -95,12 +96,19 @@ async def plan(goal: GoalRow) -> PlanSchema:
         if last_error and "invalid" in last_error.lower():
             messages.append({"role": "user", "content": f"Your previous plan was invalid: {last_error}. Please fix it."})
 
+        # Use forced tool_choice on early attempts; fall back to auto on later retries
+        # (Groq sometimes fails forced tool_choice with tool_use_failed)
+        tc = (
+            {"type": "function", "function": {"name": "submit_plan"}}
+            if attempt < 2
+            else "auto"
+        )
         try:
             response = await acompletion(
                 model=orchestrator_model,
                 messages=messages,
                 tools=[PLAN_TOOL],
-                tool_choice={"type": "function", "function": {"name": "submit_plan"}},
+                tool_choice=tc,
                 temperature=0.1,
                 max_tokens=2048,
             )
@@ -109,7 +117,6 @@ async def plan(goal: GoalRow) -> PlanSchema:
                 raw = json.loads(msg.tool_calls[0].function.arguments)
             elif msg.content:
                 # Groq may return JSON in message body instead of a tool call
-                import re
                 m = re.search(r"\{.*\}", msg.content, re.DOTALL)
                 if not m:
                     raise ValueError("No tool call and no JSON in orchestrator response")
@@ -134,6 +141,26 @@ async def plan(goal: GoalRow) -> PlanSchema:
                 await asyncio.sleep(wait)
                 last_error = str(e)
                 continue
+            # Groq tool_use_failed: model generated plan in XML-function format.
+            # The actual JSON is in failed_generation — try to salvage it.
+            if "tool_use_failed" in err_str or "failed_generation" in str(e):
+                salvaged = _salvage_failed_generation(str(e))
+                if salvaged:
+                    try:
+                        plan_obj = PlanSchema.model_validate(salvaged)
+                        _validate_plan(plan_obj)
+                        logger.warning(
+                            "Orchestrator (attempt %d): salvaged plan from failed_generation", attempt + 1
+                        )
+                        return plan_obj
+                    except (ValidationError, ValueError, KeyError) as pe:
+                        last_error = f"tool_use_failed + salvage parse error: {pe}"
+                        logger.warning("Salvage parse failed: %s", pe)
+                        continue
+                last_error = str(e)
+                logger.warning("Orchestrator tool_use_failed (attempt %d/%d), retrying with tool_choice=auto",
+                               attempt + 1, max_attempts)
+                continue
             logger.error("Orchestrator error on attempt %d: %s", attempt + 1, e)
             raise
 
@@ -142,8 +169,7 @@ async def plan(goal: GoalRow) -> PlanSchema:
 
 def _rewrite_templates(inputs: dict, id_map: dict[str, str]) -> dict:
     """Replace {{old_id.output.field}} with {{new_id.output.field}} in all string values."""
-    import re
-    TMPL = re.compile(r"\{\{(\w+)(\.output\.\w+)\}\}")
+    TMPL = re.compile(r"\{\{(\w+)(\.output\.[\w\[\]\.0-9]+)\}\}")
 
     def rewrite(v: Any) -> Any:
         if isinstance(v, str):
@@ -155,6 +181,28 @@ def _rewrite_templates(inputs: dict, id_map: dict[str, str]) -> dict:
         return v
 
     return {k: rewrite(v) for k, v in inputs.items()}
+
+
+def _salvage_failed_generation(error_str: str) -> dict | None:
+    """Extract plan JSON from Groq's failed_generation XML-function format."""
+    # Groq embeds the generation as: <function=submit_plan> {...} </function>
+    m = re.search(r"<function=\w+>\s*(\{.*\})\s*</function>", error_str, re.DOTALL)
+    if m:
+        try:
+            return json.loads(m.group(1))
+        except json.JSONDecodeError:
+            pass
+    # Also try extracting from the failed_generation JSON field value
+    m = re.search(r'"failed_generation"\s*:\s*"(.*?)"(?:,|\})', error_str, re.DOTALL)
+    if m:
+        try:
+            unescaped = m.group(1).encode("utf-8").decode("unicode_escape")
+            inner = re.search(r"<function=\w+>\s*(\{.*\})\s*</function>", unescaped, re.DOTALL)
+            if inner:
+                return json.loads(inner.group(1))
+        except Exception:
+            pass
+    return None
 
 
 def _validate_plan(p: PlanSchema) -> None:

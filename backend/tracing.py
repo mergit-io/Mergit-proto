@@ -16,8 +16,11 @@ one unified trace per goal in the Omium dashboard — causal chain intact.
 """
 import contextlib
 import logging
+import os
 from contextvars import ContextVar
 from typing import Any, Callable, Optional
+
+from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +48,8 @@ def init_tracing(api_key: str, project: str) -> None:
         logger.info("OMIUM_API_KEY not set — tracing disabled")
         return
     try:
+        if settings.omium_skip_workflow_register:
+            os.environ.setdefault("OMIUM_SKIP_WORKFLOW_REGISTER", "true")
         _omium_module.init(
             api_key=api_key,
             project=project,

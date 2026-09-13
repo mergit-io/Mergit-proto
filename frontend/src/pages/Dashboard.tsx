@@ -7,6 +7,7 @@ import { api } from "../lib/api";
 import { GoalCard } from "../components/GoalCard";
 import { GoalInput } from "../components/GoalInput";
 import { AppNav } from "../components/AppNav";
+import { AppBackground } from "../components/AppBackground";
 import type { GoalSummary } from "../lib/api";
 
 const fetcher = () => api.listGoals();
@@ -105,7 +106,10 @@ export function Dashboard() {
       );
 
   return (
-    <div className="min-h-screen bg-black flex flex-col">
+    <div className="relative min-h-screen" style={{ background: "#000" }}>
+      <AppBackground />
+
+      <div className="relative z-10 flex flex-col min-h-screen">
       <AppNav />
 
       {/* Main content */}
@@ -175,7 +179,7 @@ export function Dashboard() {
               <Clock className="w-3.5 h-3.5 text-text-muted" />
               <h2 className="text-xs font-semibold text-text-muted uppercase tracking-widest">Recent Goals</h2>
             </div>
-            <div className="flex items-center gap-1 rounded-lg border border-border bg-surface p-0.5">
+            <div className="flex items-center gap-1 rounded-lg border border-white/8 bg-black/30 backdrop-blur-sm p-0.5">
               {STATUS_FILTERS.map((f) => (
                 <button
                   key={f}
@@ -233,6 +237,7 @@ export function Dashboard() {
           )}
         </div>
       </main>
+      </div>
     </div>
   );
 }

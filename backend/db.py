@@ -288,7 +288,22 @@ async def claim_ready_task(worker_id: str, lease_secs: int) -> TaskRow | None:
             await conn.execute(
                 """UPDATE tasks SET status='RUNNING', worker_id=?, lease_expires_at=?,
                    attempt_count=attempt_count+1, updated_at=?
-                   WHERE id=(SELECT id FROM tasks WHERE status='READY' ORDER BY created_at LIMIT 1)
+                   WHERE id=(
+                       SELECT candidate.id
+                       FROM tasks candidate
+                       WHERE candidate.status='READY'
+                         AND NOT EXISTS (
+                           SELECT 1
+                           FROM json_each(candidate.depends_on) dep
+                           LEFT JOIN tasks dependency
+                             ON dependency.id=dep.value
+                            AND dependency.goal_id=candidate.goal_id
+                           WHERE dependency.id IS NULL
+                              OR dependency.status != 'DONE'
+                         )
+                       ORDER BY candidate.created_at
+                       LIMIT 1
+                   )
                    RETURNING *""",
                 (worker_id, now + lease_secs, now),
             )
@@ -314,10 +329,15 @@ async def promote_ready_tasks(goal_id: str) -> list[str]:
             await conn.execute(
                 """UPDATE tasks SET status='READY', updated_at=?
                    WHERE status='PENDING' AND goal_id=?
+                     AND (error IS NULL OR error NOT LIKE 'Rate limited;%')
                      AND NOT EXISTS (
-                       SELECT 1 FROM json_each(depends_on) dep
-                       JOIN tasks t ON t.id=dep.value
-                       WHERE t.status != 'DONE'
+                       SELECT 1
+                       FROM json_each(tasks.depends_on) dep
+                       LEFT JOIN tasks dependency
+                         ON dependency.id=dep.value
+                        AND dependency.goal_id=tasks.goal_id
+                       WHERE dependency.id IS NULL
+                          OR dependency.status != 'DONE'
                      )
                    RETURNING id""",
                 (now, goal_id),
