@@ -202,15 +202,28 @@ add_access_gate(app, settings.access_password)
 
 class SPAStaticFiles(StaticFiles):
     """Static files with SPA fallback: serve index.html for any unmatched path so
-    client-side routes (/app, /app/economy, /login, …) work on direct load/refresh."""
+    client-side routes (/app, /app/economy, /login, …) work on direct load/refresh.
+
+    The API is excluded. This mount is at "/", so without the exclusion an unmatched
+    `/api/...` path — a typo, a removed endpoint, a client built against a newer
+    version — was answered with 200 and the SPA's HTML. Callers expecting JSON got a
+    decode error instead of a status code they could act on.
+    """
 
     async def get_response(self, path: str, scope):
         try:
             return await super().get_response(path, scope)
         except StarletteHTTPException as exc:
-            if exc.status_code == 404:
+            if exc.status_code == 404 and not _is_api_path(scope):
                 return await super().get_response("index.html", scope)
             raise
+
+
+def _is_api_path(scope) -> bool:
+    """True for requests under /api — read from the ASGI scope so the mount's stripped
+    `path` cannot disagree with the URL the client actually asked for."""
+    full = scope.get("root_path", "") + scope.get("path", "")
+    return full == "/api" or full.startswith("/api/")
 
 
 _frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
