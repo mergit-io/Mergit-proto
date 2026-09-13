@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 import db
 import worker
-from api import config, goals, health, keys, stream, tasks, webhooks
+from api import auth, config, goals, health, keys, stream, tasks, webhooks
 from config import settings
 from tracing import init_tracing
 
@@ -100,6 +100,7 @@ async def request_logging_middleware(request: Request, call_next):
 
 # ── Routers ───────────────────────────────────────────────────────────────────────
 
+app.include_router(auth.router)
 app.include_router(config.router)
 app.include_router(keys.router)
 app.include_router(goals.router)
