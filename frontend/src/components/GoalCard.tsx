@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import type { GoalSummary } from "../lib/api";
 import { StatusBadge } from "./StatusBadge";
 
@@ -10,21 +10,22 @@ export function timeAgo(ts: number): string {
   return new Date(ts * 1000).toLocaleDateString();
 }
 
-/** One goal, as a row in the recent-goals table. */
+/** One goal, as a row in the recent-goals table.
+ *
+ *  The row keeps its `row` semantics and the link lives in the first cell, stretched
+ *  across the row by a positioned ::after. `role="link"` on the `<tr>` read better in
+ *  markup but replaced the row role, which orphaned the cells from their column headers,
+ *  and a div-with-onClick cannot be opened in a new tab or middle-clicked. */
 export function GoalRow({ goal }: { goal: GoalSummary }) {
-  const nav = useNavigate();
-  const open = () => nav(`/app/goals/${goal.goal_id}`);
-
   return (
-    <tr
-      onClick={open}
-      onKeyDown={(e) => e.key === "Enter" && open()}
-      tabIndex={0}
-      role="link"
-      className="cursor-pointer"
-    >
+    <tr className="row-link relative cursor-pointer">
       <td className="max-w-0">
-        <p className="truncate font-medium">{goal.title}</p>
+        <Link
+          to={`/app/goals/${goal.goal_id}`}
+          className="truncate font-medium block after:absolute after:inset-0 after:content-['']"
+        >
+          {goal.title}
+        </Link>
       </td>
       <td className="w-32 font-mono text-micro uppercase text-dim whitespace-nowrap">
         {timeAgo(goal.created_at)}

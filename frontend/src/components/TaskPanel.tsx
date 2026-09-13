@@ -24,7 +24,7 @@ export function TaskPanel({ task }: Props) {
           <AgentBadge agent={task.agent_name} />
           <span className="text-sm text-text truncate">{task.description}</span>
         </div>
-        <StatusBadge status={task.status} size="sm" />
+        <StatusBadge status={task.status} />
       </button>
 
       {open && (
