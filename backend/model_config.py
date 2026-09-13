@@ -31,6 +31,11 @@ AVAILABLE_MODELS = [
     # Anthropic — Claude 3.5
     {"id": "anthropic/claude-3-5-sonnet-20241022",               "label": "Claude 3.5 Sonnet",    "provider": "Anthropic", "tier": "powerful"},
     {"id": "anthropic/claude-3-5-haiku-20241022",                "label": "Claude 3.5 Haiku",     "provider": "Anthropic", "tier": "fast"},
+    # OpenRouter — one key, many providers. Also the last-resort fallback tier in llm.py.
+    # Listed here so the Models page can select them; PUT /api/config/models validates
+    # against this list, so an id missing from it is rejected even when litellm supports it.
+    {"id": "openrouter/meta-llama/llama-3.3-70b-instruct",       "label": "Llama 3.3 70B (OpenRouter)",    "provider": "OpenRouter", "tier": "fast"},
+    {"id": "openrouter/anthropic/claude-haiku-4.5",              "label": "Claude Haiku 4.5 (OpenRouter)", "provider": "OpenRouter", "tier": "fast"},
 ]
 
 DEFAULTS: dict[str, str] = {
