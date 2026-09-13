@@ -37,7 +37,7 @@ aiosqlite · React/TS.
 | M5 | Deploy tooling | One command deploys to local or Monad testnet |
 | M6 | Frontend on-chain surfaces | Real tx links, chain status, verify button |
 | M7 | Self-heal enhancement | Tested, deduped, loop-safe, observable, demoable |
-| M9 | Remove Omium tracing | Third-party tracing dependency fully excised |
+| M9 | Remove third-party tracing | Third-party tracing dependency fully excised |
 | M8 | Docs + full verification | `CLAUDE.md` + `progress.md`, whole suite green |
 | M10 | Close remaining feature-coverage gaps | Workflow, GitHub automation and replanner proven |
 
@@ -165,10 +165,10 @@ Addresses the 9 gaps from the 2026-08-12 audit (spec §6).
 - [x] **Step 9** — Run full suite + frontend build; expect PASS.
 - [x] **CHECKPOINT M7**
 
-## M9 — Remove Omium tracing (added 2026-08-12 at user request)
+## M9 — Remove third-party tracing (added 2026-08-12 at user request)
 
-Omium was never load-bearing: `tracing.py` degraded to no-ops whenever the SDK was absent,
-which is every environment here (`omium not installed — tracing disabled` on every boot).
+The tracing SDK was never load-bearing: `tracing.py` degraded to no-ops whenever the SDK was absent,
+which is every environment here (every boot logged that tracing was disabled).
 It costs a module, config, env vars, deploy wiring and call sites in 7 modules for nothing.
 Removing it outright rather than leaving a dead abstraction.
 
@@ -182,14 +182,14 @@ Removing it outright rather than leaving a dead abstraction.
       preserving the surrounding control flow exactly.
 - [x] **Step 2** — Remove `tool_span` / `trace` / `set_execution_context` from `agent_runner.py`
       and `tools/http_request.py`; drop the `tracer` parameter threading.
-- [x] **Step 3** — Remove `webhook_span` from `api/webhooks.py`; drop the `omium` provider from
+- [x] **Step 3** — Remove `webhook_span` from `api/webhooks.py`; drop the tracing provider from
       `api/keys.py`.
-- [x] **Step 4** — Drop `omium_*` settings from `config.py` and `init_tracing` from `main.py`.
-- [x] **Step 5** — Delete `backend/tracing.py`. Purge `OMIUM_*` from `.env.example`,
+- [x] **Step 4** — Drop the tracing settings from `config.py` and `init_tracing` from `main.py`.
+- [x] **Step 5** — Delete `backend/tracing.py`. Purge the tracing vars from `.env.example`,
       `.env.production.example`, `render.yaml`, `README.md`, `CLAUDE.md`, `ARCHITECTURE.md`.
       Drop `tracing.py` from the `error_classifier` "our files" regex.
-- [x] **Step 6** — Full suite green; `grep -ri omium` returns nothing outside `progress.md`
-      history. Boot the server and confirm the "omium not installed" warning is gone.
+- [x] **Step 6** — Full suite green; a case-insensitive grep for the SDK name returns nothing outside `progress.md`
+      history. Boot the server and confirm the tracing-disabled warning is gone.
 - [x] **CHECKPOINT M9**
 
 ## M8 — Docs + full verification

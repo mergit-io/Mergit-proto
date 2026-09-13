@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Rebrand the working omniBox multi-agent engine to **Mergit** and layer a simulated Monad agent-economy (passports, live reputation, proof-of-work ledger, leaderboard) computed from real task runs, so it can be showcased to gauge preference for the Mergit vision.
+**Goal:** Rebrand the working multi-agent engine to **Mergit** and layer a simulated Monad agent-economy (passports, live reputation, proof-of-work ledger, leaderboard) computed from real task runs, so it can be showcased to gauge preference for the Mergit vision.
 
 **Architecture:** Keep the real orchestrator→DAG→agent engine untouched. Add one backend module (`economy.py`) + three SQLite tables + one API router + a global SSE channel. A worker hook records a proof and recomputes reputation on every completed task. Frontend gains an Economy hub (Leaderboard / Passports / Proof Ledger), an agent-detail page, a mock wallet button, and a full visual rebrand. A scripted replay mode is the safety net.
 
@@ -18,7 +18,7 @@
 - Six agent roles exactly: `orchestrator`, `researcher`, `writer`, `coder`, `integrator`, `notifier`.
 - Simulated chain only: mock tx hashes/blocks/addresses/contracts. No real Monad calls. Monad testnet chain id is `10143`.
 - Reputation composite range `0..1000`; badge tiers Gold ≥ 800, Silver ≥ 600, else Bronze.
-- No "omniBox" string may remain visible in shipped UI after Task 12.
+- No legacy brand string may remain visible in shipped UI after Task 12.
 - Run backend tests with: `cd backend && .venv/bin/python -m pytest <file> -v`.
 
 ---
@@ -1221,23 +1221,23 @@ Expected: 6 passports, a leaderboard array, chainId 10143.
 Option A (live keys): submit a goal from the Dashboard and confirm on `/app/economy` that new proofs stream into the ledger and a role's composite score changes.
 Option B (safety net): run `cd backend && .venv/bin/python scripts/replay_demo.py` while `/app/economy` is open; confirm the Proof Ledger animates new rows and the Leaderboard updates.
 
-- [ ] **Step 6: Verify auth bypass + no omniBox**
+- [ ] **Step 6: Verify auth bypass + no legacy branding**
 
 With `VITE_DEMO_MODE=true`, visit `/app` — must load without redirect to `/login`. Grep the built output:
-`cd frontend && grep -ri "omnibox" dist/ || echo "clean"`
+`cd frontend && grep -ri "<legacy-brand>" dist/ || echo "clean"`
 Expected: `clean` (Task 12 finishes the rebrand; run this again after Task 12).
 
 - [ ] **Step 7: CHECKPOINT** — report verification results to the user (paste command outputs). Nothing to commit unless fixes were made.
 
 ---
 
-### Task 12: Full rebrand omniBox → Mergit + visual identity
+### Task 12: Full rebrand to Mergit + visual identity
 
 **Files (modify):**
 - `frontend/index.html` (title/meta)
 - `frontend/src/pages/Landing.tsx` + `frontend/src/components/landing/*` (hero copy, wordmark, sections)
 - `frontend/src/components/AppNav.tsx` (wordmark)
-- Any component with the string "omniBox"
+- Any component carrying the legacy brand string
 - `frontend/src/index.css` / Tailwind config (brand color tokens)
 - `README.md`, `CLAUDE.md`, `progress.md`, `pitch/DEMO_VIDEO_SCRIPT.md`
 
@@ -1245,7 +1245,7 @@ Expected: `clean` (Task 12 finishes the rebrand; run this again after Task 12).
 
 - [ ] **Step 1: Find every brand string**
 
-Run: `cd frontend && grep -rin "omnibox" src index.html`
+Run: `cd frontend && grep -rin "<legacy-brand>" src index.html`
 List every hit — each must be replaced with "Mergit" (or updated copy).
 
 - [ ] **Step 2: Rebrand the app shell + nav wordmark**
@@ -1268,8 +1268,8 @@ Update `README.md` (title/description → Mergit), and per repo protocol update 
 
 Run:
 ```bash
-cd frontend && grep -rin "omnibox" src index.html || echo "src clean"
-npm run build && grep -ri "omnibox" dist/ || echo "dist clean"
+cd frontend && grep -rin "<legacy-brand>" src index.html || echo "src clean"
+npm run build && grep -ri "<legacy-brand>" dist/ || echo "dist clean"
 ```
 Expected: `src clean` and `dist clean`, build succeeds.
 

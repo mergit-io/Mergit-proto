@@ -23,7 +23,7 @@ Built the missing backend economy engine and integrated + merged all outstanding
 ---
 
 ## Session 1 — Initial Prototype
-**Commit:** `ca12e75 [init] initial prototype of the omniBox`
+**Commit:** `ca12e75 [init] initial prototype`
 
 - Scaffolded the full project: FastAPI backend + Vite/React/TypeScript frontend
 - Implemented SQLite WAL schema: `goals`, `tasks`, `messages`, `tool_calls` tables
@@ -72,19 +72,19 @@ Built the missing backend economy engine and integrated + merged all outstanding
 - **Groq `tool_use_failed`** — Added retry hint injection + `_try_parse_json_result()` fallback parser
 - **Orchestrator retry count** — Raised from 3 to 5 attempts with rate-limit backoff
 
-### Omium Tracing (full coverage for +10% bonus)
+### Distributed tracing (full coverage for +10% bonus)
 - Rewrote `tracing.py` entirely:
-  - `init_tracing()` — initialises Omium SDK with `auto_trace=False`
-  - `goal_trace_context()` — context manager creating `OmiumTracer` scoped to one goal, opens `goal_run` root span
+  - `init_tracing()` — initialises the tracing SDK with `auto_trace=False`
+  - `goal_trace_context()` — context manager creating the tracer scoped to one goal, opens `goal_run` root span
   - `task_span()` — context manager for `task/{agent_name}` spans
   - `tool_span()` — context manager for `tool/{tool_name}` spans; tags `cached=true` for replayed idempotent calls
   - `webhook_span()` — context manager for `webhook_resume` spans
   - `_truncate_args()` — strips `_`-prefixed internal keys, truncates long strings to 300 chars
-  - All functions degrade gracefully to no-ops if `omium` not installed
+  - All functions degrade gracefully to no-ops if the tracing SDK is not installed
 - Updated `worker.py` — wraps orchestrator call in `goal_trace_context`, opens `task_span` per task execution
 - Updated `agent_runner.py` — `tracer` param threaded through, `tool_span` wraps every tool call, sets error/output attributes
 - Updated `api/webhooks.py` — wraps webhook processing in `webhook_span`
-- Causal linking: all spans share `execution_id = goal.trace_id` (UUID stored in DB), so full trace appears as one chain in Omium dashboard
+- Causal linking: all spans share `execution_id = goal.trace_id` (UUID stored in DB), so full trace appears as one chain in the tracing dashboard
 
 ### Backend Logging
 - `main.py` — `logging.basicConfig` with structured format, silences `httpx`/`litellm`/`anthropic`/`openai` noise
@@ -138,7 +138,7 @@ User requested: default all agents to Groq only; provide a UI section where each
 - **`frontend/src/components/AppNav.tsx`** — added "Models" button (gear icon) that opens `ModelSettings` modal
 
 ### Other
-- **`.gitignore`** (new) — covers `backend/.env`, `backend/model_config.json`, `backend/omnibox.db`, `backend/workspace/`, `frontend/node_modules/`, `frontend/dist/`, `__pycache__/`
+- **`.gitignore`** (new) — covers `backend/.env`, `backend/model_config.json`, `backend/mergit.db`, `backend/workspace/`, `frontend/node_modules/`, `frontend/dist/`, `__pycache__/`
 
 ---
 
@@ -313,7 +313,7 @@ The plan JSON was right there in `failed_generation` but was never extracted.
 ## Session 11 — PR Follow-Up: Ecosystem Icons + Crash Hardening
 
 ### User Request
-User pointed out that the PR ecosystem icon fix had not been implemented, asked what the Omium crash list meant, and requested that `progress.md` be updated after every prompt going forward.
+User pointed out that the PR ecosystem icon fix had not been implemented, asked what the tracing crash list meant, and requested that `progress.md` be updated after every prompt going forward.
 
 ### Frontend
 - **`frontend/src/components/landing/PartnersMarquee.tsx`**
@@ -327,11 +327,11 @@ User pointed out that the PR ecosystem icon fix had not been implemented, asked 
 
 ### Backend Crash Hardening
 - **Crash class 1: Groq malformed tool calls**
-  - Omium showed `tool call validation failed` / `tool_use_failed` errors where Groq generated malformed function-call syntax such as embedding JSON in the tool name.
+  - The tracing dashboard showed `tool call validation failed` / `tool_use_failed` errors where Groq generated malformed function-call syntax such as embedding JSON in the tool name.
   - Existing recovery handles `<function=...>` failed generations; now `tool call validation failed` is also treated as a retryable model-format failure so the agent receives a stricter tool-call hint instead of immediately crashing.
 
 - **Crash class 2: Groq rate limits**
-  - Omium showed repeated `litellm.RateLimitError` entries for Groq `llama-3.3-70b-versatile`.
+  - The tracing dashboard showed repeated `litellm.RateLimitError` entries for Groq `llama-3.3-70b-versatile`.
   - `backend/llm.py` now retries short soft rate limits internally using parsed `try again in ...` delays.
   - Long waits or hard quota errors still trigger the existing fallback chain to another model.
 
@@ -394,7 +394,7 @@ User ran `backend/.venv/bin/python -m py_compile llm.py agent_runner.py` from th
 - Dropdown: `overflow-y-auto max-h-72` (was clipping off-screen)
 
 ### AppNav — GitHub Link
-- Added GitHub link (`https://github.com/viscous106/omniBox`) with `GitBranch` icon
+- Added GitHub link (the GitHub repo) with `GitBranch` icon
 
 ### Bug Fixes
 - **Makefile** — `dev-backend` used `$(PYTHON)` (root-relative path) after `cd backend`, causing "No such file" error. Fixed to `.venv/bin/python main.py`
@@ -545,11 +545,11 @@ Local testing: `ngrok http 8000` → paste URL into GitHub repo webhook settings
 
 ---
 
-## Session: 2026-07-19 — Rebrand: omniBox → Mergit (Issue #5)
+## Session: 2026-07-19 — Rebrand to Mergit (Issue #5)
 
 Full visual identity pass for the Mergit showcase prototype (agent economy on a simulated Monad chain).
 
-- Replaced all "omniBox" display strings across `frontend/src` and `frontend/index.html` (title, nav wordmark, landing copy, footer, webhooks page, login page) with "Mergit"
+- Replaced all legacy display strings across `frontend/src` and `frontend/index.html` (title, nav wordmark, landing copy, footer, webhooks page, login page) with "Mergit"
 - New palette: deep indigo/violet base (`bg: #07060f`), electric indigo/violet accents (`accent: #6d4aff`, `purple: #a855f7`), electric cyan (`cyan: #22d3ee`), new `proof-green` (`#2eff9e`) token for on-chain proof/reputation accents — `frontend/tailwind.config.js`, `frontend/src/index.css`
 - Added JetBrains Mono (`@fontsource/jetbrains-mono`) for hashes/scores/blocks per the on-chain identity brief
 - Redesigned the logo mark from a generic 4-square grid to a literal "merge" glyph — two nodes converging into one proof node — in `AppNav.tsx`, `Navbar.tsx`, `LandingFooter.tsx`
@@ -557,21 +557,21 @@ Full visual identity pass for the Mergit showcase prototype (agent economy on a 
 - Rebranded `README.md`, `CLAUDE.md`, this file's title, and `pitch/DEMO_VIDEO_SCRIPT.md`
 
 **Deliberately left unchanged** (real infra identifiers, not brand text):
-- `frontend/src/lib/firebase.ts` — `omnibox-8f73e` Firebase project ID/authDomain (renaming breaks the actual auth backend)
-- `omnibox` / `omnibox-data` service and disk names in `render.yaml`, `compose.yaml`, and the `/data/omnibox.db` path (out of scope for a frontend/docs rebrand; renaming would touch live deploy config)
+- `frontend/src/lib/firebase.ts` — the Firebase project id/authDomain (a project id is immutable, so renaming breaks the actual auth backend)
+- Legacy service and disk names in `render.yaml`, `compose.yaml`, and the data path (out of scope for a frontend/docs rebrand; renaming would touch live deploy config)
 
 ### Verified
 - `npx tsc -b`: same 2 pre-existing unrelated errors as `main` (confirmed via `git stash` diff), no new errors
 - `npx vite build`: succeeds
-- `grep -ri omnibox frontend/src frontend/index.html`: clean except the Firebase config noted above
+- `grep -ri` for the legacy name over `frontend/src` and `frontend/index.html`: clean except the Firebase config noted above
 - Manual browser check: `/app` and `/` (landing) render the new palette/wordmark correctly
 
 ---
 
-## Session: 2026-08-12 — Real on-chain proof layer + self-heal overhaul + Omium removal
+## Session: 2026-08-12 — Real on-chain proof layer + self-heal overhaul + tracing removal
 
 Replaced the simulated Monad economy with a **real EVM proof pipeline**, made self-heal a
-showcaseable feature, and removed the Omium tracing dependency.
+showcaseable feature, and removed the third-party tracing dependency.
 
 Spec: `docs/superpowers/specs/2026-08-12-onchain-proof-layer.md`
 Plan: `docs/superpowers/plans/2026-08-12-onchain-proof-layer.md`
@@ -648,9 +648,9 @@ and a silent no-op without `GITHUB_TOKEN`. Fixed all of it:
 Verified live: the same bug fired 3× produced **one** attempt with `seen=3x`, and the "Invalid API
 Key" planning failures correctly did *not* trigger heal (classified external).
 
-### M9 — Omium removal (user request)
-Omium was never load-bearing — `tracing.py` no-opped whenever the SDK was absent, which was every
-environment; every boot logged "omium not installed". Deleted `tracing.py` and all call sites across
+### M9 — Tracing removal (user request)
+The tracing SDK was never load-bearing — `tracing.py` no-opped whenever the SDK was absent, which was every
+environment; every boot logged that tracing was disabled. Deleted `tracing.py` and all call sites across
 14 modules, config, env vars and four deploy files. Pitch materials repointed at on-chain proof-of-work.
 
 ### Also fixed along the way
@@ -786,3 +786,48 @@ The register's blunt conclusion: almost nothing outstanding is *broken*. It's bl
 credential or an account. The GitHub automation pipeline — the flow `CLAUDE.md` calls the main demo
 — has never once run, because there is no token. That single credential is the highest-value item
 in the document.
+
+---
+
+## 2026-08-13 — Purging the legacy brand and tracing SDK
+
+User asked for every trace of the pre-rebrand name and the removed tracing SDK to be gone. A
+`grep` found five categories, only one of which was a simple string replace.
+
+**The one that mattered: `frontend/src/lib/firebase.ts` hardcoded a Firebase project id.** A
+project id is immutable, so it could never be renamed — only replaced. Config now reads from
+`VITE_FIREBASE_*` env vars with no hardcoded fallback, plus an `isAuthConfigured` flag; added
+`frontend/.env.example` documenting all seven vars. Swapping Firebase projects is now a config
+change instead of a code change, and the source tree names no project at all. None of these are
+secrets — Firebase web config ships inside every client bundle by design — so they live in `.env`
+for portability, not confidentiality.
+
+**The trap: `frontend/dist/` still had the old project id compiled in.** The source was clean and
+every `grep` over tracked files passed, but `dist/` is gitignored *and* is what FastAPI serves at
+`/` in production. The stale bundle carried 3 matches of the old id plus the API key. Rebuilt;
+the shipped bundle now scans clean. **Scrubbing source is not scrubbing the product** — check
+build output separately, because ignored files never show up in `git grep`.
+
+**Historical docs were reworded, not deleted.** `progress.md` and the three `docs/superpowers`
+plans/specs documented the rebrand and the tracing removal — erasing those entries would make the
+changelog lie about what happened. Every mention became a description instead of a name ("the
+tracing SDK", "legacy brand string"), so the history stays honest and the names are gone.
+
+**Artifacts removed:** the stale submission PDF (superseded — `pitch/generate_pdf.py` already
+emits a Mergit-branded file), and a stray SQLite db plus its `-wal`/`-shm` sidecars. `.gitignore`
+had anchored its db rules to `backend/mergit.db`, which matched exactly one path — any tool run
+from another cwd left a stray git offered to commit, which is how the frontend db got tracked in
+the first place. Rules are now unanchored (`*.db`, `-wal`, `-shm`, `-journal`).
+
+**Gotcha for anyone repeating this:** `omium` is a substring of `chromium`, so a naive
+case-insensitive grep hits `electron-to-chromium` in `package-lock.json` forever. Use word
+boundaries.
+
+170 tests pass, frontend typecheck clean, shipped bundle clean. **Not done:** git history still
+contains the old name in commit messages and file contents — that needs `git filter-repo` and a
+force push, which rewrites every SHA and breaks existing clones.
+
+**Direction change (user, this session):** this is no longer a hackathon submission — it is being
+built as a real product. The pitch/submission track is dropped. `ROADMAP.md` is currently framed
+around "show the manager a working demo" and needs rewriting against the actual product vision
+before it drives work again.
