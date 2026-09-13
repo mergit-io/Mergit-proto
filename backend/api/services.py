@@ -134,25 +134,42 @@ def artifact_of(tool_name: str, result_json: str | None) -> dict[str, str] | Non
     }
 
 
+#: `provider_of`'s prefix test in SQL, built from `PROVIDERS` so a fifth service cannot be
+#: added to one and forgotten in the other. It relies on every service tool being named
+#: `<provider>_<verb>` — a bare `notion` tool would pass `provider_of` and fail this, which
+#: `test_every_service_tool_is_named_provider_underscore_verb` holds shut. `instr(...) = 1`
+#: rather than `LIKE 'slack_%'` because LIKE reads `_` as a single-character wildcard, and
+#: a filter that is only accidentally correct is the kind that stops being correct later.
+_SERVICE_WHERE = " OR ".join(
+    f"instr(tc.tool_name, '{p['key']}_') = 1" for p in PROVIDERS
+)
+
+
 async def _recent_calls(user_id: str, limit: int) -> list[dict]:
-    """The user's own tool calls, newest first.
+    """The user's own *service* tool calls, newest first.
 
     Ownership derives through `tasks.goal_id → goals.user_id`, which is where it lives —
     `tool_calls` deliberately has no `user_id` of its own (see `migrations.py`), so this
     join *is* the tenancy check, and dropping it would show one tenant another's run.
+
+    The provider filter is in SQL rather than in the loop that reads the rows, because
+    `result_json` is the expensive column and most of it belongs to calls this page throws
+    away: on a database of 480 calls, 161 were `web_search`, `code_exec` and `file_ops`
+    whose bodies were being read off disk, shipped to Python and parsed on every poll to
+    be discarded. Two endpoints refreshing on a timer made that the page's whole cost.
     """
     async with db.get_conn() as conn:
         rows = await (
             await conn.execute(
-                """SELECT tc.tool_name, tc.status, tc.result_json, tc.created_at,
-                          t.goal_id, g.title AS goal_title, g.status AS goal_status,
-                          g.created_at AS goal_created_at
-                     FROM tool_calls tc
-                     JOIN tasks t ON t.id = tc.task_id
-                     JOIN goals g ON g.id = t.goal_id
-                    WHERE g.user_id = ?
-                 ORDER BY tc.created_at DESC
-                    LIMIT ?""",
+                f"""SELECT tc.tool_name, tc.status, tc.result_json, tc.created_at,
+                           t.goal_id, g.title AS goal_title, g.status AS goal_status,
+                           g.created_at AS goal_created_at
+                      FROM tool_calls tc
+                      JOIN tasks t ON t.id = tc.task_id
+                      JOIN goals g ON g.id = t.goal_id
+                     WHERE g.user_id = ? AND ({_SERVICE_WHERE})
+                  ORDER BY tc.created_at DESC
+                     LIMIT ?""",
                 (user_id, limit),
             )
         ).fetchall()
@@ -201,8 +218,9 @@ async def list_services(request: Request, runs: int = Query(8, ge=1, le=50)) -> 
                    "last_used_at": None, "last_artifact": None}
         for p in PROVIDERS
     }
-    # Goal id → what that run touched. Insertion order is the query's order, which is
-    # newest first, so slicing the head takes the most recent runs without a second sort.
+    # Goal id → what that run touched. Keyed rather than ordered: the query is in
+    # newest-*call* order, and a week-old goal that received one new call would otherwise
+    # sit at the top of a table whose column says "Started". Sorted by start below.
     by_goal: dict[str, dict] = {}
 
     for row in calls:
@@ -244,7 +262,7 @@ async def list_services(request: Request, runs: int = Query(8, ge=1, le=50)) -> 
 
     return JSONResponse({
         "providers": providers,
-        "runs": list(by_goal.values())[:runs],
+        "runs": sorted(by_goal.values(), key=lambda r: r["created_at"], reverse=True)[:runs],
         "window": WINDOW,
         "calls_read": len(calls),
         "now": int(time.time()),

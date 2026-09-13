@@ -177,11 +177,15 @@ function RunRow({ run, all }: { run: ServiceRun; all: string[] }) {
 }
 
 export function Services() {
+  // Both endpoints read a window of tool calls and their result bodies, so a tight
+  // interval is paid for twice on every tick. Fifteen seconds is still live for a page
+  // watched during a run, and it is the difference between a free-tier instance serving
+  // the demo and spending its CPU re-reading rows that did not change.
   const { data, isLoading } = useSWR("/api/services", () => api.getServices(10), {
-    refreshInterval: 5000,
+    refreshInterval: 15000,
   });
   const { data: activity } = useSWR("/api/services/activity", () => api.getServiceActivity(25), {
-    refreshInterval: 5000,
+    refreshInterval: 15000,
   });
 
   const providers = data?.providers ?? [];
@@ -332,7 +336,7 @@ export function Services() {
         // Without this the counts read as all time when they are a window on it.
         <p className="mt-4">
           <Micro>
-            Counted over the last {data.window} tool calls ({data.calls_read} read).
+            Counted over the last {data.window} service calls ({data.calls_read} read).
           </Micro>
         </p>
       )}

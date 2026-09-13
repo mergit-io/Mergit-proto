@@ -125,7 +125,7 @@ function AppsReached() {
   // so a second fetcher asking for a different window under this key would make the two
   // pages clobber each other — see the note in ProofField for the time that happened.
   const { data } = useSWR("/api/services", () => api.getServices(10), {
-    refreshInterval: 10000,
+    refreshInterval: 30000,
   });
 
   const providers: ServiceProvider[] = data?.providers ?? [];

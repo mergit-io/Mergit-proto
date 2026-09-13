@@ -117,6 +117,22 @@ def test_a_provider_is_read_from_the_tool_name_prefix(env):
 
 # ── Artifacts ───────────────────────────────────────────────────────────────────
 
+def test_every_service_tool_is_named_provider_underscore_verb(env):
+    """The SQL filter and `provider_of` must agree about what a service call is.
+
+    `provider_of` splits on the first underscore, so a tool registered as bare `notion`
+    would be attributed to Notion in Python and skipped by `instr(name, 'notion_') = 1` in
+    the query — present in the counts on one path and missing on the other. Nothing is
+    named that way today; this is what keeps it so.
+    """
+    from api.services import PROVIDERS, provider_of
+    from tools import TOOL_REGISTRY
+    keys = {p["key"] for p in PROVIDERS}
+    for name in TOOL_REGISTRY:
+        if provider_of(name):
+            assert name.startswith(tuple(f"{k}_" for k in keys)), name
+
+
 def test_a_call_with_no_link_contributes_no_artifact(env):
     """No plausible-looking URL assembled from parts. A read leaves nothing behind."""
     from api.services import artifact_of
@@ -203,6 +219,50 @@ def test_a_run_lists_the_services_it_actually_touched(env):
         "https://slack.com/archives/C1/p2",
     ]
     assert run["failures"] == 0
+
+
+def test_calls_that_are_not_service_calls_are_never_read(env):
+    """`result_json` is the expensive column and most of it belongs to calls this page
+    discards. Filtering them out in the loop rather than the query made every poll pay to
+    read and parse bodies it then threw away."""
+    me = sign_in(env, "u1", "a@example.com")
+    seed_call(env, user_id=me["user"]["id"], tool="web_search", result={"ok": True})
+    seed_call(env, user_id=me["user"]["id"], tool="code_exec", result={"ok": True})
+    seed_call(env, user_id=me["user"]["id"], tool="slack_post_message",
+              result={"ok": True, "url": "https://x.slack.com/archives/C1/p1"})
+
+    assert env.get("/api/services", cookies=me["cookies"]).json()["calls_read"] == 1
+
+
+def test_runs_are_ordered_by_when_they_started(env):
+    """The column says "Started", so the order has to be by start.
+
+    The rows arrive in newest-*call* order, which is not the same thing: an old goal that
+    receives one new call would otherwise sit above a goal that began yesterday.
+    """
+    me = sign_in(env, "u1", "a@example.com")
+    uid = me["user"]["id"]
+    old = seed_call(env, user_id=uid, tool="slack_post_message",
+                    result={"ok": True, "url": "https://x.slack.com/archives/C1/p1"})
+    new = seed_call(env, user_id=uid, tool="linear_create_issue",
+                    result={"ok": True, "identifier": "ENG-1",
+                            "url": "https://linear.app/x/issue/ENG-1"})
+
+    async def _age(goal_id, started, called):
+        async with env.db.get_conn() as c:
+            await c.execute("UPDATE goals SET created_at=? WHERE id=?", (started, goal_id))
+            await c.execute(
+                """UPDATE tool_calls SET created_at=?
+                    WHERE task_id IN (SELECT id FROM tasks WHERE goal_id=?)""",
+                (called, goal_id))
+            await c.commit()
+
+    # The older goal has the newer call — the exact case the sort exists for.
+    asyncio.run(_age(old, 1000, 9000))
+    asyncio.run(_age(new, 5000, 2000))
+
+    runs = env.get("/api/services", cookies=me["cookies"]).json()["runs"]
+    assert [r["goal_id"] for r in runs] == [new, old]
 
 
 def test_one_user_cannot_see_anothers_service_calls(env):
