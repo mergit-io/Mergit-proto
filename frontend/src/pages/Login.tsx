@@ -23,6 +23,13 @@ export function Login() {
       setErrorMessage("");
       setOauthLoading(provider);
       const selectedProvider = provider === "google" ? googleProvider : githubProvider;
+      // null when no Firebase project is configured — a demo build, where this page is
+      // unreachable anyway. Guarded so a misconfigured build shows a message, not a crash.
+      if (!auth || !selectedProvider) {
+        setErrorMessage("Authentication is not configured for this deployment.");
+        setOauthLoading(null);
+        return;
+      }
       await signInWithPopup(auth, selectedProvider);
       navigate("/app");
     } catch (error) {
@@ -37,6 +44,11 @@ export function Login() {
     try {
       setErrorMessage("");
       setSigningIn(true);
+      if (!auth) {
+        setErrorMessage("Authentication is not configured for this deployment.");
+        setSigningIn(false);
+        return;
+      }
       if (isSignUpMode) {
         await createUserWithEmailAndPassword(auth, email.trim(), password);
       } else {
