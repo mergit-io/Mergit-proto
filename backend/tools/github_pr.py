@@ -55,6 +55,93 @@ def _empty_contents(files) -> list[str]:
     return [f["path"] for f in files if not (f.get("content") or "").strip()]
 
 
+#: Syntax that only appears in one language, keyed by the language it belongs to. Used to
+#: decide what a blob of source IS, never to decide whether it is any good.
+_LANG_MARKERS: dict[str, tuple[re.Pattern, ...]] = {
+    "Python": (
+        re.compile(r"^\s*(?:async\s+)?def\s+\w+\s*\(", re.M),
+        re.compile(r"^\s*class\s+\w+", re.M),
+        re.compile(r"^\s*(?:import\s+\w|from\s+[\w.]+\s+import\s)", re.M),
+        re.compile(r"^\s*print\(", re.M),
+        re.compile(r"^\s*(?:if|for|while|with|elif|else|try|except)\b[^\n]*:\s*$", re.M),
+    ),
+    "Rust": (
+        re.compile(r"^\s*use\s+[\w:]+\s*;", re.M),
+        re.compile(r"\bfn\s+\w+\s*\("),
+        re.compile(r"\blet\s+(?:mut\s+)?\w+\s*(?::|=)"),
+        re.compile(r"^\s*(?:impl|pub\s+fn|#\[derive)", re.M),
+        re.compile(r"\bprintln!\s*\("),
+    ),
+    "Go": (
+        re.compile(r"^\s*package\s+\w+", re.M),
+        re.compile(r"\bfunc\s+\w*\s*\("),
+        re.compile(r"\w+\s*:=\s*"),
+        re.compile(r"\bfmt\.\w+\("),
+    ),
+    "JavaScript": (
+        re.compile(r"\bfunction\s+\w*\s*\("),
+        re.compile(r"^\s*(?:const|let|var)\s+\w+\s*=", re.M),
+        re.compile(r"=>"),
+        re.compile(r"\b(?:module\.exports|console\.log)\b"),
+    ),
+    "Java": (
+        re.compile(r"\b(?:public|private)\s+(?:static\s+)?(?:class|void|int|String)\b"),
+        re.compile(r"\bSystem\.out\.print"),
+        re.compile(r"^\s*package\s+[\w.]+\s*;", re.M),
+    ),
+}
+
+#: Only extensions whose language is unambiguous. `.ts`, `.h` and friends are left out on
+#: purpose — a wrong refusal costs more than a missed one.
+_EXT_LANG = {".py": "Python", ".rs": "Rust", ".go": "Go", ".js": "JavaScript",
+             ".mjs": "JavaScript", ".java": "Java"}
+
+_LANG_EXT = {"Python": ".py", "Rust": ".rs", "Go": ".go",
+             "JavaScript": ".js", "Java": ".java"}
+
+
+def _language_scores(source: str) -> dict[str, int]:
+    """How many distinct markers of each language the source shows."""
+    return {lang: sum(1 for pat in pats if pat.search(source))
+            for lang, pats in _LANG_MARKERS.items()}
+
+
+def _language_mismatches(files) -> list[str]:
+    """Paths whose content is confidently a different language than their extension.
+
+    PR #32. The goal was "migrate auth.py to Rust", so the coder wrote Rust — and returned
+    `path: "auth.py"`, the path it had been given. The integrator committed Rust source
+    into a `.py` file, producing something that is neither runnable Python nor a buildable
+    crate. Nothing else could catch it: the file exists, so it reads as a modification
+    rather than a misplaced creation; the content is not empty; and the original was a flat
+    script with no `def` or `class`, so no definition could be reported as lost.
+
+    Refuses only on an unambiguous verdict — the extension maps to a language the file
+    shows NO sign of, while exactly one other language shows at least two distinct markers.
+    A stub, a constants file, an unknown extension, or a docstring quoting another language
+    all fall short of that and are left alone.
+    """
+    problems = []
+    for f in files:
+        path = f["path"]
+        dot = path.rfind(".")
+        expected = _EXT_LANG.get(path[dot:].lower()) if dot > 0 else None
+        if expected is None:
+            continue
+        scores = _language_scores(f.get("content") or "")
+        if scores.get(expected, 0):
+            continue  # it looks like what the name promises
+        strong = [lang for lang, n in scores.items() if n >= 2 and lang != expected]
+        if len(strong) != 1:
+            continue  # no signal, or an ambiguous one — say nothing
+        actual = strong[0]
+        problems.append(
+            f"{path} is named as {expected} but the content is {actual} "
+            f"(it belongs in a {_LANG_EXT[actual]} file)"
+        )
+    return problems
+
+
 def _find_by_name(repo, name: str, ref: str) -> str | None:
     """An existing root-level path whose filename is `name`, if there is one.
 
@@ -192,8 +279,8 @@ async def github_pr(args: dict) -> dict:
     base_branch = _resolve_base(upstream, args.get("base_branch"))
     base_sha = upstream.get_branch(base_branch).commit.sha
 
-    # All three checks below run BEFORE any commit, so a refusal leaves no branch and no
-    # partial commit behind. Ordered cheapest first: empty content needs no API call.
+    # Every check below runs BEFORE any commit, so a refusal leaves no branch and no
+    # partial commit behind. Ordered cheapest first: the local ones need no API call.
     empty = _empty_contents(files)
     if empty:
         logger.warning("Refusing PR on %s — empty content for: %s", repo_name, empty)
@@ -202,6 +289,17 @@ async def github_pr(args: dict) -> dict:
                          "adds an empty file fixes nothing. If you were handed no code, or "
                          "the file you were told to change does not exist, say that instead "
                          "of opening a pull request — do not commit a placeholder."}
+
+    wrong_language = _language_mismatches(files)
+    if wrong_language:
+        logger.warning("Refusing PR on %s — content is not the language of the path: %s",
+                       repo_name, wrong_language)
+        return {"action": "create_pr", "result": None, "url": None, "ok": False,
+                "error": f"{'; '.join(wrong_language)}. Committing one language under "
+                         "another's extension leaves a file that neither toolchain can "
+                         "build. If you are porting the code, put the new version at a "
+                         "path with the right extension and leave the original where it "
+                         "is — do not overwrite a file with a different language."}
 
     misplaced = _misplaced_new_files(upstream, files, base_branch)
     if misplaced:

@@ -842,3 +842,128 @@ def test_renaming_is_not_mistaken_for_deleting_when_the_file_is_whole(monkeypatc
                                 "files": [{"path": "stats.py", "content": with_nested}]}))
 
     assert result["ok"] is True, result.get("error")
+
+
+# ── The language a file is written in must match the name it is committed under ──
+
+AUTH_PY = '''users = {
+    "admin": "1234",
+    "abhinav": "password"
+}
+
+username = input("Username: ")
+password = input("Password: ")
+
+if username in users and users[username] == password:
+    print("Login successful!")
+else:
+    print("Invalid username or password.")
+'''
+
+AUTH_RS = '''use std::collections::HashMap;
+use std::io;
+
+fn main() -> io::Result<()> {
+    let mut users: HashMap<String, String> = HashMap::new();
+    users.insert("admin".to_string(), "1234".to_string());
+    println!("Username: ");
+    Ok(())
+}
+'''
+
+
+def test_rust_source_committed_under_a_py_path_is_refused(monkeypatch):
+    """Live failure, PR #32 on the sandbox.
+
+    The goal was "migrate auth.py to Rust". The coder returned Rust in `code` and echoed
+    its input path in `path`, so the integrator replaced `auth.py` with Rust source. Every
+    other guard passed it: the file exists, so it is a modification rather than a misplaced
+    creation; the content is not empty; and the original `auth.py` is a flat script with no
+    `def` or `class`, so nothing could be reported as lost.
+    """
+    repo = FakeRepo(existing_files=[("auth.py", AUTH_PY)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    result = run(gpr.github_pr({"repo": "o/r", "title": "Migrated auth.py to Rust", "body": "b",
+                                "head_branch": "feat/rust",
+                                "files": [{"path": "auth.py", "content": AUTH_RS}]}))
+
+    assert result["ok"] is False
+    assert "rust" in result["error"].lower() and "auth.py" in result["error"]
+    assert ".rs" in result["error"], "the refusal must name the extension the code belongs under"
+    assert repo.created_refs == [] and repo.updated_files == []
+
+
+def test_the_same_migration_under_the_right_extension_is_allowed(monkeypatch):
+    """The corrected form: the Rust goes to `auth.rs`, which is ordinary new work."""
+    repo = FakeRepo(existing_files=[("auth.py", AUTH_PY)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    result = run(gpr.github_pr({"repo": "o/r", "title": "Migrate auth to Rust", "body": "b",
+                                "head_branch": "feat/rust",
+                                "files": [{"path": "auth.rs", "content": AUTH_RS}]}))
+
+    assert result["ok"] is True
+    assert result["files_created"] == ["auth.rs"]
+
+
+def test_python_in_a_python_file_is_left_alone(monkeypatch):
+    """The guard must not touch the ordinary case it shares a code path with."""
+    repo = FakeRepo(existing_files=[("auth.py", AUTH_PY)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    fixed = AUTH_PY.replace('"1234"', '"hunter2"')
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "fix/auth",
+                                "files": [{"path": "auth.py", "content": fixed}]}))
+
+    assert result["ok"] is True
+    assert result["files_modified"] == ["auth.py"]
+
+
+def test_a_file_with_no_language_signal_is_not_second_guessed(monkeypatch):
+    """A stub, a constants file or a docstring-only module carries no marker of any
+    language. Silence must read as "no opinion", never as "wrong language"."""
+    repo = FakeRepo(existing_files=[("auth.py", AUTH_PY)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "chore/stub",
+                                "files": [{"path": "constants.py",
+                                           "content": '"""Shared constants."""\n\nTIMEOUT = 30\n'}]}))
+
+    assert result["ok"] is True
+
+
+def test_an_extension_the_guard_knows_nothing_about_is_allowed(monkeypatch):
+    """Only a confident mismatch may refuse. An unknown extension has no expectation to
+    violate, so a README or a config file goes through untouched."""
+    repo = FakeRepo(existing_files=[("auth.py", AUTH_PY)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "docs/readme",
+                                "files": [{"path": "README.md",
+                                           "content": "# Auth\n\nRun `fn main()` to start.\n"}]}))
+
+    assert result["ok"] is True
+
+
+def test_a_python_docstring_that_quotes_another_language_does_not_trip_the_guard(monkeypatch):
+    """Markers of the OTHER language are not enough on their own — the file also has to
+    show no sign of the language its extension promises. This one is plainly Python."""
+    repo = FakeRepo(existing_files=[("auth.py", AUTH_PY)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    content = (
+        '"""Port of the Rust helper.\n\n'
+        "    use std::io;\n"
+        "    fn main() -> io::Result<()> { let mut x = 1; }\n"
+        '"""\n\n'
+        "def main():\n    return 1\n"
+    )
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "feat/port",
+                                "files": [{"path": "port.py", "content": content}]}))
+
+    assert result["ok"] is True
