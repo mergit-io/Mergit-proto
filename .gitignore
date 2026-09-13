@@ -27,8 +27,16 @@ backend/workspace/
 frontend/node_modules/
 frontend/dist/
 
-# Solidity build output (recompiled on demand from contracts/src by chain/compiler.py)
-backend/contracts/out/
+# Solidity build output (recompiled on demand from contracts/src by chain/compiler.py).
+# `artifacts.json` is the exception and IS tracked: compile_all() returns it directly when
+# its source_hash still matches, before ever reaching _ensure_solc(). That is what lets the
+# image build on arm64, where solcx would otherwise download solc-bin's linux-amd64 binary
+# and fail to exec it. Editing a .sol changes the hash, so a stale artifact can never be
+# served silently — it just recompiles (on an x86 machine).
+# Note the trailing `/*`: negation cannot re-include a file whose parent directory is itself
+# excluded, so the contents are ignored rather than the directory.
+backend/contracts/out/*
+!backend/contracts/out/artifacts.json
 
 # OS
 .DS_Store
