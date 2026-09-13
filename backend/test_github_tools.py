@@ -1586,3 +1586,49 @@ def test_pr_accepts_a_body_that_says_it_could_not_run_the_code(monkeypatch):
         "files": [{"path": "a.py", "content": "x"}]}))
 
     assert result["ok"] is True, result.get("error")
+
+
+def test_pr_refuses_a_body_that_says_the_tests_passed_when_the_run_failed(monkeypatch):
+    """Run 5a3e9462: `code_exec` returned "FAIL: was able to oversell after double
+    release", the body said "All tests passed", and CI went red on exactly the test the
+    body named. Something ran, so the first check passed it — this is the other half."""
+    repo = FakeRepo()
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    async def _ran(_goal_id):
+        return True
+
+    async def _but_failed(_goal_id):
+        return False
+
+    monkeypatch.setattr(gpr.execution_claims, "executed_in_goal", _ran)
+    monkeypatch.setattr(gpr.execution_claims, "execution_succeeded_in_goal", _but_failed)
+
+    result = run(gpr.github_pr({
+        "repo": "o/r", "title": "fix release()", "head_branch": "fix/x",
+        "_goal_id": "goal-1",
+        "body": "## Verification\n```\n$ pytest\n# test_release PASSED\n# All tests passed.\n```\n",
+        "files": [{"path": "a.py", "content": "x"}]}))
+
+    assert result["ok"] is False
+    assert "every execution in this goal failed" in result["error"]
+    assert repo.created_refs == [], "must not push a branch for a PR it will refuse"
+
+
+def test_pr_accepts_a_passing_claim_when_the_run_actually_passed(monkeypatch):
+    repo = FakeRepo()
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    async def _yes(_goal_id):
+        return True
+
+    monkeypatch.setattr(gpr.execution_claims, "executed_in_goal", _yes)
+    monkeypatch.setattr(gpr.execution_claims, "execution_succeeded_in_goal", _yes)
+
+    result = run(gpr.github_pr({
+        "repo": "o/r", "title": "fix release()", "head_branch": "fix/x",
+        "_goal_id": "goal-1",
+        "body": "## Verification\nRan the suite. All tests passed.\n",
+        "files": [{"path": "a.py", "content": "x"}]}))
+
+    assert result["ok"] is True, result.get("error")

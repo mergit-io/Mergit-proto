@@ -14,6 +14,7 @@ import asyncio
 import importlib
 import json
 import os
+import uuid
 import tempfile
 
 import pytest
@@ -111,17 +112,25 @@ def env(monkeypatch):
     return _db
 
 
-def _call(db, tool, status):
+def _call(db, tool, status, ok=None, goal_id=None):
     owner = asyncio.run(db.upsert_user(google_sub="s1", email="a@example.com",
                                        email_verified=True, name="Test"))
-    goal = asyncio.run(db.create_goal(f"goal for {tool}", owner["id"]))
+    if goal_id is None:
+        goal = asyncio.run(db.create_goal(f"goal for {tool}", owner["id"]))
+        goal_id, trace = goal.id, goal.trace_id
+    else:
+        trace = "trace"
+    suffix = uuid.uuid4().hex[:6]
     tasks = asyncio.run(db.create_tasks(
-        [{"id": f"t_{tool}_{goal.id[:6]}", "agent": "coder", "description": tool,
-          "inputs": {}, "depends_on": [], "status": "COMPLETED"}], goal.id, goal.trace_id))
-    ikey = f"ik_{tool}_{goal.id[:8]}"
+        [{"id": f"t_{tool}_{suffix}", "agent": "coder", "description": tool,
+          "inputs": {}, "depends_on": [], "status": "COMPLETED"}], goal_id, trace))
+    ikey = f"ik_{tool}_{suffix}"
     asyncio.run(db.create_tool_call(tasks[0].id, tool, "{}", "h", ikey))
-    asyncio.run(db.settle_tool_call(ikey, json.dumps({"ok": status == "SUCCESS"}), status))
-    return goal.id
+    body = {"ok": (status == "SUCCESS") if ok is None else ok}
+    if tool == "code_exec":
+        body["exit_code"] = 0 if body["ok"] else 1
+    asyncio.run(db.settle_tool_call(ikey, json.dumps(body), status))
+    return goal_id
 
 
 def test_a_goal_that_ran_code_has_executed(env):
@@ -148,3 +157,71 @@ def test_an_unreadable_database_never_refuses_a_pull_request(env, monkeypatch):
     assert asyncio.run(ec.executed_in_goal("any-goal")) is True
     # No goal id at all is the direct-HTTP path, which has no run to check.
     assert asyncio.run(ec.executed_in_goal(None)) is True
+
+
+# ── Claiming the run came back clean ────────────────────────────────────────────
+
+def test_a_passing_claim_inside_a_fence_is_still_a_claim():
+    """Run 5a3e9462 put it exactly there, which is where the first check does not look."""
+    body = """## Verification
+```python
+$ pytest tests/test_inventory.py
+# test_regression_release_over_reserve PASSED
+# All tests passed.
+```
+"""
+    assert ec.claims(body) == []        # the prose check cannot see inside the fence
+    assert ec.success_claims(body)      # this one is supposed to
+
+
+@pytest.mark.parametrize("body", [
+    "All tests passed.",
+    "All checks pass.",
+    "test_release_clamps PASSED",
+    "No failures.",
+    "All outputs are as expected.",
+    "The suite is green.",
+])
+def test_asserting_a_clean_run(body):
+    assert ec.success_claims(body), body
+
+
+@pytest.mark.parametrize("body", [
+    "CI will tell us whether all tests pass.",
+    "Once merged, all tests should pass.",
+    "The tests do not pass yet.",
+    "This has no test coverage.",
+    "If the tests pass we can ship it.",
+])
+def test_a_forecast_or_a_denial_is_not_a_clean_run(body):
+    assert ec.success_claims(body) == [], body
+
+
+def test_an_execution_that_failed_is_not_a_clean_run(env):
+    """The live case: `code_exec` ran and printed FAIL, and the body said it passed."""
+    goal_id = _call(env, "code_exec", "SUCCESS", ok=False)
+    assert asyncio.run(ec.executed_in_goal(goal_id)) is True
+    assert asyncio.run(ec.execution_succeeded_in_goal(goal_id)) is False
+
+
+def test_reproducing_the_bug_first_does_not_condemn_the_run(env):
+    """A careful run executes twice — once to reproduce (fails), once to prove the fix.
+
+    Requiring every execution to have succeeded would refuse exactly those runs.
+    """
+    goal_id = _call(env, "code_exec", "SUCCESS", ok=False)
+    _call(env, "code_exec", "SUCCESS", ok=True, goal_id=goal_id)
+    assert asyncio.run(ec.execution_succeeded_in_goal(goal_id)) is True
+
+
+def test_a_goal_that_never_executed_has_no_clean_run(env):
+    goal_id = _call(env, "github_read_file", "SUCCESS")
+    assert asyncio.run(ec.execution_succeeded_in_goal(goal_id)) is False
+
+
+def test_an_unreadable_ledger_does_not_condemn_the_run(env, monkeypatch):
+    def _boom():
+        raise RuntimeError("database is locked")
+    monkeypatch.setattr(env, "get_conn", _boom)
+    assert asyncio.run(ec.execution_succeeded_in_goal("any-goal")) is True
+    assert asyncio.run(ec.execution_succeeded_in_goal(None)) is True
