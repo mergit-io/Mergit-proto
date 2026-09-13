@@ -256,11 +256,29 @@ class SPAStaticFiles(StaticFiles):
 
     async def get_response(self, path: str, scope):
         try:
-            return await super().get_response(path, scope)
+            response = await super().get_response(path, scope)
         except StarletteHTTPException as exc:
             if exc.status_code == 404 and not _is_api_path(scope):
                 return await super().get_response("index.html", scope)
             raise
+        _allow_landing_cors(response, scope)
+        return response
+
+
+def _allow_landing_cors(response, scope) -> None:
+    """Let the landing page read its own images pixel by pixel.
+
+    The landing is a framed document served with `sandbox` and no
+    `allow-same-origin`, so its origin is opaque and every asset it fetches is a
+    cross-origin request. One of its effects draws a card's still into a canvas and
+    uploads that canvas as a WebGL texture — which throws on a canvas tainted by a
+    response that did not opt in. Everything under /landing is public marketing
+    material, so opting in costs nothing; the header is scoped to that prefix
+    anyway, because the API and the console below it are not public in that sense.
+    """
+    full = scope.get("root_path", "") + scope.get("path", "")
+    if full.startswith("/landing/"):
+        response.headers["Access-Control-Allow-Origin"] = "*"
 
 
 def _is_api_path(scope) -> bool:
