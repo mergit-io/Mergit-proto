@@ -19,6 +19,10 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+#: Shared by the fixture and the signing helper, so a test cannot accidentally sign with
+#: one secret and configure another.
+WEBHOOK_SECRET = "test-webhook-secret"
+
 REPO = "mergit-io/demo"
 
 ISSUE_PAYLOAD = {
@@ -179,7 +183,11 @@ def stack(monkeypatch):
     import config
     monkeypatch.setattr(config.settings, "db_path", os.path.join(tmp, "gh.db"))
     monkeypatch.setattr(config.settings, "workspace_dir", os.path.join(tmp, "ws"))
-    monkeypatch.delenv("GITHUB_WEBHOOK_SECRET", raising=False)
+    # The receiver fails CLOSED now, so these tests must sign like GitHub does. This line
+    # used to delete the secret, which only worked because an unset secret meant
+    # "accept anything" — the exact behaviour that let a forged issues.opened point the
+    # agent pipeline at any repository. `_post` signs with this value.
+    monkeypatch.setenv("GITHUB_WEBHOOK_SECRET", WEBHOOK_SECRET)
 
     import db as _db
     importlib.reload(_db)
@@ -251,10 +259,23 @@ def stack(monkeypatch):
     )
 
 
+def _sign(body: bytes) -> str:
+    """The signature GitHub sends, computed the way GitHub computes it."""
+    return "sha256=" + hmac.new(WEBHOOK_SECRET.encode(), body, hashlib.sha256).hexdigest()
+
+
 def _post(stack, payload, event):
+    # Sign the exact bytes that go on the wire. Re-serialising the payload inside the
+    # helper would produce a different byte sequence than the one hashed, and the
+    # signature would never match — the single most common way to get this wrong.
+    body = json.dumps(payload).encode()
     return stack.http.post(
-        "/api/webhooks/github", content=json.dumps(payload),
-        headers={"X-Github-Event": event, "Content-Type": "application/json"},
+        "/api/webhooks/github", content=body,
+        headers={
+            "X-Github-Event": event,
+            "Content-Type": "application/json",
+            "X-Hub-Signature-256": _sign(body),
+        },
     )
 
 

@@ -1,42 +1,22 @@
-import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { onAuthStateChanged, type User } from "firebase/auth";
-import { auth, isAuthConfigured } from "../lib/firebase";
+import { useAuth } from "../lib/auth";
 
-const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true";
-
+/**
+ * Gate for every /app route.
+ *
+ * This is presentation only — it decides what to render, not what the user may read. The
+ * backend filters every response by owner, so a bypass here shows an empty dashboard
+ * rather than someone else's data. That ordering is deliberate: a client-side check that
+ * is *load-bearing* is not a check at all.
+ *
+ * The `VITE_DEMO_MODE` bypass is gone. It defaulted to true in the production image, which
+ * meant the deployed build had no login whatsoever — a build flag that could silently
+ * switch authentication off is not authentication.
+ */
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null | undefined>(undefined);
+  const { user, authConfigured, loading } = useAuth();
 
-  useEffect(() => {
-    if (DEMO_MODE || !auth) return;
-    const unsub = onAuthStateChanged(auth, (u) => setUser(u));
-    return unsub;
-  }, []);
-
-  if (DEMO_MODE) {
-    return <>{children}</>;
-  }
-
-  // Auth required but no Firebase project configured. Refuse loudly rather than falling
-  // through to the app — a misconfiguration must never silently become an open door.
-  if (!isAuthConfigured) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center p-6">
-        <div className="max-w-md text-center text-white/70 space-y-2">
-          <p className="text-white font-medium">Authentication is not configured</p>
-          <p className="text-sm">
-            Set the <code className="text-white/90">VITE_FIREBASE_*</code> variables at build
-            time, or build with <code className="text-white/90">VITE_DEMO_MODE=true</code> to
-            bypass login for a demo.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // Still waiting for Firebase to resolve auth state
-  if (user === undefined) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="w-6 h-6 rounded-full border-2 border-white/20 border-t-white animate-spin" />
@@ -44,8 +24,14 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Not logged in → send to login page
-  if (user === null) {
+  // No Google credentials configured: the backend runs single-tenant and reports the
+  // caller as a local user. Refusing here would lock an operator out of their own laptop.
+  // The backend is the authority on this — it is the side that knows whether login exists.
+  if (!authConfigured) {
+    return <>{children}</>;
+  }
+
+  if (!user) {
     return <Navigate to="/login" replace />;
   }
 

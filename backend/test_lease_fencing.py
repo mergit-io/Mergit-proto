@@ -55,7 +55,7 @@ async def _expire_lease(db, task_id):
 
 def _one_task(db):
     async def build():
-        goal = await db.create_goal("a goal")
+        goal = await db.create_goal("a goal", user_id="usr_legacy_demo")
         rows = await db.create_tasks(
             [{"id": "t1", "agent": "coder", "description": "work", "inputs": {}, "depends_on": []}],
             goal.id, goal.trace_id)

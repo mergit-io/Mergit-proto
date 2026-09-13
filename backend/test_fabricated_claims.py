@@ -173,7 +173,7 @@ def _integrator_task():
     import db as _db
 
     async def build():
-        goal = await _db.create_goal("Raise a PR for the Rust migration")
+        goal = await _db.create_goal("Raise a PR for the Rust migration", user_id="usr_legacy_demo")
         rows = await _db.create_tasks(
             [{"id": "t1", "agent": "integrator", "description": "Raise a PR with the Rust code",
               "inputs": {}, "depends_on": []}], goal.id, goal.trace_id)

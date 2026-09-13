@@ -9,14 +9,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.sessions import SessionMiddleware
 
 import db
+import redaction
 import worker
 from access_gate import add_access_gate
-from api import actions, auth, config, context as ctx_api, github_webhook, goals, health, keys, stream, tasks, webhooks
+from api import actions, approvals, auth, config, connections, context as ctx_api, github_webhook, goals, health, keys, stream, tasks, webhooks
 from api import economy as economy_api
 from api import heal as heal_api
-from config import cors_origin_list, settings
+from auth.gate import SessionGate
+from config import cors_origin_list, require_auth_secret, settings
+from crypto import envelope
 
 # ── Logging setup ────────────────────────────────────────────────────────────────
 _log_fmt = "%(asctime)s %(levelname)-8s %(name)-24s %(message)s"
@@ -97,6 +101,20 @@ def _init_chain() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting Mergit (host=%s port=%s debug=%s)", settings.host, settings.port, settings.debug)
+
+    # Refuse to boot with a guessable session secret once sign-in is live. It defaulted to
+    # "change-me-in-env" for as long as the signing code was dead; the moment it signs a
+    # real OAuth transaction, a deployment that missed the variable has forgeable state.
+    require_auth_secret()
+
+    # Read the key-encryption key once, then remove it from the environment — BEFORE the
+    # worker starts, and therefore before any agent can run. `PUT /api/config/keys` writes
+    # into os.environ at runtime and `code_exec` used to inherit the whole of it, so a KEK
+    # left lying there was one `print(os.environ)` away from unwrapping every stored
+    # OAuth token in the database.
+    envelope.load_keys_and_scrub_env()
+
+    redaction.install()
     await db.init_db()
     import economy
     await economy.seed_passports()
@@ -177,6 +195,8 @@ async def request_logging_middleware(request: Request, call_next):
 # ── Routers ───────────────────────────────────────────────────────────────────────
 
 app.include_router(auth.router)
+app.include_router(connections.router)
+app.include_router(approvals.router)
 app.include_router(config.router)
 app.include_router(keys.router)
 app.include_router(ctx_api.router)
@@ -191,9 +211,33 @@ app.include_router(heal_api.router)
 app.include_router(health.router)
 
 
+# ── Auth middleware ───────────────────────────────────────────────────────────────
+# Order note: Starlette runs the LAST-added middleware outermost, so these execute in the
+# reverse of the order written here — access gate, then session gate, then the OAuth
+# transaction session, then request logging, then CORS.
+#
+# `SessionMiddleware` carries the OAuth `state`, `nonce` and PKCE verifier across the
+# redirect to Google and back. It must be *inside* the session gate, because the callback
+# needs to read it while the user has no Mergit session yet — that is the whole point of
+# the callback. It is short-lived, signed, and holds nothing but the in-flight handshake.
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.auth_secret_key,
+    session_cookie="mergit_oauth",
+    max_age=600,           # a login that takes longer than ten minutes is an abandoned one
+    same_site="lax",       # must survive the top-level redirect back from Google
+    https_only=settings.cookie_secure,
+)
+
+# Rejects anything under /api/ without a valid session, and enforces CSRF on unsafe
+# methods. No-op when Google is unconfigured, so a local checkout still runs.
+app.add_middleware(SessionGate)
+
 # ── Access gate ───────────────────────────────────────────────────────────────────
 # Added last, so it is the OUTERMOST middleware and rejects unauthorised requests before
-# anything else touches them. No-op unless ACCESS_PASSWORD is set.
+# anything else touches them. No-op unless ACCESS_PASSWORD is set. Retained alongside the
+# session gate because it covers the SPA and static assets too, which the session gate
+# deliberately does not.
 add_access_gate(app, settings.access_password)
 
 

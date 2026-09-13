@@ -62,7 +62,7 @@ async def replay(delay_seconds: float = 0, emit=logger.info) -> int:
     import asyncio
 
     run_id = uuid.uuid4().hex[:8]
-    goal = await db.create_goal(GOAL_TEXT)
+    goal = await db.create_goal(GOAL_TEXT, user_id=db.LEGACY_USER_ID, is_public=True)
     tasks = await db.create_tasks(build_tasks(run_id), goal.id, goal.trace_id)
     await db.update_goal_status(goal.id, GoalStatus.RUNNING)
     emit(f"Seeded goal {goal.id} with {len(tasks)} tasks")

@@ -31,6 +31,11 @@ services:
       # No persistent disk on the free plan, so every restart starts from an empty database.
       # This mints a canned goal + 3 verifiable proofs on boot so the dashboard and ledger
       # are never empty for a visitor.
+      # Mints a canned goal + 3 proofs when the ledger is empty. It exists because the
+      # database used to reset on every deploy. With LITESTREAM_BUCKET set the data
+      # persists, and this should be flipped to "false" — it seeds only when empty, so it
+      # is harmless either way, but leaving it on hides a broken restore behind a
+      # dashboard that always looks populated.
       - key: SEED_DEMO
         value: "true"
       # Groq's free-tier rate limits bite long before 0.1 CPU does.
@@ -76,9 +81,92 @@ services:
         sync: false
       - key: OAUTH_GOOGLE_REDIRECT_URI
         sync: false
+      # GitHub is no longer an identity provider — it is a *connection*, configured as a
+      # GitHub App below. These three are retained only because a blueprint sync never
+      # DELETES a variable; leave them empty.
       - key: OAUTH_GITHUB_CLIENT_ID
         sync: false
       - key: OAUTH_GITHUB_CLIENT_SECRET
         sync: false
       - key: OAUTH_GITHUB_REDIRECT_URI
         sync: false
+
+      # ── Identity ────────────────────────────────────────────────────────────
+      # Comma-separated. Whoever is listed here can manage the deployment's shared
+      # provider keys and model config. Recomputed on every login, so removing an
+      # address revokes it at their next sign-in. Never "first user wins": on a public
+      # URL the first user is a stranger.
+      - key: ADMIN_EMAILS
+        sync: false
+
+      # ── Credential vault ────────────────────────────────────────────────────
+      # Wraps the per-row data keys that encrypt users' stored OAuth tokens. Read once
+      # at startup and removed from the environment before the worker begins, because
+      # PUT /api/config/keys writes into os.environ and code_exec inherits it.
+      #   python -c "import os,base64;print(base64.b64encode(os.urandom(32)).decode())"
+      # LOSING THIS MEANS EVERY STORED CONNECTION IS UNRECOVERABLE. Keep a copy.
+      - key: MERGIT_KEK_CURRENT
+        sync: false
+      # Retired keys, "id:base64key" comma-separated. Only needed during a rotation.
+      - key: MERGIT_KEK_PREVIOUS
+        sync: false
+
+      # ── GitHub App (delegated authority) ────────────────────────────────────
+      # A GitHub App, not an OAuth App: the user picks which repositories Mergit may
+      # touch at install time and GitHub enforces it, so the allowlist is a property of
+      # the credential rather than a prompt instruction.
+      - key: GITHUB_APP_ID
+        sync: false
+      - key: GITHUB_APP_SLUG
+        sync: false
+      - key: GITHUB_APP_CLIENT_ID
+        sync: false
+      - key: GITHUB_APP_CLIENT_SECRET
+        sync: false
+      # PEM. Paste with literal \n for the newlines — config.github_app_private_key()
+      # restores them.
+      - key: GITHUB_APP_PRIVATE_KEY
+        sync: false
+      # The webhook receiver FAILS CLOSED without this. Unset, it rejects every event.
+      - key: GITHUB_WEBHOOK_SECRET
+        sync: false
+
+      # ── Slack (delegated authority) ─────────────────────────────────────────
+      - key: SLACK_CLIENT_ID
+        sync: false
+      - key: SLACK_CLIENT_SECRET
+        sync: false
+      - key: SLACK_SIGNING_SECRET
+        sync: false
+
+      # ── Durable storage on the free tier ────────────────────────────────────
+      # Litestream streams /data/mergit.db to object storage and restores it on boot,
+      # which is what makes the free plan's ephemeral disk survivable. Backblaze B2 is
+      # the recommended target: unlike R2 its Class A/B/C transactions are free with no
+      # daily cap, so there is no operation quota to exhaust.
+      #
+      # Set the bucket's lifecycle rule to "Keep only the last version of the file" —
+      # B2 retains every version by default, and Litestream deletes LTX files as it
+      # compacts, so each delete leaves a hidden version that still bills against the
+      # free 10 GB. Without the rule the bucket grows without bound.
+      #
+      # Leave LITESTREAM_BUCKET unset to run without replication (ephemeral, as before).
+      - key: LITESTREAM_BUCKET
+        sync: false
+      - key: LITESTREAM_ENDPOINT
+        sync: false
+      - key: LITESTREAM_REGION
+        sync: false
+      - key: LITESTREAM_ACCESS_KEY_ID
+        sync: false
+      - key: LITESTREAM_SECRET_ACCESS_KEY
+        sync: false
+
+      # ── Demo posture ────────────────────────────────────────────────────────
+      # Unregisters code_exec entirely. It runs model-authored Python in a subprocess of
+      # the API server, which is acceptable on a laptop and not on a public URL where
+      # POST /api/goals is reachable. Set to "false" only once code_exec runs out of
+      # process. This closes the RCE while leaving the showcase fully interactive — a
+      # password gate would close it too, and would also kill the demo.
+      - key: DEMO_SAFE_MODE
+        value: "true"

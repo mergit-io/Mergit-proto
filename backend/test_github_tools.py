@@ -190,7 +190,24 @@ def run(coro):
 
 
 def install(monkeypatch, module, repos, login="agentbot"):
-    monkeypatch.setattr(module, "_client", lambda: FakeGithub(repos, login))
+    """Stub the credential choke point.
+
+    `_client` is now async and takes the tool args, because it resolves *which user's*
+    GitHub connection this call acts as. `credential_check` is stubbed to None so these
+    tests exercise the tool logic rather than the connection state machine — that is
+    covered by test_auth_tenancy.py and test_park_and_resume.py.
+    """
+    async def fake_client(args=None, *, as_user=False):
+        return FakeGithub(repos, login)
+
+    async def always_authorised(args):
+        return None
+
+    monkeypatch.setattr(module, "_client", fake_client)
+    if hasattr(module, "_credential_check"):
+        monkeypatch.setattr(module, "_credential_check", always_authorised)
+    if hasattr(module, "credential_check"):
+        monkeypatch.setattr(module, "credential_check", always_authorised)
 
 
 # ── Bug 2: the token had two sources that disagreed ──────────────────────────────
@@ -1217,8 +1234,16 @@ def test_a_comment_containing_an_unresolved_template_is_refused(monkeypatch):
     class FakeRepoObj:
         def get_issue(self, n): return FakeIssue()
 
-    monkeypatch.setattr(gops, "_require_token", lambda: True)
-    monkeypatch.setattr(gops, "_client", lambda: type("G", (), {"get_repo": lambda s, r: FakeRepoObj()})())
+    # `_client` is async and takes the tool args; the credential gate is stubbed open so
+    # these tests exercise the placeholder guard rather than the connection state machine.
+    async def fake_client(args=None, *, as_user=False):
+        return type("G", (), {"get_repo": lambda s, r: FakeRepoObj()})()
+
+    async def always_authorised(args):
+        return None
+
+    monkeypatch.setattr(gops, "_client", fake_client)
+    monkeypatch.setattr(gops, "_credential_check", always_authorised)
 
     result = run(gops.github_post_comment({
         "repo": "o/r", "issue_number": 7,
@@ -1243,8 +1268,16 @@ def test_a_comment_containing_an_angle_bracket_placeholder_is_refused(monkeypatc
     class FakeRepoObj:
         def get_issue(self, n): return FakeIssue()
 
-    monkeypatch.setattr(gops, "_require_token", lambda: True)
-    monkeypatch.setattr(gops, "_client", lambda: type("G", (), {"get_repo": lambda s, r: FakeRepoObj()})())
+    # `_client` is async and takes the tool args; the credential gate is stubbed open so
+    # these tests exercise the placeholder guard rather than the connection state machine.
+    async def fake_client(args=None, *, as_user=False):
+        return type("G", (), {"get_repo": lambda s, r: FakeRepoObj()})()
+
+    async def always_authorised(args):
+        return None
+
+    monkeypatch.setattr(gops, "_client", fake_client)
+    monkeypatch.setattr(gops, "_credential_check", always_authorised)
 
     result = run(gops.github_post_comment({
         "repo": "o/r", "issue_number": 7, "body": "Opened PR #<pr_number> for this."}))
@@ -1269,8 +1302,16 @@ def test_an_ordinary_comment_is_posted(monkeypatch):
     class FakeRepoObj:
         def get_issue(self, n): return FakeIssue()
 
-    monkeypatch.setattr(gops, "_require_token", lambda: True)
-    monkeypatch.setattr(gops, "_client", lambda: type("G", (), {"get_repo": lambda s, r: FakeRepoObj()})())
+    # `_client` is async and takes the tool args; the credential gate is stubbed open so
+    # these tests exercise the placeholder guard rather than the connection state machine.
+    async def fake_client(args=None, *, as_user=False):
+        return type("G", (), {"get_repo": lambda s, r: FakeRepoObj()})()
+
+    async def always_authorised(args):
+        return None
+
+    monkeypatch.setattr(gops, "_client", fake_client)
+    monkeypatch.setattr(gops, "_credential_check", always_authorised)
 
     body = ("Fixed in PR #34. Use `Vec<String>`, see <https://example.com>, and the "
             "<div> wrapper stays as it is.")

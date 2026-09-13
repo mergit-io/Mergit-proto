@@ -8,13 +8,22 @@ import logging
 import re
 
 from tools.github_client import TOKEN_MISSING as _TOKEN_MISSING
+from tools.github_client import audit as _audit
 from tools.github_client import client as _client
+from tools.github_client import credential_check as _credential_check
 from tools.github_client import github_token
 
 logger = logging.getLogger(__name__)
 
 
 def _require_token() -> str | None:
+    """The shared deployment token, if there is one.
+
+    Retained for the single-tenant fallback and for callers that only need to know whether
+    *any* GitHub credential exists. It is no longer the authorisation check: that is
+    `_credential_check(args)`, which resolves the goal's owner and can park the task with
+    a per-user resume key rather than a global one.
+    """
     return github_token() or None
 
 
@@ -35,13 +44,14 @@ def _unfilled_placeholders(body: str) -> list[str]:
 # ── Read file ────────────────────────────────────────────────────────────────────
 
 async def github_read_file(args: dict) -> dict:
-    if not _require_token():
-        return _TOKEN_MISSING
+    _missing = await _credential_check(args)
+    if _missing:
+        return _missing
     repo_name = args["repo"]
     path = args["path"]
     ref = args.get("ref")
     try:
-        g = _client()
+        g = await _client(args)
         repo = g.get_repo(repo_name)
         # Use specified ref, or repo default branch, falling back to no ref
         effective_ref = ref or repo.default_branch
@@ -73,13 +83,14 @@ GITHUB_READ_FILE_SCHEMA = {
 # ── List directory ───────────────────────────────────────────────────────────────
 
 async def github_list_dir(args: dict) -> dict:
-    if not _require_token():
-        return _TOKEN_MISSING
+    _missing = await _credential_check(args)
+    if _missing:
+        return _missing
     repo_name = args["repo"]
     path = args.get("path", "")
     ref = args.get("ref")
     try:
-        g = _client()
+        g = await _client(args)
         repo = g.get_repo(repo_name)
         effective_ref = ref or repo.default_branch
         try:
@@ -112,12 +123,13 @@ GITHUB_LIST_DIR_SCHEMA = {
 # ── Get issue ────────────────────────────────────────────────────────────────────
 
 async def github_get_issue(args: dict) -> dict:
-    if not _require_token():
-        return _TOKEN_MISSING
+    _missing = await _credential_check(args)
+    if _missing:
+        return _missing
     repo_name = args["repo"]
     issue_number = int(args["issue_number"])
     try:
-        g = _client()
+        g = await _client(args)
         repo = g.get_repo(repo_name)
         issue = repo.get_issue(issue_number)
         comments = []
@@ -152,8 +164,9 @@ GITHUB_GET_ISSUE_SCHEMA = {
 # ── Post comment ─────────────────────────────────────────────────────────────────
 
 async def github_post_comment(args: dict) -> dict:
-    if not _require_token():
-        return _TOKEN_MISSING
+    _missing = await _credential_check(args)
+    if _missing:
+        return _missing
     repo_name = args["repo"]
     issue_number = int(args["issue_number"])
     body = args["body"]
@@ -171,7 +184,7 @@ async def github_post_comment(args: dict) -> dict:
             "pull request you have not created yet, create it and use the number it "
             "returns — then post the comment once, filled in.")}
     try:
-        g = _client()
+        g = await _client(args)
         repo = g.get_repo(repo_name)
         issue = repo.get_issue(issue_number)
         comment = issue.create_comment(body)
@@ -195,12 +208,13 @@ GITHUB_POST_COMMENT_SCHEMA = {
 # ── Search code ──────────────────────────────────────────────────────────────────
 
 async def github_search_code(args: dict) -> dict:
-    if not _require_token():
-        return _TOKEN_MISSING
+    _missing = await _credential_check(args)
+    if _missing:
+        return _missing
     repo_name = args["repo"]
     query = args["query"]
     try:
-        g = _client()
+        g = await _client(args)
         full_query = f"{query} repo:{repo_name}"
         results = g.search_code(full_query)
         items = []
@@ -227,8 +241,9 @@ GITHUB_SEARCH_CODE_SCHEMA = {
 async def github_create_repo(args: dict) -> dict:
     """Create a NEW GitHub repo under the authenticated account and commit files into it.
     Used when a goal asks to build something and ship it as its own repository."""
-    if not _require_token():
-        return _TOKEN_MISSING
+    _missing = await _credential_check(args)
+    if _missing:
+        return _missing
     name = args["name"].strip().replace(" ", "-")
     description = args.get("description", "")
     private = args.get("private", True)
@@ -237,7 +252,7 @@ async def github_create_repo(args: dict) -> dict:
         return {"ok": False, "error": "files[] is required — a repo with no code is not a deliverable"}
     try:
         from github import GithubException
-        g = _client()
+        g = await _client(args)
         user = g.get_user()
         try:
             repo = user.create_repo(name=name, description=description,
@@ -300,11 +315,12 @@ GITHUB_CREATE_REPO_SCHEMA = {
 # ── List GitHub Actions workflows ────────────────────────────────────────────────
 
 async def github_list_workflows(args: dict) -> dict:
-    if not _require_token():
-        return _TOKEN_MISSING
+    _missing = await _credential_check(args)
+    if _missing:
+        return _missing
     repo_name = args["repo"]
     try:
-        g = _client()
+        g = await _client(args)
         repo = g.get_repo(repo_name)
         # Workflows are YAML files in .github/workflows/
         try:
@@ -336,12 +352,13 @@ GITHUB_LIST_WORKFLOWS_SCHEMA = {
 # ── Get branch protection rules ──────────────────────────────────────────────────
 
 async def github_get_branch_protection(args: dict) -> dict:
-    if not _require_token():
-        return _TOKEN_MISSING
+    _missing = await _credential_check(args)
+    if _missing:
+        return _missing
     repo_name = args["repo"]
     branch = args.get("branch")
     try:
-        g = _client()
+        g = await _client(args)
         repo = g.get_repo(repo_name)
         target = branch or repo.default_branch
         b = repo.get_branch(target)
@@ -385,14 +402,15 @@ GITHUB_GET_BRANCH_PROTECTION_SCHEMA = {
 # ── Set branch protection rules ──────────────────────────────────────────────────
 
 async def github_set_branch_protection(args: dict) -> dict:
-    if not _require_token():
-        return _TOKEN_MISSING
+    _missing = await _credential_check(args)
+    if _missing:
+        return _missing
     repo_name = args["repo"]
     branch = args.get("branch")
     rules = args.get("rules", {})
     try:
         from github import GithubException
-        g = _client()
+        g = await _client(args)
         repo = g.get_repo(repo_name)
         target = branch or repo.default_branch
         b = repo.get_branch(target)
@@ -461,14 +479,15 @@ GITHUB_SET_BRANCH_PROTECTION_SCHEMA = {
 # ── Create issue ─────────────────────────────────────────────────────────────────
 
 async def github_create_issue(args: dict) -> dict:
-    if not _require_token():
-        return _TOKEN_MISSING
+    _missing = await _credential_check(args)
+    if _missing:
+        return _missing
     repo_name = args["repo"]
     title = args["title"]
     body = args.get("body", "")
     labels = args.get("labels", []) or []
     try:
-        g = _client()
+        g = await _client(args)
         repo = g.get_repo(repo_name)
         issue = repo.create_issue(title=title, body=body, labels=labels)
         return {"ok": True, "number": issue.number, "url": issue.html_url,
@@ -494,13 +513,14 @@ GITHUB_CREATE_ISSUE_SCHEMA = {
 # ── Close issue ──────────────────────────────────────────────────────────────────
 
 async def github_close_issue(args: dict) -> dict:
-    if not _require_token():
-        return _TOKEN_MISSING
+    _missing = await _credential_check(args)
+    if _missing:
+        return _missing
     repo_name = args["repo"]
     issue_number = int(args["issue_number"])
     comment = args.get("comment")
     try:
-        g = _client()
+        g = await _client(args)
         repo = g.get_repo(repo_name)
         issue = repo.get_issue(issue_number)
         if comment:
@@ -529,15 +549,16 @@ GITHUB_CLOSE_ISSUE_SCHEMA = {
 # ── Add labels ───────────────────────────────────────────────────────────────────
 
 async def github_add_labels(args: dict) -> dict:
-    if not _require_token():
-        return _TOKEN_MISSING
+    _missing = await _credential_check(args)
+    if _missing:
+        return _missing
     repo_name = args["repo"]
     issue_number = int(args["issue_number"])
     labels = args["labels"]
     if isinstance(labels, str):
         labels = [labels]
     try:
-        g = _client()
+        g = await _client(args)
         repo = g.get_repo(repo_name)
         issue = repo.get_issue(issue_number)
         # A label that does not exist yet is created rather than failing the whole call.
@@ -629,12 +650,13 @@ def _pr_payload(repo, pr, with_checks: bool = True) -> dict:
 
 
 async def github_get_pr(args: dict) -> dict:
-    if not _require_token():
-        return _TOKEN_MISSING
+    _missing = await _credential_check(args)
+    if _missing:
+        return _missing
     repo_name = args["repo"]
     pr_number = int(args["pr_number"])
     try:
-        g = _client()
+        g = await _client(args)
         repo = g.get_repo(repo_name)
         pr = repo.get_pull(pr_number)
         return {"ok": True, **_pr_payload(repo, pr)}
@@ -655,13 +677,14 @@ GITHUB_GET_PR_SCHEMA = {
 
 
 async def github_list_prs(args: dict) -> dict:
-    if not _require_token():
-        return _TOKEN_MISSING
+    _missing = await _credential_check(args)
+    if _missing:
+        return _missing
     repo_name = args["repo"]
     state = args.get("state", "open")
     limit = int(args.get("limit", 20))
     try:
-        g = _client()
+        g = await _client(args)
         repo = g.get_repo(repo_name)
         prs = repo.get_pulls(state=state, sort="updated", direction="desc")
         items = []
@@ -701,13 +724,14 @@ async def github_get_pr_files(args: dict) -> dict:
     Without this a 'review this PR' goal has no way to see the code it is reviewing,
     so the review is written from the PR title alone.
     """
-    if not _require_token():
-        return _TOKEN_MISSING
+    _missing = await _credential_check(args)
+    if _missing:
+        return _missing
     repo_name = args["repo"]
     pr_number = int(args["pr_number"])
     include_patch = args.get("include_patch", True)
     try:
-        g = _client()
+        g = await _client(args)
         repo = g.get_repo(repo_name)
         pr = repo.get_pull(pr_number)
         files, budget, truncated_files = [], _MAX_PATCH_CHARS, []
@@ -763,8 +787,9 @@ GITHUB_GET_PR_FILES_SCHEMA = {
 
 async def github_review_pr(args: dict) -> dict:
     """Submit a formal review (APPROVE / REQUEST_CHANGES / COMMENT), not a plain comment."""
-    if not _require_token():
-        return _TOKEN_MISSING
+    _missing = await _credential_check(args)
+    if _missing:
+        return _missing
     repo_name = args["repo"]
     pr_number = int(args["pr_number"])
     body = args["body"]
@@ -772,7 +797,7 @@ async def github_review_pr(args: dict) -> dict:
     if event not in ("APPROVE", "REQUEST_CHANGES", "COMMENT"):
         return {"ok": False, "error": f"event must be APPROVE, REQUEST_CHANGES or COMMENT, got {event!r}"}
     try:
-        g = _client()
+        g = await _client(args)
         repo = g.get_repo(repo_name)
         pr = repo.get_pull(pr_number)
         try:
@@ -810,8 +835,9 @@ GITHUB_REVIEW_PR_SCHEMA = {
 
 
 async def github_request_review(args: dict) -> dict:
-    if not _require_token():
-        return _TOKEN_MISSING
+    _missing = await _credential_check(args)
+    if _missing:
+        return _missing
     repo_name = args["repo"]
     pr_number = int(args["pr_number"])
     reviewers = args.get("reviewers", []) or []
@@ -821,7 +847,7 @@ async def github_request_review(args: dict) -> dict:
     if not reviewers and not team_reviewers:
         return {"ok": False, "error": "reviewers or team_reviewers is required"}
     try:
-        g = _client()
+        g = await _client(args)
         repo = g.get_repo(repo_name)
         pr = repo.get_pull(pr_number)
         kwargs = {}
@@ -854,12 +880,13 @@ GITHUB_REQUEST_REVIEW_SCHEMA = {
 
 async def github_update_pr(args: dict) -> dict:
     """Edit an open PR: title, body, base branch, draft/ready, or close it."""
-    if not _require_token():
-        return _TOKEN_MISSING
+    _missing = await _credential_check(args)
+    if _missing:
+        return _missing
     repo_name = args["repo"]
     pr_number = int(args["pr_number"])
     try:
-        g = _client()
+        g = await _client(args)
         repo = g.get_repo(repo_name)
         pr = repo.get_pull(pr_number)
         edits = {}
@@ -924,8 +951,9 @@ async def github_merge_pr(args: dict) -> dict:
     so the agent reports an accurate outcome instead of claiming a merge that GitHub
     would have rejected — or worse, landing a red branch.
     """
-    if not _require_token():
-        return _TOKEN_MISSING
+    _missing = await _credential_check(args)
+    if _missing:
+        return _missing
     import asyncio
 
     repo_name = args["repo"]
@@ -935,7 +963,7 @@ async def github_merge_pr(args: dict) -> dict:
         return {"ok": False, "error": f"merge_method must be squash, merge or rebase, got {merge_method!r}"}
 
     try:
-        g = _client()
+        g = await _client(args)
         repo = g.get_repo(repo_name)
         pr = repo.get_pull(pr_number)
 

@@ -2,10 +2,11 @@ import os
 from pathlib import Path
 
 from dotenv import dotenv_values, set_key
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 import db
+from auth.gate import require_admin
 import events as event_bus
 from config import settings
 
@@ -29,7 +30,10 @@ def _mask(value: str) -> str:
 
 
 @router.get("/keys")
-async def get_keys():
+async def get_keys(request: Request):
+    # Read is admin-only too: the masked values reveal which providers are
+    # configured, which is reconnaissance, and the page it feeds is an admin page.
+    require_admin(request)
     file_vals = dotenv_values(str(_ENV_FILE)) if _ENV_FILE.exists() else {}
     result = {}
     for provider, env_var in PROVIDER_KEYS.items():
@@ -49,7 +53,11 @@ class KeyBody(BaseModel):
 
 
 @router.put("/keys")
-async def update_key(body: KeyBody):
+async def update_key(body: KeyBody, request: Request):
+    # These are MERGIT's own provider keys, shared by every user of the deployment —
+    # not the caller's. A signed-in stranger being able to overwrite the Groq key or
+    # the GitHub token is a design problem, not a rate-limiting one.
+    require_admin(request)
     provider = body.provider.lower()
     key_value = body.key.strip()
 

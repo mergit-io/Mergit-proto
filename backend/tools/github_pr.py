@@ -3,7 +3,13 @@ import logging
 import re
 
 import language
-from tools.github_client import TOKEN_MISSING, client as _client, github_token, resolve_repo
+from tools.github_client import (
+    TOKEN_MISSING,
+    client as _client,
+    credential_check,
+    github_token,
+    resolve_repo,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -365,8 +371,10 @@ def _resolve_base(upstream, requested: str | None) -> str:
 
 
 async def github_pr(args: dict) -> dict:
-    if not github_token():
-        return {**TOKEN_MISSING, "message": "GitHub personal access token required to create PRs"}
+    _missing = await credential_check(args)
+    if _missing:
+        return {**_missing,
+                "message": _missing.get("message", "") + " (needed to open a pull request)"}
 
     from github import GithubException
 
@@ -376,6 +384,23 @@ async def github_pr(args: dict) -> dict:
     head_branch = args["head_branch"]
     files = args.get("files", []) or []
 
+    # CI definitions are refused in code rather than by permission.
+    #
+    # The Mergit GitHub App deliberately does not declare `workflows:write`: granting every
+    # installation the standing right to rewrite CI is a large blast radius for a rare
+    # need, and a workflow file is the one thing in a repository that runs with the
+    # repository's own secrets. GitHub would reject the commit anyway, but with a 422 that
+    # says nothing useful — this says what happened and why.
+    blocked = [f.get("path", "") for f in files
+               if f.get("path", "").startswith(".github/workflows/")]
+    if blocked:
+        return {"action": "create_pr", "result": None, "url": None, "ok": False,
+                "refused": True,
+                "error": "Mergit is not permitted to modify GitHub Actions workflow files "
+                         f"({', '.join(blocked)}). Workflow files run with the repository's "
+                         "own secrets, so changing them is left to a human. Put the rest of "
+                         "the change in a PR and describe the workflow edit in the body."}
+
     # A PR with no file changes is rejected by GitHub as "No commits between <base> and
     # <head>" after the branch has already been created, leaving a stray branch behind.
     # Refusing up front keeps the repo clean and gives the agent a reason it can act on.
@@ -384,7 +409,7 @@ async def github_pr(args: dict) -> dict:
                 "error": "files[] is empty — a pull request needs at least one changed file. "
                          "Pass files as [{\"path\": ..., \"content\": ...}]."}
 
-    g = _client()
+    g = await _client(args)
     try:
         upstream = g.get_repo(repo_name)
     except GithubException as e:
@@ -490,7 +515,19 @@ async def github_pr(args: dict) -> dict:
                          "pull request does not require one to exist when there is no fix to "
                          "make."}
 
-    me = g.get_user()
+    # `g.get_user()` needs a token that HAS a user. An installation token does not — it
+    # authenticates as the app, and this call fails against it. So the fork path (and only
+    # the fork path) runs on the user-to-server token, which means a fork is attributed to
+    # the human rather than to the Mergit app. That is worth stating in the UI: it is the
+    # difference between "Mergit opened a PR" and "you opened a PR, via Mergit".
+    #
+    # Falls back to the same client when no separate user token is available, which is the
+    # single-tenant PAT case where they are the same thing anyway.
+    try:
+        gu = await _client(args, as_user=True)
+    except Exception:
+        gu = g
+    me = gu.get_user()
     login = me.login
 
     # ── Path 1: we have push access → branch + PR directly on the upstream ──

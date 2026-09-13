@@ -78,7 +78,17 @@ external failure such as a rate limit, bad credentials or malformed user input.
 
 async def _create_github_issue(title: str, body: str) -> dict | None:
     """Open an issue on the Mergit repo. Returns {number, url} or None."""
-    token = os.environ.get("GITHUB_TOKEN", "") or settings.github_token
+    # Deliberately NOT the per-user broker. Self-heal files issues on *Mergit's own*
+    # repository, as Mergit — a user's delegated GitHub authority must never be spent
+    # reporting a bug in Mergit, and their token has no business touching this repo.
+    #
+    # This line is also why the credential migration needs mechanical enforcement rather
+    # than discipline: it reads the token directly and never called `github_token()`, so a
+    # migration that greps for that function misses it entirely. It is the fourth file to
+    # acquire its own copy of this logic.
+    token = (settings.mergit_self_heal_token
+             or os.environ.get("GITHUB_TOKEN", "")
+             or settings.github_token)
     repo = settings.mergit_repo
     if not token or not repo:
         logger.info("self_heal: no GITHUB_TOKEN/repo — recording a simulated attempt instead")
@@ -175,6 +185,10 @@ async def trigger(goal_id: str, goal_title: str, failed_task_agent: str,
         try:
             fix_goal = await db.create_goal(
                 _fix_goal_text(repo, issue_ref, failed_task_agent, error),
+                # Mergit's own goal, run as Mergit. Self-heal files issues on Mergit's
+                # repository with a configured token, deliberately outside the per-user
+                # broker — a user's GitHub connection must never be spent fixing Mergit.
+                user_id=db.SYSTEM_USER_ID,
                 source="self_heal", heal_depth=depth + 1,
             )
             await db.update_heal_attempt(attempt_id, fix_goal_id=fix_goal.id)

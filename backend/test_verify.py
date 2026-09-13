@@ -53,7 +53,7 @@ def ctx(monkeypatch):
 def _seed_completed_task(ctx, output, task_id="t1", role="coder"):
     """Create a goal + DONE task with a real stored output."""
     async def go():
-        goal = await ctx.db.create_goal("verify me")
+        goal = await ctx.db.create_goal("verify me", user_id="usr_legacy_demo")
         await ctx.db.create_tasks(
             [{"id": task_id, "agent": role, "description": "d", "inputs": {}, "depends_on": []}],
             goal.id, "trace")

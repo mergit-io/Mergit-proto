@@ -74,7 +74,7 @@ def test_stream_of_a_completed_goal_closes_immediately(stack):
     app, db, _ = stack
 
     async def go():
-        goal = await db.create_goal("already finished")
+        goal = await db.create_goal("already finished", user_id="usr_legacy_demo")
         await db.update_goal_status(goal.id, "COMPLETED", output={"text": "done"})
 
         frames = await _read_stream(app, goal.id)
@@ -94,7 +94,7 @@ def test_stream_of_a_failed_goal_closes_immediately(stack):
     app, db, _ = stack
 
     async def go():
-        goal = await db.create_goal("already failed")
+        goal = await db.create_goal("already failed", user_id="usr_legacy_demo")
         await db.update_goal_status(goal.id, "FAILED", error="planner blew up")
 
         frames = await _read_stream(app, goal.id)
@@ -120,7 +120,7 @@ def test_the_replayed_event_carries_the_stored_result(stack):
     app, db, _ = stack
 
     async def go():
-        goal = await db.create_goal("finished with output")
+        goal = await db.create_goal("finished with output", user_id="usr_legacy_demo")
         await db.update_goal_status(goal.id, "COMPLETED", output={"text": "the answer", "title": "t"})
 
         frames = await _read_stream(app, goal.id)
@@ -143,14 +143,14 @@ def test_a_goal_finishing_between_lookup_and_subscribe_still_closes(stack, monke
     from api import stream as stream_api
 
     async def go():
-        goal = await db.create_goal("races to the finish")
+        goal = await db.create_goal("races to the finish", user_id="usr_legacy_demo")
         await db.update_goal_status(goal.id, "RUNNING")
 
         real_get_goal = db.get_goal
         reads = {"n": 0}
 
-        async def get_goal_then_finish(goal_id):
-            result = await real_get_goal(goal_id)
+        async def get_goal_then_finish(goal_id, user_id=None):
+            result = await real_get_goal(goal_id, user_id)
             reads["n"] += 1
             if reads["n"] == 1:  # the 404 lookup has happened; now it finishes
                 await db.update_goal_status(goal.id, "COMPLETED", output={"text": "raced"})
@@ -182,7 +182,7 @@ def test_a_lost_terminal_event_is_recovered_on_the_next_keepalive(stack, monkeyp
     monkeypatch.setattr(stream_api, "PING_TIMEOUT", 0.3)
 
     async def go():
-        goal = await db.create_goal("finishes silently")
+        goal = await db.create_goal("finishes silently", user_id="usr_legacy_demo")
         await db.update_goal_status(goal.id, "RUNNING")
 
         async def finish_without_emitting():
@@ -207,7 +207,7 @@ def test_a_running_goal_still_streams_live_events(stack):
     app, db, events = stack
 
     async def go():
-        goal = await db.create_goal("still running")
+        goal = await db.create_goal("still running", user_id="usr_legacy_demo")
         await db.update_goal_status(goal.id, "RUNNING")
 
         async def finish_later():

@@ -90,7 +90,7 @@ def _task():
     import db as _db
 
     async def build():
-        goal = await _db.create_goal("Review the Rust implementation")
+        goal = await _db.create_goal("Review the Rust implementation", user_id="usr_legacy_demo")
         tasks = await _db.create_tasks(
             [{"id": "t1", "agent": "coder", "description": "Fix the login helper",
               "inputs": {}, "depends_on": []}],

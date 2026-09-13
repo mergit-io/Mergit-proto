@@ -63,7 +63,7 @@ def ctx(monkeypatch):
 
 async def _goal_with_failed_task(ctx):
     """A goal where the researcher finished and the coder then failed."""
-    goal = await ctx.db.create_goal("Research X and build Y")
+    goal = await ctx.db.create_goal("Research X and build Y", user_id="usr_legacy_demo")
     await ctx.db.create_tasks(
         [
             {"id": "t1", "agent": "researcher", "description": "Research X",

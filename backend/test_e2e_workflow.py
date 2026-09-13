@@ -147,7 +147,7 @@ def _agent_calls(stack, role=None):
 
 async def _drive(stack, goal_text="Summarise the Mergit README"):
     """Run a goal the way the worker loops would, without the polling sleeps."""
-    goal = await stack.db.create_goal(goal_text)
+    goal = await stack.db.create_goal(goal_text, user_id="usr_legacy_demo")
 
     claimed = await stack.db.claim_new_goal()
     assert claimed is not None and claimed.id == goal.id

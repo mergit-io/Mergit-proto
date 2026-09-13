@@ -15,6 +15,8 @@ from agent_registry import get_agent_config
 from llm import acompletion
 from state import TaskRow
 from tools import TOOL_REGISTRY
+import redaction
+from tools import approval
 from tools.credential_request import WAITING_CREDENTIAL_SENTINEL
 from tools.wait_webhook import WAITING_WEBHOOK_SENTINEL
 
@@ -59,8 +61,20 @@ def _build_tool_defs(allowed_tools: list[str]) -> list[dict]:
     return defs
 
 
-def _idempotency_key(task_id: str, tool_name: str, args_json: str, attempt: int) -> str:
-    raw = f"{task_id}:{tool_name}:{args_json}:{attempt}"
+def _idempotency_key(task_id: str, tool_name: str, args_json: str) -> str:
+    """Identifies one tool invocation for the life of a task, across every attempt.
+
+    `attempt` used to be part of this key. It could not be: `claim_ready_task` does
+    `attempt_count=attempt_count+1` on *every* claim, including the claim that follows a
+    resume, so a task that parked on a credential and was released came back with a
+    different key for identical work — missed the whole cache and re-fired every write it
+    had already completed. A goal that paused once posted its issue comment twice.
+
+    Dropping `attempt` only works together with the park handling in
+    `_execute_tool_idempotent`: a `WAITING_*` sentinel must never be stored as a completed
+    call, or the resumed task replays the sentinel and parks again forever.
+    """
+    raw = f"{task_id}:{tool_name}:{args_json}"
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
@@ -452,7 +466,7 @@ async def run(
                     logger.info("[task=%s agent=%s] recovered submit_result — task done", task.id, task.agent_name)
                     return result
 
-                ikey = _idempotency_key(task.id, tool_name, args_str, task.attempt_count)
+                ikey = _idempotency_key(task.id, tool_name, args_str)
                 if emit:
                     emit("tool_call", {"task_id": task.id, "tool": tool_name, "args": args})
 
@@ -611,7 +625,7 @@ async def run(
                 _failing_tools.add(tool_name)
                 continue
 
-            ikey = _idempotency_key(task.id, tool_name, args_str, task.attempt_count)
+            ikey = _idempotency_key(task.id, tool_name, args_str)
             logger.debug("[task=%s] Tool call: %s(%s…) ikey=%s…",
                          task.id, tool_name, args_str[:80], ikey[:12])
 
@@ -787,14 +801,54 @@ async def _execute_tool_idempotent(
         return result
 
     enriched_args = {**args, "_goal_id": task.goal_id}
+
+    # The human-in-the-loop gate, deliberately here rather than in a prompt. This runs
+    # before the tool function is reached, so an agent that has been talked into merging
+    # a stranger's pull request by text in an issue body still cannot: the instruction
+    # reaches the model, and the model's only route to the action is through this line.
+    try:
+        await approval.check(task, tool_name, args)
+    except approval.ApprovalRequired as gate:
+        await db.delete_tool_call(ikey)
+        return {
+            WAITING_CREDENTIAL_SENTINEL: True,
+            "credential": gate.credential_key,
+            "provider": "approval",
+            "message": f"Waiting for your approval: {gate.summary}",
+            "connect_url": "/app/approvals",
+            "approval_id": gate.approval_id,
+        }
+    except PermissionError as denied:
+        # A refusal is a legitimate terminal outcome, not an error to retry. It is
+        # returned as a tool result so the agent reads it and reports it.
+        await db.settle_tool_call(ikey, json.dumps({"ok": False, "refused": True,
+                                                    "error": str(denied)}), "SUCCESS")
+        return {"ok": False, "refused": True, "error": str(denied)}
+
     try:
         result = await entry.fn(enriched_args)
-        await db.settle_tool_call(ikey, json.dumps(result), "SUCCESS")
+
+        # A `WAITING_*` sentinel is control flow, not a result. It means the tool declined
+        # to run and the task is about to park — nothing happened, so nothing may be
+        # cached. Storing it would be fatal now that the key no longer varies by attempt:
+        # the resumed task would hit the replay branch above, get the sentinel back, and
+        # park again on every claim, forever, no matter what the user connects. Drop the
+        # PENDING row created moments ago so the next attempt re-executes cleanly.
+        if isinstance(result, dict) and (
+            result.get(WAITING_CREDENTIAL_SENTINEL) or result.get(WAITING_WEBHOOK_SENTINEL)
+        ):
+            await db.delete_tool_call(ikey)
+            return result
+
+        # Scrub before persisting, not before returning. A cache hit replays `result_json`
+        # straight back into model context, so the stored copy is a prompt — the live
+        # result the tool just produced is not, and the caller may legitimately need it.
+        await db.settle_tool_call(ikey, json.dumps(redaction.scrub_obj(result)), "SUCCESS")
         return result
     except Exception as e:
         error_str = str(e)
         logger.error("Tool %s failed: %s", tool_name, error_str)
-        await db.settle_tool_call(ikey, None, "FAILED", error=error_str)
+        await db.settle_tool_call(ikey, None, "FAILED", error=redaction.scrub(error_str))
         return {"error": error_str}
 
 

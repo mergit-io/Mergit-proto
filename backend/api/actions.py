@@ -4,10 +4,12 @@ Lets the frontend inspect and trigger changes to workflows and rulesets.
 """
 import logging
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
 import db
+from auth.gate import require_user
+from api.github_webhook import build_issue_goal
 from tools.github_ops import (
     github_list_workflows,
     github_get_branch_protection,
@@ -18,16 +20,18 @@ router = APIRouter(prefix="/api/actions", tags=["actions"])
 
 
 @router.get("/workflows")
-async def list_workflows(repo: str = Query(..., description="owner/repo")):
-    result = await github_list_workflows({"repo": repo})
+async def list_workflows(request: Request, repo: str = Query(..., description="owner/repo")):
+    user = require_user(request)
+    result = await github_list_workflows({"repo": repo, "_user_id": user["id"]})
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("error", "Failed to list workflows"))
     return result
 
 
 @router.get("/protection")
-async def get_protection(repo: str = Query(..., description="owner/repo"), branch: str = Query(None)):
-    args = {"repo": repo}
+async def get_protection(request: Request, repo: str = Query(..., description="owner/repo"), branch: str = Query(None)):
+    user = require_user(request)
+    args = {"repo": repo, "_user_id": user["id"]}
     if branch:
         args["branch"] = branch
     result = await github_get_branch_protection(args)
@@ -42,7 +46,7 @@ class ActionGoalBody(BaseModel):
 
 
 @router.post("/goal")
-async def create_action_goal(body: ActionGoalBody):
+async def create_action_goal(body: ActionGoalBody, request: Request):
     """Create a goal from a natural language instruction about GitHub Actions or branch rules."""
     goal_text = (
         f"GitHub Actions / repository automation task for {body.repo}.\n\n"
@@ -56,5 +60,49 @@ async def create_action_goal(body: ActionGoalBody):
         "5. For branch protection changes: apply them directly via github_set_branch_protection\n"
         "6. Report what was done"
     )
-    goal = await db.create_goal(goal_text)
+    user = require_user(request)
+    goal = await db.create_goal(goal_text, user_id=user["id"])
     return {"ok": True, "goal_id": goal.id, "repo": body.repo}
+
+
+class SimulateIssueBody(BaseModel):
+    repo: str
+    title: str
+    body: str = ""
+    issue_number: int = 1
+
+
+@router.post("/simulate-issue")
+async def simulate_issue(body: SimulateIssueBody, request: Request):
+    """Run the issue-fix pipeline without a real GitHub webhook.
+
+    This exists because `POST /api/webhooks/github` now **fails closed** on a missing or
+    bad signature, and the Automate page's "Simulate GitHub Issue" button was posting a
+    hand-built payload there with no signature at all. Fail-closing the receiver without
+    giving the button its own route would have silently broken the demo — the one thing
+    the hardening work was required not to do.
+
+    The goal text is built by the *same* function the real receiver uses, so the simulated
+    path and the live path cannot drift apart. That mattered: a divergence here would mean
+    the demo exercises a pipeline the webhook never runs.
+    """
+    payload = {
+        "issue": {
+            "number": body.issue_number,
+            "title": body.title,
+            "body": body.body,
+            "html_url": f"https://github.com/{body.repo}/issues/{body.issue_number}",
+        },
+        "repository": {"full_name": body.repo, "default_branch": "main"},
+    }
+    user = require_user(request)
+    goal = await db.create_goal(build_issue_goal(payload), user_id=user["id"])
+    logger.info("Simulated issue #%s in %s → goal %s", body.issue_number, body.repo, goal.id)
+    return {
+        "ok": True,
+        "goal_id": goal.id,
+        "event": "issue_opened",
+        "issue_number": body.issue_number,
+        "repo": body.repo,
+        "simulated": True,
+    }

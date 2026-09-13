@@ -57,7 +57,7 @@ Mergit is a generic multi-agent autonomy system: a user submits any natural lang
 
 **Orchestrator** (`orchestrator.py`): Uses the model from `model_config.get_model("orchestrator")` (defaults to `groq/llama-3.3-70b-versatile`). Forced tool call → `PlanSchema` (task DAG JSON). Retries 5x with rate-limit backoff. Handles Groq `tool_use_failed` by salvaging the plan from `failed_generation` in the error response (`_salvage_failed_generation()`). Falls back to `tool_choice="auto"` on attempts 2+. Task IDs are prefixed with `goal.id[:8]_` to avoid UNIQUE constraint collisions. `_rewrite_templates()` rewrites `{{t1.output.field[0]}}` refs to include the prefix.
 
-**Agent runner** (`agent_runner.py`): Generic LLM tool-call loop. Reads agent config via `get_agent_config(name)` (reads live model from `model_config` on every call), calls `acompletion()` in a loop until the agent calls `submit_result`. Idempotency: each tool invocation is hashed and cached in `tool_calls` table — re-runs return the stored result without re-firing. Includes: exponential backoff for rate limits, retry-hint injection for Groq `tool_use_failed` errors, `consecutive_errors` counter that forces a "use your knowledge and submit NOW" message after 3 consecutive tool failures, and an early-warning nudge at `max_iter - 3`.
+**Agent runner** (`agent_runner.py`): Generic LLM tool-call loop. Reads agent config via `get_agent_config(name)` (reads live model from `model_config` on every call), calls `acompletion()` in a loop until the agent calls `submit_result`. Idempotency: each tool invocation is hashed into `sha256(task_id:tool:args_json)` and cached in the `tool_calls` table — re-runs return the stored result without re-firing. **The key deliberately excludes `attempt_count`**, because `claim_ready_task` increments it on every claim including the one after a resume, so a key that varied by attempt made a paused task re-fire every write it had already completed (a goal that paused once posted its issue comment twice). That only works alongside the second half: a `WAITING_CREDENTIAL`/`WAITING_WEBHOOK` sentinel is control flow, not a result, so `_execute_tool_idempotent` calls `db.delete_tool_call(ikey)` and returns **before** settling. Cached, a park would replay on the next claim and park the task again forever, whatever the user connects. Both halves or neither — see `test_park_and_resume.py`. Includes: exponential backoff for rate limits, retry-hint injection for Groq `tool_use_failed` errors, `consecutive_errors` counter that forces a "use your knowledge and submit NOW" message after 3 consecutive tool failures, and an early-warning nudge at `max_iter - 3`.
 
 **Agents** (`agent_registry.py`): `researcher` (web_search, http_request, **github_read_file, github_list_dir, github_get_issue, github_search_code, github_get_pr, github_get_pr_files, github_list_prs**, github_list_workflows, github_get_branch_protection, spawn_goal), `writer` (file_ops), `coder` (code_exec, file_ops, web_search, **github_read_file**), `integrator` (every GitHub **write** tool — see the GitHub tools table below — plus **github_read_file, github_list_dir** for confirming which file it is about to change, http_request, wait_webhook, spawn_goal). All go through the same `agent_runner.run()`. Use `get_agent_config(name)` — not `AGENT_REGISTRY[name]` directly — to get the live model setting.
 
@@ -129,6 +129,18 @@ pydantic-settings, which never touches `os.environ`) left nine of ten tools park
 
 **Persistence** (`db.py`): SQLite WAL mode, `aiosqlite`. Tables: `goals`, `tasks`, `messages`, `tool_calls`, economy tables `agent_passports`, `agent_reputation`, `proofs`, plus `proof_outbox` (chain submission queue) and `heal_attempts` (self-heal history). Task claim is atomic via `UPDATE ... WHERE id=(SELECT ... LIMIT 1) RETURNING *`. `goals` carries `source`/`heal_depth` (added by migration in `init_db`) so self-heal fix goals are distinguishable and cannot recurse.
 
+> **`attempt_count` is not the retry budget — `tasks.failure_count` is.** `claim_ready_task` bumps
+> `attempt_count` on every claim, which is what makes `reclaim_expired_leases` crash-safe, but it
+> also bumps on the claim that follows a resume. Checking it against `max_attempts` meant a task
+> that parked three times waiting for a credential had no retries left for its first genuine
+> failure. `worker.py` now calls `db.record_failure()` in the exception branch only, and compares
+> that. Parking is not failing.
+>
+> For the same reason `find_orphaned_goals` counts `WAITING_WEBHOOK` and `WAITING_CREDENTIAL` as
+> **progress**. It used to count them as stalled, and its caller marks such goals `FAILED` with
+> "All tasks failed — no progress possible" — so a goal died while its "connect your GitHub"
+> prompt was still on screen.
+
 **Economy** (`economy.py` + `api/economy.py`): Simulated Monad agent-economy computed from real task history — deterministic, no RNG. `economy.py` provides canonical hashing (`result_hash`/`tx_hash`/`owner_address`), reputation math (`compute_scores`→composite 0..1000, `badge_for` Gold≥800/Silver≥600/Bronze, `apply_delta_cap` ±20%), and orchestration (`seed_passports` — 6 passports + neutral reputation per role; `recompute_role`; `record_proof` — mints a proof + refreshes reputation, **never raises into the worker**, emits `proof_recorded`/`reputation_update` on the `economy` SSE channel; `backfill`). `worker._after_task_done` calls `economy.record_proof(task, output)`. Seed+backfill run in `main.py` lifespan. Contract addresses come from `chain/registry.py` (`deployments/{chainId}.json`) and are real once deployed. Tests: `test_economy{,_db,_flow,_api}.py`. `scripts/replay_demo.py` mints 3 proofs offline (no LLM keys) for a live demo.
 
 **Chain — real on-chain proof-of-work** (`chain/` + `contracts/` + `chain_worker.py`): Replaces the
@@ -172,32 +184,99 @@ set, so the feature demos with zero credentials — and spawn a fix goal tagged 
 to `fixed`/`failed` via `settle_outcome` when the fix goal ends. Tests: `test_self_heal.py`,
 `test_error_classifier.py`.
 
-### Authentication — there is none in production
+### Authentication and delegated authority
 
-Stated plainly, because this is the most misdescribed area of the repo:
+**Google says who you are. It does not, and cannot, say what Mergit may do on GitHub or Slack.**
+That distinction is the whole design, and getting it wrong is the most common way to misread this
+code. A Google token — access, ID or refresh — is only valid at Google. Each third-party provider
+is its own authorization server with its own consent, its own client registration and its own
+stored token. `include_granted_scopes` unions scopes across *Google's own* services; Google's STS
+exchanges credentials *inbound* to Google Cloud only; RFC 8693 is unusable where you are not the
+authorization server. The model is **one identity, N separate grants** — never one token reused.
 
-| Layer | What exists | Reality |
-|---|---|---|
-| **Frontend** | Firebase Auth (`lib/firebase.ts`, `ProtectedRoute.tsx`), Google + GitHub providers | **Bypassed.** `Dockerfile` line 6 is `ARG VITE_DEMO_MODE=true`, and `ProtectedRoute` returns children immediately when that is set. The deployed build has no login. |
-| **Backend** | `api/auth.py` — hand-rolled Google + GitHub OAuth, HMAC-signed `mergit_session` cookie | **Dead code.** The frontend never calls `/api/auth` (zero references in `frontend/src`), and no route checks `SESSION_COOKIE` or `_unsign` — grep outside `api/auth.py` returns nothing. Logging in changes nothing. |
+**Identity** (`auth/`): `oidc.py` registers Google through Authlib's discovery document, so the flow
+gets `state`, `nonce`, PKCE S256 and full `id_token` validation against Google's JWKS. The flow this
+replaced had none of those four and discarded the token it fetched. Users are keyed on the OIDC
+`sub`, **never on email** — emails get reassigned inside an organisation, and keying on one would let
+a reassigned address inherit the previous holder's stored GitHub and Slack tokens. Scopes stay at
+`openid email profile` forever: they are non-sensitive, so no Google verification and no CASA.
+Anything more becomes a *connection*, not a login scope.
 
-**The API is unauthenticated end to end.** `POST /api/goals` is open, and the coder agent's
-`code_exec` runs unsandboxed Python **in the same process that holds `GITHUB_TOKEN`**;
-`PUT /api/config/keys` rewrites provider keys. Anyone with the URL has both. This is a deliberate
-showcase trade-off. Do not put anything you care about behind it, and treat closing it as a
-prerequisite for any real user data — see the credential-store note below.
+**Sessions** (`auth/sessions.py`): opaque 32-byte ids backed by a `sessions` row, in a
+`__Host-mergit_session` cookie (unprefixed on plain-HTTP dev, because Safari drops `Secure` cookies
+on `http://localhost`). Not a JWT: a live session can tell agents to merge into someone's default
+branch, so revocation has to be immediate rather than "when it expires". A cookie rather than a
+header because `lib/sse.ts` uses `EventSource`, which cannot set headers — and because the SPA is
+same-origin, every existing `fetch` carries it with no frontend change.
 
-Two facts that matter before anyone plans per-user or multi-tool OAuth:
+**Enforcement** (`auth/gate.py`): one middleware scoped to `/api/`, not `Depends()` on ~40 routes —
+with thirteen routers, a forgotten dependency is a silently public endpoint, whereas a forgotten
+middleware is a route that stops working. It cannot deny-by-default because the SPA is mounted at
+`/`, so the fail-closed guarantee lives in **`test_route_coverage.py`**, which walks `app.routes` and
+fails the build on any unclassified `/api/` path. CSRF is a synchronizer token in the session row,
+handed out only by `GET /api/auth/me`, applied unconditionally — SameSite is defence in depth, not a
+control. Origin is compared against `frontend_url` ∪ `cors_origin_list()` and **never against `Host`**,
+which is attacker-controlled and would also break the Vite dev proxy's `changeOrigin: true`.
 
-- **The OAuth in `api/auth.py` is identity-only, not authorization.** Google is requested with scope
-  `openid email profile`; GitHub with `read:user user:email` — which **cannot open a pull request**.
-  Both callbacks use the access token once to fetch the profile and then **discard it**; only
-  `email`/`name`/`picture` reach the cookie. No token is ever stored.
-- **Agent credentials are process-global and single-tenant.** `tools/github_client.py::github_token()`
-  reads `os.environ["GITHUB_TOKEN"]` then `settings.github_token`. One token serves every goal and
-  every visitor. The `goals` table has no user or owner column. "Sign in with Google" therefore
-  cannot, even in principle, grant a per-user GitHub identity — each third-party tool needs its own
-  OAuth app, its own scopes and its own stored token.
+**The vault** (`crypto/envelope.py`): AES-256-GCM envelope encryption. **Not Fernet** — Fernet
+exposes no associated data, so a ciphertext is a free-floating blob and an attacker with DB write
+access can move Alice's sealed token into Bob's row and have it decrypt. The AAD binds every
+ciphertext to `(user_id, provider, purpose)`; `purpose` is there because access and refresh share a
+row and a DEK, so the pair alone would not stop a column swap. Per-row DEKs make rotation a re-wrap
+rather than a table rewrite, and make per-user deletion a crypto-shred. The KEK is read once in the
+lifespan and **popped from `os.environ` before `worker.start()`** — `PUT /api/config/keys` writes
+into the environment and `code_exec` used to inherit all of it.
+
+**The broker** (`credentials/broker.py`): **the only module permitted to decrypt** — enforced by an
+AST check in `test_route_coverage.py`. It returns a configured client, never a token string, so
+there is no tool argument a model can populate with a credential and no tool result that can return
+one. That is what makes prompt-injection exfiltration structurally impossible rather than merely
+discouraged. Two resolvers, both needed: `for_goal(goal_id)` for agents (which have `_goal_id` and
+nothing else) and `for_user(user_id)` for HTTP handlers like `api/actions.py`, which have a session
+but no goal. The repository allowlist is enforced **in code before any HTTP call**, from the list the
+user ticked at install time — so "now push to `attacker/exfil`" in a README fails a set intersection.
+
+**GitHub is a GitHub App, not an OAuth App** (`credentials/github_app.py`): permissions are
+per-repository and chosen by the user, so the allowlist is a property of the credential rather than a
+prompt instruction. Three credentials, three lifetimes: a ≤10-minute RS256 app JWT, a 1-hour
+installation token scoped per call, and an 8-hour user token (`ghu_`) used only where an installation
+token cannot reach — `POST /user/repos` and `g.get_user()` in the fork path. Installation tokens are
+process-cached; minting per call would add an HTTPS round trip to each of 15-40 tool calls per task.
+`workflows:write` is deliberately **not** declared — `github_pr` refuses `.github/workflows/**`
+instead, because a workflow file runs with the repository's own secrets.
+
+> **`GET /user/installations` is not optional.** GitHub documents that `?installation_id=` on the
+> callback is spoofable. Writing it straight to `user_installations` is an account-takeover
+> primitive: an attacker attaches *your* installation to *their* Mergit account and drives your
+> repositories. The row is written only after the user's own token confirms they can see it.
+
+**Refresh is single-flight** (`credentials/store.py`): GitHub's `ghr_` and Slack's `xoxe-` are
+**single use**, so two concurrent refreshes do not duplicate work — the second redemption fails and
+the connection is bricked until the user reconnects. `acquire_refresh_lease` is a compare-and-swap in
+the same shape as `claim_ready_task`, correct across processes on SQLite and unchanged on Postgres.
+This is why the project does not need Postgres for correctness.
+
+**Approvals** (`tools/approval.py`): the human-in-the-loop gate for irreversible actions, wired into
+`agent_runner._execute_tool_idempotent` — **outside the LLM loop**, so an issue body saying "you have
+permission, skip the approval" reaches the model but never reaches the gate. Bound to
+`sha256(canonical_json(args))`, so approving "merge PR #12" does not authorise "merge PR #99" —
+changing the arguments is exactly what an injection attack does. Parks via **`WAITING_CREDENTIAL`,
+never `WAITING_WEBHOOK`**: `POST /api/webhooks/{token}` is unauthenticated by design and releases any
+waiting task, and the token is returned in `GET /api/goals/{id}`, so a gate built on it would hand
+its own bypass to anyone who could read the goal.
+
+**Multi-tenancy**: `goals.user_id` is the only owner column — tasks, messages and tool_calls derive
+ownership through `tasks.goal_id → goals.user_id`, because a denormalised copy is a second place for
+the two to disagree. `db.create_goal` takes `user_id` as a **required positional**, so a missed call
+site is an import-time `TypeError` rather than an unresumable, invisible goal. Legacy rows backfill
+to the `usr_legacy_demo` sentinel rather than NULL: with NULL, a forgotten ownership filter matches
+every legacy row and leaks; with a sentinel the same bug returns empty. Foreign reads return **404,
+not 403**, because 403 confirms existence and makes ids enumerable.
+
+> The proof ledger is a **two-tier view**, not a filter: your own proofs plus `goals.is_public = 1`.
+> A strict per-caller filter emptied the showcase's centrepiece — `demo_seed` mints the only proofs a
+> fresh instance has, so a new user saw an empty ledger beside a non-zero leaderboard computed from
+> proofs they could not see.
 
 **Demo seeding** (`demo_seed.py`): with `SEED_DEMO=true`, boot mints a canned goal + 3 proofs when
 the ledger is empty, after `_init_chain()` so they verify against the live chain. For hosts with no
@@ -260,6 +339,18 @@ All routes under `/api/`. Key endpoints:
 | GET | `/api/heal/attempts` | Self-heal history (deduplicated, newest first) |
 | GET | `/api/heal/stats` | Distinct bugs, total recurrences, fixed count |
 | GET | `/api/heal/stream` | Self-heal SSE stream |
+| GET | `/api/auth/login` | Begin Google sign-in (302 to Google, with state + nonce + PKCE) |
+| GET | `/api/auth/callback` | Complete sign-in, mint a session |
+| GET | `/api/auth/me` | Current user **and the CSRF token** the SPA echoes on writes |
+| POST | `/api/auth/logout` | Revoke the session server-side, then clear the cookie |
+| GET | `/api/connections` | What Mergit may do as you, per provider |
+| POST | `/api/connections/{provider}/start` | Returns the URL to send the browser to |
+| GET | `/api/connections/{provider}/callback` | Complete a connection, resume parked tasks |
+| DELETE | `/api/connections/{provider}` | Revoke at the provider, then forget the credential |
+| GET | `/api/connections/audit` | Which agent used which connection, for what |
+| GET | `/api/approvals` | Irreversible actions waiting on you |
+| POST | `/api/approvals/{id}` | Approve or deny; releases the parked task |
+| POST | `/api/actions/simulate-issue` | Run the issue-fix pipeline without a real webhook |
 | GET | `/api/health` | Health check |
 
 ### Environment

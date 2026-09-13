@@ -1091,3 +1091,164 @@ Not fixed, only flagged: `backend/.env.example` still lists `OPENAI_API_KEY`, `G
 `MISTRAL_API_KEY`, which no model uses, and omits `OPENROUTER_API_KEY`, which every fallback chain
 now ends in — so a deployment set up from the example has no cross-provider escape when a daily
 quota runs out.
+---
+
+## 2026-08-15 — The auth plan, and the three bugs that stood in its way
+
+**Planned:** per-user identity and delegated authorization — Google sign-in, per-user GitHub and
+Slack connections, and the "build me a Slack bot" flow end to end. Researched by a 26-agent
+workflow (nine domains, each adversarially fact-checked; three candidate architectures scored by
+security / time-to-ship / product judges; synthesised and put through a completeness critic). The
+blueprint lives in the approved plan file; the decisions that matter are recorded below.
+
+**This flips `final.md` D3 from C to B.** The decision register decided *solo dev, self-hosted,
+single-tenant is correct, not a gap* one day earlier and rated multi-tenancy + auth XL, gated on
+"only if D3 = B". That gate is now open by explicit choice. `final.md` D3/D4 and `ROADMAP.md` M4
+must be updated to say so, or the next reader finds a register that contradicts the code.
+
+**The premise that had to be corrected first.** The request assumed Google auth could authorize
+GitHub and Slack. It cannot, by any mechanism: `include_granted_scopes` unions scopes across
+*Google's own* services, Google's STS exchanges credentials *inbound* to Google Cloud only, and
+RFC 8693 is unusable where you are not the authorization server. Google is the identity anchor;
+each provider needs its own OAuth client, consent and stored token. One identity, N grants.
+
+**Shipped this session — Phase 1's correctness half.** Three bugs on the park/resume path, all
+live on `main`, all invisible while parking was rare. Per-user OAuth makes every "connect your
+GitHub" prompt a park, which turns each of them into a product defect:
+
+- **The idempotency cache missed on every resume.** `_idempotency_key` included `attempt`, and
+  `claim_ready_task` increments `attempt_count` on *every* claim — including the claim after a
+  resume. Identical work hashed to a different key, so a resumed task re-fired every write it had
+  already completed. Reproduced: a goal that paused once posted its issue comment **twice**.
+- **The naive fix was worse, and nearly shipped.** Dropping `attempt` alone livelocks the product.
+  `_execute_tool_idempotent` settles `SUCCESS` unconditionally, and the `WAITING_*` sentinels are
+  ordinary dict returns, not exceptions — so a park was stored as a completed call. With a stable
+  key it replays on the next claim, parks again, and does so forever regardless of what the user
+  connects. A park is now deleted from `tool_calls` (`db.delete_tool_call`) before it can settle.
+  Verified both ways against a scratch copy of `HEAD`.
+- **Parking spent the retry budget.** `worker.py` checked `attempt_count` against `max_attempts`,
+  so a task that paused three times had nothing left for its first genuine failure. New
+  `tasks.failure_count` column (migrated + backfilled in `init_db`) is the budget and moves only
+  on a real exception; `attempt_count` stays the claim counter that makes lease reclaim crash-safe.
+- **The orphan sweeper killed goals that were waiting on a human.** `find_orphaned_goals` counted
+  `WAITING_CREDENTIAL`/`WAITING_WEBHOOK` as stalled, and its caller marks such goals `FAILED` with
+  "All tasks failed — no progress possible". A goal died while its connect prompt was on screen.
+  Both statuses now count as progress.
+
+**Verified:** `test_park_and_resume.py` — four tests, all four **fail on `HEAD`** and pass after,
+with the double-post reproducing as `['on it', 'on it']`. Suite 331 → **335 passed, 35 skipped**.
+
+**Still open in Phase 1** (not started): fail-close the GitHub webhook and move the Simulate form
+to an authenticated route in the same commit — `frontend/src/pages/Webhooks.tsx:25` posts it
+unsigned at `/api/webhooks/github`, so fail-closing alone breaks the deployed demo; `code_exec`
+and `http_request` hardening; log/DB redaction; dependency pinning; and the Render persistent disk
+(a billing change, deliberately left for the operator).
+
+---
+
+## 2026-08-15 — Per-user identity and delegated authority, built
+
+The plan from earlier today, implemented. Google sign-in, per-user GitHub and Slack connections, an
+encrypted credential vault, a human-in-the-loop gate on irreversible actions, and multi-tenancy
+across every read path. **461 tests passing** (was 331), frontend builds clean, verified against a
+running server.
+
+**What shipped, by phase.**
+
+*Phase 1 — hardening and three live correctness bugs* (recorded in the earlier session block, plus):
+the GitHub webhook now **fails closed** and reads its secret from `Settings` **or** the environment —
+it read only `os.environ`, so a secret set the documented way left it failing *open*, the third time
+that split has bitten this repo. `POST /api/actions/simulate-issue` was added in the same commit,
+because the Automate page's Simulate button posted an unsigned payload at the receiver and
+fail-closing alone would have broken the demo. `code_exec` no longer inherits the environment — it
+had `GITHUB_TOKEN`, every provider key and `CHAIN_PRIVATE_KEY`, and `print(os.environ)` carried them
+to stdout → tool result → `tool_calls` → SSE → back into model context. `http_request` was an SSRF
+and exfiltration primitive on both the researcher and integrator; it is now https-only, refuses
+private/loopback/link-local after resolution, does not follow redirects, and its `headers` parameter
+is gone from the schema entirely.
+
+*Phase 2 — identity and multi-tenancy.* Authlib + Google OIDC replaces the hand-rolled flow, which
+had no `state` (login CSRF), no PKCE, no `nonce`, and never validated the `id_token` it was handed.
+Opaque server-side sessions, because a live session can tell agents to merge into someone's default
+branch and revocation must be immediate. One `/api/`-scoped middleware rather than `Depends()` on
+~40 routes — a forgotten dependency is a public endpoint, a forgotten middleware is a broken route.
+`db.create_goal` now takes `user_id` as a **required positional**: all seven call sites were missing
+it, and a goal without an owner parks on `conn:github:` with an empty user and can never be resumed
+or even seen.
+
+*Phase 3 — the vault.* AES-256-GCM envelope encryption with associated data binding every ciphertext
+to `(user_id, provider, purpose)`. Not Fernet, and the test proves why: without AAD an attacker with
+DB write access moves one user's sealed token into another's row and it decrypts cleanly. The KEK is
+read once and popped from `os.environ` before the worker starts.
+
+*Phase 4 — the broker.* `credentials/broker.py` is the only module that can decrypt, enforced by an
+AST check in CI. It returns clients, never token strings, so no tool argument can hold a credential
+and no tool result can return one. All 20 GitHub tools rewired through it; the repository allowlist —
+the list the user ticked at install time — is enforced in code before any HTTP call.
+
+*Phase 5 — approvals.* The gate lives in the tool wrapper, outside the LLM loop, bound to a hash of
+the exact arguments. Approving "merge PR #12" does not authorise "merge PR #99".
+
+**Storage, on a $0 budget** (D7 in `final.md`): Litestream → Backblaze B2. Researched by a 15-agent
+workflow; the decisive measurement was that the 1 Hz worker polling generates **zero WAL bytes**
+(2,000 no-op claim cycles grew the WAL by 0), so the ~2.6M monthly statements cost nothing and the
+bill is set by compaction timers alone — ~76k operations/month, and B2 has no operation cap at all.
+Also found and fixed: `claim_new_goal` ran `SCAN goals` plus a sort **once per second, forever**, and
+goals are never deleted. Migration 006 adds the index; verified the plan becomes `SEARCH … USING INDEX`.
+
+**Verified live**, not just in tests: health 200 while `/api/goals`, `/api/connections`,
+`/api/approvals`, `/api/config/keys` and `/api/economy/proofs` all 401; the SPA still served at `/`;
+an unsigned webhook rejected; and the authorize redirect carrying `state`, `nonce`,
+`code_challenge` + `code_challenge_method=S256`, with scopes at `openid email profile`.
+
+**Not done, and deliberately so.** The Slack *bot factory* (create → install → test → deliver) is
+designed in the plan but unbuilt — it depends on `code_exec` running out of process, which is its own
+phase. Slack *connect* works; building bots does not yet. No commits made: the working tree is left
+for review.
+
+---
+
+## 2026-08-18 — The stash pop that never finished, and the API drift it hid
+
+The tree was stuck mid-`git stash pop`. `git pull origin main --rebase` had fast-forwarded `main`
+from `dcbbfae` to `8e8814f`, pulling in five upstream fix commits; popping the auth/credentials WIP
+on top of them collided in three files. There was no `MERGE_HEAD` — the pop had been `git add`ed
+*while still conflicted* and then re-popped, so stage 2 ("ours") literally contained
+`<<<<<<< Updated upstream` markers. The working tree held a hand-resolution that was never staged.
+
+**The three resolutions, all keeping both sides rather than picking one:**
+
+- `worker.py` — upstream fenced `settle_task` with `worker_id=lease_holder`; the stash switched the
+  retry budget from `attempt_count` to `failures`. Both are needed and neither subsumes the other:
+  the fence stops a reclaimed worker settling, and `failure_count` is what makes parking-not-failing
+  true. Kept `failures >= fresh.max_attempts` **and** `worker_id=lease_holder`.
+- `tools/github_pr.py` — upstream added `import language` and the `_changes_nothing` guard; the stash
+  added `credential_check` to the import list and the `as_user=True` fork path (an installation token
+  has no user, so `g.get_user()` cannot run on it). Kept all four.
+- `progress.md` — both session blocks, separated by a rule. Nothing dropped.
+
+**What the conflict was hiding.** Resolving the markers left 26 tests failing, and they were real
+drift, not resolution damage — the two sides had changed APIs the other side's tests still called:
+
+- 25 failures, one cause: the five test files the rebase brought in
+  (`test_blocked_tasks`, `test_fabricated_claims`, `test_forced_final_submit`, `test_lease_fencing`,
+  `test_malformed_tool_call`) call `db.create_goal("...")`, and the stashed multi-tenancy work made
+  `user_id` a **required positional**. That is the design working exactly as intended — a missed call
+  site is a loud `TypeError`, not an ownerless goal. Fixed to `user_id="usr_legacy_demo"`, matching
+  every other test.
+- 1 failure, and two silent false passes beside it. Three `github_post_comment` tests stubbed
+  `_require_token` and a **sync** `_client()`; the stash made the gate `_credential_check(args)` and
+  `_client` async. Only the third test noticed, because it asserts `ok is True`. The other two assert
+  `ok is False` — and passed for the wrong reason: the unstubbed credential gate refused the call
+  before the placeholder guard ever ran, so the guard those tests exist to protect was untested.
+  All three now stub the modern seam, and all three assert against real tool logic.
+
+**Verified, not assumed:** 616 passed / 35 skipped. `tsc --noEmit` clean, `npm run build` clean. Boot
+smoke-tested on a throwaway DB both ways — with Google unconfigured every `/api/` route serves the
+documented single-tenant fallback, and with `OAUTH_GOOGLE_CLIENT_ID`/`_SECRET` set every route except
+`/api/health` returns **401**, `/api/auth/login` 302s to Google carrying `state`, `nonce`,
+`code_challenge` and `code_challenge_method`, and an unauthenticated `POST /api/goals` is refused.
+Migration `001_failure_count` applies clean on an empty DB; chain reaches `status=ready`.
+
+Conflicts staged as resolved. Still uncommitted and left for review, as the previous block intended;
+`stash@{0}` is deliberately not dropped until that review lands.

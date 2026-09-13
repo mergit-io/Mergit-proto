@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 import db
+from auth.gate import require_user
 from models import TaskDetail, TaskListResponse
 
 router = APIRouter(prefix="/api", tags=["tasks"])
@@ -24,8 +25,9 @@ def _to_detail(t) -> TaskDetail:
 
 
 @router.get("/goals/{goal_id}/tasks")
-async def list_goal_tasks(goal_id: str) -> TaskListResponse:
-    goal = await db.get_goal(goal_id)
+async def list_goal_tasks(goal_id: str, request: Request) -> TaskListResponse:
+    user = require_user(request)
+    goal = await db.get_goal(goal_id, user_id=user["id"])
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
     tasks = await db.list_goal_tasks(goal_id)
@@ -33,8 +35,17 @@ async def list_goal_tasks(goal_id: str) -> TaskListResponse:
 
 
 @router.get("/tasks/{task_id}")
-async def get_task(task_id: str) -> TaskDetail:
+async def get_task(task_id: str, request: Request) -> TaskDetail:
+    """Tasks carry no owner of their own — ownership derives through the goal.
+
+    Deliberate: a denormalised `user_id` on `tasks` would be a second place for the two to
+    disagree, and the disagreement would be invisible until it leaked. One join instead.
+    """
+    user = require_user(request)
     task = await db.get_task(task_id)
     if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    goal = await db.get_goal(task.goal_id, user_id=user["id"])
+    if not goal:
         raise HTTPException(status_code=404, detail="Task not found")
     return _to_detail(task)
