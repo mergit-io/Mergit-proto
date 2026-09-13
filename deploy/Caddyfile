@@ -8,5 +8,5 @@
 		-Server
 	}
 
-	reverse_proxy omnibox:8000
+	reverse_proxy mergit:8000
 }

@@ -1,5 +1,5 @@
 """
-Omium tracing integration for omniBox.
+Omium tracing integration for Mergit.
 
 Span hierarchy for a goal:
   goal_run  (execution_id = goal.trace_id)
@@ -84,7 +84,7 @@ def goal_trace_context(execution_id: str, goal_title: str):
             span_type="agent",
             goal_id=execution_id,
         ) as root_span:
-            root_span.set_attribute("omnibox.component", "orchestrator")
+            root_span.set_attribute("mergit.component", "orchestrator")
             yield tracer
             root_span.add_event("goal_finished")
     finally:
@@ -104,7 +104,7 @@ def task_span(tracer: Any, task_id: str, agent_name: str, description: str):
         span_type="agent",
         task_id=task_id,
         agent=agent_name,
-        omnibox_component="task_executor",
+        mergit_component="task_executor",
     ) as span:
         yield span
 
@@ -122,7 +122,7 @@ def tool_span(tracer: Any, task_id: str, tool_name: str, args: dict, cached: boo
         task_id=task_id,
         tool=tool_name,
         cached=cached,
-        omnibox_component="tool_executor",
+        mergit_component="tool_executor",
     ) as span:
         yield span
 
@@ -139,7 +139,7 @@ def webhook_span(tracer: Any, task_id: str, wait_token: str, payload: dict):
         span_type="tool",
         task_id=task_id,
         event="webhook_fire",
-        omnibox_component="webhook_receiver",
+        mergit_component="webhook_receiver",
     ) as span:
         yield span
 

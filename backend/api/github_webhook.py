@@ -127,6 +127,6 @@ async def github_webhook(
 
     # ── Ping (webhook configured) ────────────────────────────────────────────────
     if event == "ping":
-        return {"ok": True, "message": "omniBox webhook connected ✓", "zen": payload.get("zen", "")}
+        return {"ok": True, "message": "Mergit webhook connected ✓", "zen": payload.get("zen", "")}
 
     return {"ok": True, "status": "ignored", "event": event, "action": action}

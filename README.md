@@ -1,8 +1,6 @@
 # Mergit — The AI Agent Economy
 Assign any goal to an AI. It decomposes the task, spins up specialized agents, uses your tools, and delivers results. Every completed task mints a proof and bumps its agent's reputation on a simulated Monad agent economy. No workflows to define. No steps to configure. Just delegate.
 
-> Internal service/DB names (`omnibox`, `omnibox.db`) are unchanged pre-existing infra identifiers — see [render.yaml](render.yaml) / [compose.yaml](compose.yaml) — not part of this rebrand.
-
 ## Setup
 
 Create `backend/.env` from the example and fill in provider/tool keys:
@@ -65,7 +63,7 @@ Use Render for the managed cloud deployment. The repo includes `render.yaml`, so
 
 1. Push this repo to GitHub.
 2. In Render, create a new Blueprint from the repo.
-3. Use the generated `omnibox` web service.
+3. Use the generated `mergit` web service.
 4. Set these environment variables in Render:
 
 ```env
@@ -97,7 +95,7 @@ Open:
 https://your-render-or-custom-domain/app
 ```
 
-The Render service mounts a persistent disk at `/data`. The app stores state at `/data/omnibox.db`, `/data/workspace`, and `/data/config`.
+The Render service mounts a persistent disk at `/data`. The app stores state at `/data/mergit.db`, `/data/workspace`, and `/data/config`.
 
 Run one instance only. The planner/executor worker starts inside the FastAPI lifespan, so multiple app instances would start multiple internal workers.
 
@@ -107,9 +105,9 @@ Use this if you deploy to your own VPS instead of Render.
 
 The production deployment is a Docker Compose stack:
 
-- `omnibox`: one FastAPI process that serves the built frontend and runs the internal planner/executor worker.
+- `mergit`: one FastAPI process that serves the built frontend and runs the internal planner/executor worker.
 - `caddy`: HTTPS reverse proxy with automatic TLS certificates.
-- `omnibox_data`: persistent volume for SQLite and agent workspace files.
+- `mergit_data`: persistent volume for SQLite and agent workspace files.
 
 ```bash
 cp .env.production.example .env.production
@@ -139,7 +137,7 @@ Check health and logs:
 
 ```bash
 curl https://your-domain.com/api/health
-docker compose --env-file .env.production logs -f omnibox
+docker compose --env-file .env.production logs -f mergit
 ```
 
 Create a SQLite backup from the running container:
@@ -148,4 +146,4 @@ Create a SQLite backup from the running container:
 ./deploy/backup-sqlite.sh
 ```
 
-Run one app container and one uvicorn worker for now. The planner/executor worker starts inside the FastAPI lifespan, so multiple app replicas would start multiple internal workers. The production container stores state at `/data/omnibox.db`, `/data/workspace`, and `/data/config`.
+Run one app container and one uvicorn worker for now. The planner/executor worker starts inside the FastAPI lifespan, so multiple app replicas would start multiple internal workers. The production container stores state at `/data/mergit.db`, `/data/workspace`, and `/data/config`.

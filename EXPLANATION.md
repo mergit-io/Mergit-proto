@@ -1,4 +1,4 @@
-# omniBox — 5-Minute Pitch & Explanation
+# Mergit — 5-Minute Pitch & Explanation
 
 ---
 
@@ -10,13 +10,13 @@ That's not an engineering problem. That's a coordination and bandwidth problem.
 
 What if you could just describe the problem in plain English, walk away, and come back to a merged pull request?
 
-That's omniBox. A multi-agent autonomy system that takes any natural-language goal and executes it end-to-end. No scripts. No templates. No human in the loop."
+That's Mergit. A multi-agent autonomy system that takes any natural-language goal and executes it end-to-end. No scripts. No templates. No human in the loop."
 
 ---
 
 ## [0:30 – 1:15] What It Is — The Big Picture
 
-"omniBox is built around one idea: **the orchestrator decides, the agents execute, the tools act on the real world.**
+"Mergit is built around one idea: **the orchestrator decides, the agents execute, the tools act on the real world.**
 
 Here's how it works at a high level.
 
@@ -50,7 +50,7 @@ All four agents run through the same generic agent runner. It's a tool-call loop
 
 A developer opens a GitHub issue: 'The calculate function returns None for zero input instead of returning 0.'
 
-omniBox receives that via a webhook. It auto-creates a goal. The orchestrator plans three tasks in under two seconds.
+Mergit receives that via a webhook. It auto-creates a goal. The orchestrator plans three tasks in under two seconds.
 
 Task one: Researcher. It calls github_get_issue to read the bug description. Then github_list_dir to explore the repo structure. Then github_read_file on the relevant source files. It outputs the code context — the actual broken function — plus a summary of the bug.
 
@@ -70,7 +70,7 @@ From webhook to merged-ready PR — fully autonomous. The developer opens their 
 
 **Layer two: spawn_goal.** Any agent, mid-execution, can call the spawn_goal tool. If the researcher discovers a problem that's bigger than its current task — a systemic bug, a missing dependency — it creates a new autonomous goal and hands it off. The system branches without human input.
 
-**Layer three: Self-heal.** We have an error classifier that distinguishes between external failures — rate limits, network errors, auth issues — and developer-side bugs — crashes in our own code. When it detects a bug in omniBox itself, it automatically files a GitHub issue on our repo, then spawns a fix goal: researcher reads the broken file, coder writes the patch, integrator opens the PR. The system debugs and fixes itself."
+**Layer three: Self-heal.** We have an error classifier that distinguishes between external failures — rate limits, network errors, auth issues — and developer-side bugs — crashes in our own code. When it detects a bug in Mergit itself, it automatically files a GitHub issue on our repo, then spawns a fix goal: researcher reads the broken file, coder writes the patch, integrator opens the PR. The system debugs and fixes itself."
 
 ---
 
@@ -98,8 +98,8 @@ The specific pain points we eliminate:
 
 - **Issue-to-PR latency** — from days to minutes, zero developer time.
 - **CI/CD setup toil** — 'add a pytest workflow to this repo' becomes a one-sentence instruction instead of an hour of YAML writing.
-- **Codebase onboarding** — new engineers ask omniBox to map the architecture. They get a Mermaid diagram and a written explanation based on the actual source code, not stale documentation.
-- **Open source maintainer burnout** — hundreds of issues, two maintainers. omniBox triages, fixes the clear bugs, and hands back only the hard ones.
+- **Codebase onboarding** — new engineers ask Mergit to map the architecture. They get a Mermaid diagram and a written explanation based on the actual source code, not stale documentation.
+- **Open source maintainer burnout** — hundreds of issues, two maintainers. Mergit triages, fixes the clear bugs, and hands back only the hard ones.
 
 The differentiator is that this isn't a copilot. It's not autocomplete. It's a system that completes entire workflows end-to-end, verifies its own output, recovers from its own failures, and gets smarter about your codebase the more it runs."
 
@@ -107,9 +107,9 @@ The differentiator is that this isn't a copilot. It's not autocomplete. It's a s
 
 ## [4:50 – 5:00] Close
 
-"omniBox is open source, runs locally with a single make command, supports 40 LLM models, traces every execution through Omium, and just built and submitted this pitch autonomously.
+"Mergit is open source, runs locally with a single make command, supports 40 LLM models, traces every execution through Omium, and just built and submitted this pitch autonomously.
 
-The code is at github.com/viscous106/omniBox.
+The code is at github.com/mergit-io/Mergit-proto.
 
 Thank you."
 
@@ -126,7 +126,7 @@ Thank you."
 > The orchestrator retries up to 5 times. Each failed attempt appends the validation error to the conversation so the model can self-correct. We also auto-fill missing dependency edges from template references, so if the model forgets to declare a dependency it referenced in the inputs, we add it automatically.
 
 **Q: How is this different from LangChain or AutoGen?**
-> Those are frameworks — they give you building blocks. omniBox is a complete running system: persistence, crash recovery, idempotency, live UI, SSE streaming, multi-provider LLM fallback, self-healing, and a production-ready API. You don't write any code to use it — you describe goals.
+> Those are frameworks — they give you building blocks. Mergit is a complete running system: persistence, crash recovery, idempotency, live UI, SSE streaming, multi-provider LLM fallback, self-healing, and a production-ready API. You don't write any code to use it — you describe goals.
 
 **Q: What's the cost per goal?**
 > Entirely depends on the goal complexity and model choice. A typical GitHub fix goal with Groq's free tier costs fractions of a cent — Groq's inference is fast and cheap. For heavy orchestration with Claude, costs are still in the single-digit cents range per goal.
@@ -135,4 +135,4 @@ Thank you."
 > Yes — that's the point. The orchestrator doesn't match against a template library. It reasons about the goal from first principles and decomposes it using the agent descriptions and tool capabilities in its system prompt. We've tested it with goals we never anticipated and it produces valid plans.
 
 **Q: What's next?**
-> Memory per repo — agents that accumulate understanding of a codebase across goals. Multi-repo orchestration. A hosted version with team workspaces. And a webhook-first mode where omniBox monitors repos continuously and acts on new issues and PRs without any manual trigger.
+> Memory per repo — agents that accumulate understanding of a codebase across goals. Multi-repo orchestration. A hosted version with team workspaces. And a webhook-first mode where Mergit monitors repos continuously and acts on new issues and PRs without any manual trigger.

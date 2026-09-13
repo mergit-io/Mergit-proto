@@ -12,8 +12,8 @@ build/
 backend/.env
 backend/model_config.json
 backend/context.json
-backend/omnibox.db
-backend/omnibox.db-*
+backend/mergit.db
+backend/mergit.db-*
 backend/workspace/
 
 # Frontend
@@ -22,3 +22,5 @@ frontend/dist/
 
 # OS
 .DS_Store
+
+backend/logs/

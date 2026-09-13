@@ -6,8 +6,8 @@ backend/.env
 backend/.venv
 backend/__pycache__
 backend/**/*.pyc
-backend/omnibox.db
-backend/omnibox.db-*
+backend/mergit.db
+backend/mergit.db-*
 backend/logs
 backend/workspace
 backend/model_config.json
@@ -15,6 +15,6 @@ backend/context.json
 
 frontend/node_modules
 frontend/dist
-frontend/omnibox.db
+frontend/mergit.db
 
 *.log

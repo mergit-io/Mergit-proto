@@ -1,18 +1,18 @@
 services:
   - type: web
-    name: omnibox
+    name: mergit
     runtime: docker
     dockerfilePath: ./Dockerfile
     healthCheckPath: /api/health
     disk:
-      name: omnibox-data
+      name: mergit-data
       mountPath: /data
       sizeGB: 10
     envVars:
       - key: HOST
         value: 0.0.0.0
       - key: DB_PATH
-        value: /data/omnibox.db
+        value: /data/mergit.db
       - key: WORKSPACE_DIR
         value: /data/workspace
       - key: RUNTIME_CONFIG_DIR
@@ -42,7 +42,7 @@ services:
       - key: OMIUM_API_KEY
         sync: false
       - key: OMIUM_PROJECT
-        value: omnibox
+        value: mergit
       - key: OMIUM_SKIP_WORKFLOW_REGISTER
         value: "true"
       - key: OAUTH_GOOGLE_CLIENT_ID
