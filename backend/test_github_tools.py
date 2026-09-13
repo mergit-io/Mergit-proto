@@ -1189,3 +1189,84 @@ def test_a_very_short_file_is_not_policed(monkeypatch):
                                 "files": [{"path": "VERSION", "content": "2.0.0\n"}]}))
 
     assert result["ok"] is True
+
+
+# ── A comment with an unresolved placeholder must not reach a public repo ───────
+
+def test_a_comment_containing_an_unresolved_template_is_refused(monkeypatch):
+    """An integrator that has not created the PR yet writes the placeholder it was given
+    and posts it. The comment lands publicly reading "see PR #{{t3.output.pr_number}}",
+    and a corrected one follows — twice the noise, on someone else's repository."""
+    from tools import github_ops as gops
+
+    posted = []
+
+    class FakeIssue:
+        def create_comment(self, body):
+            posted.append(body)
+            return type("C", (), {"id": 1, "html_url": "u"})()
+
+    class FakeRepoObj:
+        def get_issue(self, n): return FakeIssue()
+
+    monkeypatch.setattr(gops, "_require_token", lambda: True)
+    monkeypatch.setattr(gops, "_client", lambda: type("G", (), {"get_repo": lambda s, r: FakeRepoObj()})())
+
+    result = run(gops.github_post_comment({
+        "repo": "o/r", "issue_number": 7,
+        "body": "Fixed in PR #{{t3.output.pr_number}} — please review."}))
+
+    assert result["ok"] is False
+    assert posted == [], "the placeholder comment was published anyway"
+
+
+def test_a_comment_containing_an_angle_bracket_placeholder_is_refused(monkeypatch):
+    """The other shape actually seen: `#<pr_number>`, written by the model rather than
+    left behind by interpolation."""
+    from tools import github_ops as gops
+
+    posted = []
+
+    class FakeIssue:
+        def create_comment(self, body):
+            posted.append(body)
+            return type("C", (), {"id": 1, "html_url": "u"})()
+
+    class FakeRepoObj:
+        def get_issue(self, n): return FakeIssue()
+
+    monkeypatch.setattr(gops, "_require_token", lambda: True)
+    monkeypatch.setattr(gops, "_client", lambda: type("G", (), {"get_repo": lambda s, r: FakeRepoObj()})())
+
+    result = run(gops.github_post_comment({
+        "repo": "o/r", "issue_number": 7, "body": "Opened PR #<pr_number> for this."}))
+
+    assert result["ok"] is False
+    assert posted == []
+
+
+def test_an_ordinary_comment_is_posted(monkeypatch):
+    """Angle brackets are normal in prose, code and markdown. Only a blank-shaped one is
+    refused: lowercase snake_case with an underscore. CamelCase generics, HTML tags and
+    autolinks all read as ordinary text and must post."""
+    from tools import github_ops as gops
+
+    posted = []
+
+    class FakeIssue:
+        def create_comment(self, body):
+            posted.append(body)
+            return type("C", (), {"id": 1, "html_url": "u"})()
+
+    class FakeRepoObj:
+        def get_issue(self, n): return FakeIssue()
+
+    monkeypatch.setattr(gops, "_require_token", lambda: True)
+    monkeypatch.setattr(gops, "_client", lambda: type("G", (), {"get_repo": lambda s, r: FakeRepoObj()})())
+
+    body = ("Fixed in PR #34. Use `Vec<String>`, see <https://example.com>, and the "
+            "<div> wrapper stays as it is.")
+    result = run(gops.github_post_comment({"repo": "o/r", "issue_number": 7, "body": body}))
+
+    assert result["ok"] is True
+    assert posted == [body]
