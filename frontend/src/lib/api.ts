@@ -50,6 +50,19 @@ export interface GoalDetail {
   updated_at: number;
 }
 
+export interface ModelOption {
+  id: string;
+  label: string;
+  provider: string;
+  tier: string;
+}
+
+export interface ModelConfig {
+  models: Record<string, string>;
+  available: ModelOption[];
+  defaults: Record<string, string>;
+}
+
 export const api = {
   submitGoal: (goal: string) =>
     request<{ goal_id: string; status: string; created_at: number }>("/goals", {
@@ -68,5 +81,13 @@ export const api = {
     request<{ ok: boolean; task_id: string }>(`/webhooks/${token}`, {
       method: "POST",
       body: JSON.stringify(payload),
+    }),
+
+  getModelConfig: () => request<ModelConfig>("/config/models"),
+
+  updateModelConfig: (models: Record<string, string>) =>
+    request<{ models: Record<string, string>; ok: boolean }>("/config/models", {
+      method: "PUT",
+      body: JSON.stringify({ models }),
     }),
 };

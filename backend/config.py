@@ -29,5 +29,8 @@ class Settings(BaseSettings):
     lease_seconds: int = 120
     poll_interval_seconds: float = 1.0
 
+    # Dev
+    debug: bool = False
+
 
 settings = Settings()

@@ -16,6 +16,7 @@ from agent_runner import WaitingWebhookSignal, run as agent_run
 from config import settings
 from interpolation import resolve_inputs
 from state import GoalStatus, TaskStatus
+from tracing import goal_trace_context, task_span, get_active_tracer
 
 logger = logging.getLogger(__name__)
 
@@ -56,14 +57,17 @@ async def _goal_planner_loop() -> None:
 
 async def _plan_goal(goal: Any) -> None:
     events.emit(goal.id, "goal_status", {"status": GoalStatus.PLANNING, "goal_id": goal.id})
-    try:
-        await orch.run_plan(goal)
-        events.emit(goal.id, "goal_status", {"status": GoalStatus.RUNNING, "goal_id": goal.id})
-        logger.info("Goal %s planned successfully", goal.id)
-    except Exception as e:
-        logger.error("Planning failed for goal %s: %s", goal.id, e)
-        await db.update_goal_status(goal.id, GoalStatus.FAILED, error=str(e))
-        events.emit(goal.id, "goal_status", {"status": GoalStatus.FAILED, "goal_id": goal.id, "error": str(e)})
+    # Open the root Omium trace for this entire goal.
+    # All child spans (orchestrator + tasks + tools) inherit this context.
+    with goal_trace_context(execution_id=goal.trace_id, goal_title=goal.title):
+        try:
+            await orch.run_plan(goal)
+            events.emit(goal.id, "goal_status", {"status": GoalStatus.RUNNING, "goal_id": goal.id})
+            logger.info("Goal %s planned successfully", goal.id)
+        except Exception as e:
+            logger.error("Planning failed for goal %s: %s", goal.id, e)
+            await db.update_goal_status(goal.id, GoalStatus.FAILED, error=str(e))
+            events.emit(goal.id, "goal_status", {"status": GoalStatus.FAILED, "goal_id": goal.id, "error": str(e)})
 
 
 # ── Executor ─────────────────────────────────────────────────────────────────────
@@ -112,15 +116,29 @@ async def _execute_task(task: Any) -> None:
         events.emit(goal_id, "task_update", {"task_id": task.id, "status": TaskStatus.FAILED})
         return
 
+    # Re-enter the goal's Omium trace context so this task's spans are
+    # causally linked to the same goal_run root span.
+    tracer = get_active_tracer()
+    if tracer is None:
+        # Tracer not in context (e.g. task picked up after restart).
+        # Create a fresh one scoped to this execution_id.
+        goal = await db.get_goal(goal_id)
+        if goal:
+            _ctx = goal_trace_context(execution_id=goal.trace_id, goal_title=goal.title)
+            _ctx.__enter__()
+            tracer = get_active_tracer()
+
     try:
-        output = await agent_run(task, resolved, emit=emit)
+        with task_span(tracer, task.id, task.agent_name, task.description) as tspan:
+            output = await agent_run(task, resolved, emit=emit, tracer=tracer)
+            if tspan:
+                tspan.set_output({"task_id": task.id, "status": "DONE"})
         await db.settle_task(task.id, TaskStatus.DONE, output=output)
         events.emit(goal_id, "task_done", {"task_id": task.id, "output": output})
         logger.info("Task %s DONE (goal=%s)", task.id, goal_id)
         await _after_task_done(task, output)
 
     except WaitingWebhookSignal:
-        # Already handled inside agent_run (status set to WAITING_WEBHOOK in DB)
         events.emit(goal_id, "task_update", {"task_id": task.id, "status": TaskStatus.WAITING_WEBHOOK})
 
     except Exception as e:

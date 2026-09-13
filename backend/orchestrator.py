@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from typing import Any
@@ -5,13 +6,12 @@ from typing import Any
 from pydantic import BaseModel, ValidationError
 
 import db
+import model_config
 from llm import acompletion
 from state import GoalRow
 from tracing import set_execution_context, trace
 
 logger = logging.getLogger(__name__)
-
-ORCHESTRATOR_MODEL = "anthropic/claude-sonnet-4-20250514"
 
 AGENT_DESCRIPTIONS = """
 Available agents (choose from these only):
@@ -81,39 +81,80 @@ PLAN_TOOL = {
 async def plan(goal: GoalRow) -> PlanSchema:
     set_execution_context(execution_id=goal.trace_id, agent_id="orchestrator")
 
+    orchestrator_model = model_config.get_model("orchestrator")
+    logger.info("Orchestrator using model: %s", orchestrator_model)
+
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": f"Goal: {goal.goal_text}"},
     ]
 
     last_error: str | None = None
-    for attempt in range(3):
-        if last_error:
+    max_attempts = 5
+    for attempt in range(max_attempts):
+        if last_error and "invalid" in last_error.lower():
             messages.append({"role": "user", "content": f"Your previous plan was invalid: {last_error}. Please fix it."})
 
         try:
             response = await acompletion(
-                model=ORCHESTRATOR_MODEL,
+                model=orchestrator_model,
                 messages=messages,
                 tools=[PLAN_TOOL],
-                tool_choice={"type": "function", "name": "submit_plan"},
+                tool_choice={"type": "function", "function": {"name": "submit_plan"}},
                 temperature=0.1,
                 max_tokens=2048,
             )
-            tool_call = response.choices[0].message.tool_calls[0]
-            raw = json.loads(tool_call.function.arguments)
+            msg = response.choices[0].message
+            if msg.tool_calls:
+                raw = json.loads(msg.tool_calls[0].function.arguments)
+            elif msg.content:
+                # Groq may return JSON in message body instead of a tool call
+                import re
+                m = re.search(r"\{.*\}", msg.content, re.DOTALL)
+                if not m:
+                    raise ValueError("No tool call and no JSON in orchestrator response")
+                raw = json.loads(m.group(0))
+                logger.warning("Orchestrator (attempt %d): parsed plan from message body (no tool call)", attempt + 1)
+            else:
+                raise ValueError("Empty orchestrator response")
             plan_obj = PlanSchema.model_validate(raw)
             _validate_plan(plan_obj)
-            logger.info("Orchestrator produced plan for goal=%s: %d tasks", goal.id, len(plan_obj.tasks))
+            logger.info("Orchestrator produced plan for goal=%s: %d tasks (model=%s)",
+                        goal.id, len(plan_obj.tasks), orchestrator_model)
             return plan_obj
         except (ValidationError, ValueError, KeyError) as e:
             last_error = str(e)
-            logger.warning("Plan attempt %d failed: %s", attempt + 1, e)
+            logger.warning("Plan attempt %d/%d validation error: %s", attempt + 1, max_attempts, e)
         except Exception as e:
+            err_str = str(e).lower()
+            if "rate_limit" in err_str or "429" in err_str or "rate limit" in err_str:
+                wait = 2 ** attempt  # 1s, 2s, 4s, 8s, 16s
+                logger.warning("Orchestrator rate limited (attempt %d/%d) — retrying in %ds",
+                               attempt + 1, max_attempts, wait)
+                await asyncio.sleep(wait)
+                last_error = str(e)
+                continue
             logger.error("Orchestrator error on attempt %d: %s", attempt + 1, e)
             raise
 
-    raise RuntimeError(f"Orchestrator failed after 3 attempts. Last error: {last_error}")
+    raise RuntimeError(f"Orchestrator failed after {max_attempts} attempts. Last error: {last_error}")
+
+
+def _rewrite_templates(inputs: dict, id_map: dict[str, str]) -> dict:
+    """Replace {{old_id.output.field}} with {{new_id.output.field}} in all string values."""
+    import re
+    TMPL = re.compile(r"\{\{(\w+)(\.output\.\w+)\}\}")
+
+    def rewrite(v: Any) -> Any:
+        if isinstance(v, str):
+            return TMPL.sub(lambda m: "{{" + id_map.get(m.group(1), m.group(1)) + m.group(2) + "}}", v)
+        if isinstance(v, dict):
+            return {k: rewrite(vv) for k, vv in v.items()}
+        if isinstance(v, list):
+            return [rewrite(item) for item in v]
+        return v
+
+    return {k: rewrite(v) for k, v in inputs.items()}
 
 
 def _validate_plan(p: PlanSchema) -> None:
@@ -135,7 +176,23 @@ def _validate_plan(p: PlanSchema) -> None:
 async def run_plan(goal: GoalRow) -> None:
     """Plan a goal and persist the tasks to the database."""
     plan_obj = await plan(goal)
+
+    # Make task IDs globally unique: prefix with first 8 chars of goal_id.
+    # The orchestrator uses short IDs like t1, t2 internally; they clash across goals.
+    prefix = goal.id[:8]
+    id_map = {t.id: f"{prefix}_{t.id}" for t in plan_obj.tasks}
+
+    tasks_data = []
+    for t in plan_obj.tasks:
+        td = t.model_dump()
+        td["id"] = id_map[t.id]
+        td["depends_on"] = [id_map[dep] for dep in t.depends_on]
+        # Rewrite {{t1.output.field}} → {{prefix_t1.output.field}} in all input strings
+        td["inputs"] = _rewrite_templates(td.get("inputs", {}), id_map)
+        tasks_data.append(td)
+
+    terminal_global = id_map[plan_obj.terminal]
+
     plan_json = plan_obj.model_dump_json()
-    tasks_data = [t.model_dump() for t in plan_obj.tasks]
     await db.create_tasks(tasks_data, goal.id, goal.trace_id)
-    await db.set_goal_plan(goal.id, plan_json, plan_obj.terminal)
+    await db.set_goal_plan(goal.id, plan_json, terminal_global)

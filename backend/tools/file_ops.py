@@ -4,14 +4,17 @@ from pathlib import Path
 from config import settings
 from tracing import trace
 
-WORKSPACE = Path(settings.workspace_dir)
+WORKSPACE = Path(settings.workspace_dir).resolve()
 
 
 def _safe_path(goal_id: str, rel_path: str) -> Path:
-    base = WORKSPACE / goal_id
+    base = (WORKSPACE / goal_id).resolve()
     base.mkdir(parents=True, exist_ok=True)
+    # Strip any leading slashes / absolute prefix the LLM may inject
+    if os.path.isabs(rel_path):
+        rel_path = os.path.basename(rel_path)
     resolved = (base / rel_path).resolve()
-    if not str(resolved).startswith(str(base.resolve())):
+    if not str(resolved).startswith(str(base)):
         raise ValueError(f"Path traversal attempt: {rel_path}")
     return resolved
 
@@ -39,7 +42,7 @@ async def file_ops(args: dict) -> dict:
     if operation == "write":
         full_path.parent.mkdir(parents=True, exist_ok=True)
         full_path.write_text(content)
-        return {"ok": True, "path": str(full_path.relative_to(WORKSPACE / goal_id))}
+        return {"ok": True, "path": str(full_path.relative_to(WORKSPACE / goal_id).as_posix())}
 
     if operation == "append":
         full_path.parent.mkdir(parents=True, exist_ok=True)

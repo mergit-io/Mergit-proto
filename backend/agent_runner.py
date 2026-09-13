@@ -10,12 +10,12 @@ import uuid
 from typing import Any, Callable
 
 import db
-from agent_registry import AGENT_REGISTRY
+from agent_registry import AGENT_REGISTRY, get_agent_config
 from llm import acompletion
 from state import TaskRow
 from tools import TOOL_REGISTRY
 from tools.wait_webhook import WAITING_WEBHOOK_SENTINEL
-from tracing import set_execution_context, trace
+from tracing import set_execution_context, trace, tool_span
 
 logger = logging.getLogger(__name__)
 
@@ -70,13 +70,14 @@ async def run(
     task: TaskRow,
     resolved_inputs: dict,
     emit: Callable[[str, dict], None] | None = None,
+    tracer: Any | None = None,
 ) -> dict[str, Any]:
     """
     Execute an agent task. Returns the structured output dict.
     Raises RuntimeError on failure (caller handles retry logic).
     Raises WaitingWebhookSignal when the agent calls wait_webhook.
     """
-    config = AGENT_REGISTRY[task.agent_name]
+    config = get_agent_config(task.agent_name)
     set_execution_context(execution_id=task.trace_id, agent_id=f"{task.agent_name}/{task.id}")
 
     tools = _build_tool_defs(config["allowed_tools"])
@@ -95,17 +96,63 @@ async def run(
 
     await db.save_message(task.id, "user", user_content, sequence=0)
 
+    logger.info("[task=%s agent=%s] Starting agent loop (model=%s max_iter=%d)",
+                task.id, task.agent_name, model, max_iter)
+
     for iteration in range(max_iter):
-        response = await acompletion(model=model, messages=messages, tools=tools, temperature=0.1)
+        logger.debug("[task=%s] Iteration %d/%d — calling %s", task.id, iteration + 1, max_iter, model)
+
+        try:
+            response = await acompletion(model=model, messages=messages, tools=tools, temperature=0.1)
+        except Exception as exc:
+            err_str = str(exc)
+            # Rate limit — back off and retry
+            if "rate_limit" in err_str.lower() or "rate limit" in err_str.lower() or "429" in err_str:
+                wait = min(2 ** iteration, 30)
+                logger.warning("[task=%s] Rate limited on iter %d — retrying in %ds", task.id, iteration + 1, wait)
+                await asyncio.sleep(wait)
+                continue
+            # Groq sometimes fails to generate a valid function call.
+            if "failed to call a function" in err_str.lower() or "tool_use_failed" in err_str.lower():
+                logger.warning("[task=%s] Groq function-call failure (iter %d) — injecting retry hint",
+                               task.id, iteration + 1)
+                messages.append({
+                    "role": "user",
+                    "content": (
+                        "You MUST call one of the available tools in your response. "
+                        "Do not write plain text — use a tool call. "
+                        "If you have enough information, call submit_result with your findings."
+                    ),
+                })
+                continue
+            logger.error("[task=%s] LLM call failed on iteration %d: %s", task.id, iteration + 1, exc)
+            raise
+
         msg = response.choices[0].message
 
         assistant_content = msg.content or ""
         if assistant_content:
+            logger.debug("[task=%s] Assistant message: %s…", task.id, assistant_content[:120])
             await db.save_message(task.id, "assistant", assistant_content, sequence=len(messages))
             if emit:
                 emit("message", {"task_id": task.id, "role": "assistant", "content": assistant_content})
 
         if not msg.tool_calls:
+            # Try to parse a JSON result directly from the assistant message
+            result = _try_parse_json_result(assistant_content)
+            if result is not None:
+                logger.info("[task=%s agent=%s] Parsed JSON result from assistant text (no tool call)",
+                            task.id, task.agent_name)
+                return result
+            # Nudge the model to call submit_result
+            if iteration < max_iter - 1:
+                logger.warning("[task=%s] No tool call on iter %d — nudging agent to call submit_result",
+                               task.id, iteration + 1)
+                messages.append({
+                    "role": "user",
+                    "content": "You must call submit_result with your final result. Use the submit_result tool now.",
+                })
+                continue
             break
 
         tool_results = []
@@ -117,25 +164,46 @@ async def run(
 
             if tool_name == "submit_result":
                 result = args.get("result", args)
-                logger.info("Agent %s submitted result for task %s", task.agent_name, task.id)
+                logger.info("[task=%s agent=%s] submit_result called — task done ✓", task.id, task.agent_name)
                 return result
 
             ikey = _idempotency_key(task.id, tool_name, args_str, task.attempt_count)
+            logger.debug("[task=%s] Tool call: %s(%s…) ikey=%s…",
+                         task.id, tool_name, args_str[:80], ikey[:12])
 
             if emit:
                 emit("tool_call", {"task_id": task.id, "tool": tool_name, "args": args})
 
-            result = await _execute_tool_idempotent(task, tool_name, args_str, args, ikey)
+            # Check for cached result before opening a span so we can tag it
+            existing = await db.get_tool_call_by_idempotency(ikey)
+            is_cached = bool(existing and existing.status == "SUCCESS" and existing.result_json)
 
-            if isinstance(result, dict) and result.get(WAITING_WEBHOOK_SENTINEL):
-                wait_token = result["wait_token"]
-                await db.set_task_waiting_webhook(task.id, wait_token)
-                if emit:
-                    emit("task_waiting", {"task_id": task.id, "wait_token": wait_token, "webhook_url": result["webhook_url"]})
-                raise WaitingWebhookSignal(wait_token)
+            with tool_span(tracer, task.id, tool_name, args, cached=is_cached) as tspan:
+                result = await _execute_tool_idempotent(task, tool_name, args_str, args, ikey)
+
+                if isinstance(result, dict) and result.get(WAITING_WEBHOOK_SENTINEL):
+                    wait_token = result["wait_token"]
+                    await db.set_task_waiting_webhook(task.id, wait_token)
+                    logger.info("[task=%s] Task suspended — waiting for webhook (token=%s)", task.id, wait_token)
+                    if tspan:
+                        tspan.set_attribute("wait_token", wait_token)
+                        tspan.add_event("task_suspended_for_webhook")
+                    if emit:
+                        emit("task_waiting", {"task_id": task.id, "wait_token": wait_token, "webhook_url": result.get("webhook_url", "")})
+                    raise WaitingWebhookSignal(wait_token)
+
+                if "error" in result:
+                    logger.warning("[task=%s] Tool %s returned error: %s", task.id, tool_name, result["error"])
+                    if tspan:
+                        tspan.set_attribute("error", result["error"])
+                else:
+                    logger.debug("[task=%s] Tool %s succeeded", task.id, tool_name)
+                    if tspan:
+                        tspan.set_output(result)
 
             if emit:
-                emit("tool_result", {"task_id": task.id, "tool": tool_name, "status": "SUCCESS"})
+                emit("tool_result", {"task_id": task.id, "tool": tool_name,
+                                     "status": "ERROR" if "error" in result else "SUCCESS"})
 
             result_str = json.dumps(result)
             tool_results.append({"role": "tool", "tool_call_id": tc_id, "content": result_str})
@@ -159,7 +227,7 @@ async def _execute_tool_idempotent(
 ) -> dict:
     existing = await db.get_tool_call_by_idempotency(ikey)
     if existing and existing.status == "SUCCESS" and existing.result_json:
-        logger.info("Tool %s: returning cached result (idempotency_key=%s)", tool_name, ikey)
+        logger.info("[task=%s] Tool %s: replaying cached result (idempotent) — no side-effect fired", task.id, tool_name)
         return json.loads(existing.result_json)
 
     await db.create_tool_call(
@@ -186,6 +254,33 @@ async def _execute_tool_idempotent(
         logger.error("Tool %s failed: %s", tool_name, error_str)
         await db.settle_tool_call(ikey, None, "FAILED", error=error_str)
         return {"error": error_str}
+
+
+def _try_parse_json_result(text: str) -> dict | None:
+    """
+    Attempt to extract a JSON object from the assistant's text response.
+    Used as a fallback when the model doesn't call submit_result but returns
+    JSON in its message body (common with Groq llama models).
+    """
+    if not text:
+        return None
+    # Try to find a JSON block in the text
+    import re
+    # Look for ```json ... ``` blocks first
+    code_block = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+    if code_block:
+        try:
+            return json.loads(code_block.group(1))
+        except json.JSONDecodeError:
+            pass
+    # Try to find a raw JSON object (largest {...} block)
+    brace_match = re.search(r"\{.*\}", text, re.DOTALL)
+    if brace_match:
+        try:
+            return json.loads(brace_match.group(0))
+        except json.JSONDecodeError:
+            pass
+    return None
 
 
 class WaitingWebhookSignal(Exception):

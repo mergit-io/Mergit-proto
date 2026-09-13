@@ -1,5 +1,15 @@
 from typing import Any
 
+import model_config as _mc
+
+
+def get_agent_config(name: str) -> dict[str, Any]:
+    """Return agent config with the *current* model from model_config (reads on every call)."""
+    cfg = dict(AGENT_REGISTRY[name])
+    cfg["model"] = _mc.get_model(name)
+    return cfg
+
+
 AGENT_REGISTRY: dict[str, dict[str, Any]] = {
     "researcher": {
         "name": "researcher",

@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { ArrowLeft, RefreshCw } from "lucide-react";
+import { ArrowLeft, RefreshCw, AlertCircle } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import useSWR from "swr";
 import { LiveLog } from "../components/LiveLog";
@@ -7,6 +7,7 @@ import { OutputDisplay } from "../components/OutputDisplay";
 import { StatusBadge } from "../components/StatusBadge";
 import { TaskDAG } from "../components/TaskDAG";
 import { TaskPanel } from "../components/TaskPanel";
+import { AppNav } from "../components/AppNav";
 import { api } from "../lib/api";
 import { useSSE } from "../lib/sse";
 
@@ -19,7 +20,7 @@ function fetcher(id: string) {
 export function GoalDetail() {
   const { id } = useParams<{ id: string }>();
   const nav = useNavigate();
-  const { data, isLoading } = useSWR(
+  const { data, isLoading, error } = useSWR(
     id ? `/api/goals/${id}` : null,
     () => fetcher(id!),
     { refreshInterval: (data) => (data && ACTIVE_STATUSES.has(data.status) ? 2000 : 0) }
@@ -30,16 +31,36 @@ export function GoalDetail() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <RefreshCw className="w-5 h-5 text-text-muted animate-spin" />
+      <div className="min-h-screen bg-black flex flex-col">
+        <AppNav />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="flex items-center gap-2.5 text-text-muted">
+            <RefreshCw className="w-4 h-4 animate-spin" />
+            <span className="text-sm">Loading goal…</span>
+          </div>
+        </div>
       </div>
     );
   }
 
-  if (!data) {
+  if (error || !data) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-text-muted text-sm">Goal not found.</p>
+      <div className="min-h-screen bg-black flex flex-col">
+        <AppNav />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <AlertCircle className="w-8 h-8 text-danger/70" />
+            <p className="text-sm text-text-muted">
+              {error ? `Error: ${error.message}` : "Goal not found."}
+            </p>
+            <button
+              onClick={() => nav("/app")}
+              className="text-xs text-accent hover:text-accent/80 transition-colors"
+            >
+              ← Back to Dashboard
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -47,43 +68,53 @@ export function GoalDetail() {
   const tasks = data.tasks ?? [];
 
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* Header */}
-      <nav className="border-b border-border px-6 py-4 flex items-center gap-4">
-        <button
-          onClick={() => nav("/app")}
-          className="flex items-center gap-1.5 text-text-muted hover:text-white text-sm transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Dashboard
-        </button>
-        <div className="flex-1 min-w-0">
-          <p className="truncate text-sm font-medium text-gray-100">{data.title}</p>
+    <div className="min-h-screen bg-black flex flex-col">
+      <AppNav />
+
+      {/* Goal header */}
+      <div className="border-b border-white/6 bg-black/60 backdrop-blur-sm">
+        <div className="max-w-none px-6 py-4 flex items-center gap-4">
+          <button
+            onClick={() => nav("/app")}
+            className="flex items-center gap-1.5 text-text-muted hover:text-white text-xs font-medium transition-colors shrink-0"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            Dashboard
+          </button>
+          <div className="w-px h-4 bg-white/10" />
+          <p className="flex-1 min-w-0 truncate text-sm font-medium text-gray-200">{data.title}</p>
+          <StatusBadge status={data.status} />
         </div>
-        <StatusBadge status={data.status} />
-      </nav>
+      </div>
 
       {/* Body */}
-      <div className="flex-1 flex flex-col lg:flex-row gap-0 overflow-hidden">
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* Left: DAG + Tasks */}
-        <div className="flex-1 flex flex-col overflow-hidden border-r border-border">
+        <div className="flex-1 flex flex-col overflow-hidden border-r border-white/6">
           {/* DAG */}
           {tasks.length > 0 && (
-            <div className="h-64 lg:h-80 border-b border-border">
+            <div className="h-64 lg:h-80 border-b border-white/6">
               <TaskDAG tasks={tasks} />
             </div>
           )}
 
           {/* Tasks */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-2">
-            <p className="text-xs text-text-muted uppercase tracking-wider font-medium mb-3">
-              Tasks {tasks.length > 0 ? `(${tasks.length})` : ""}
-            </p>
+          <div className="flex-1 overflow-y-auto p-5 space-y-2">
+            <div className="flex items-center gap-2 mb-4">
+              <p className="text-xs text-text-muted uppercase tracking-widest font-semibold">
+                Tasks
+              </p>
+              {tasks.length > 0 && (
+                <span className="px-1.5 py-0.5 rounded-md bg-white/6 text-xs text-text-muted">
+                  {tasks.length}
+                </span>
+              )}
+            </div>
 
             {tasks.length === 0 && (
-              <div className="flex items-center gap-2 text-text-muted text-sm">
+              <div className="flex items-center gap-2 text-text-muted text-sm py-4">
                 <RefreshCw className="w-4 h-4 animate-spin" />
-                Planning…
+                <span>Orchestrator is planning tasks…</span>
               </div>
             )}
 
@@ -93,28 +124,40 @@ export function GoalDetail() {
 
             {/* Output */}
             {data.output && (
-              <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mt-4">
-                <p className="text-xs text-text-muted uppercase tracking-wider font-medium mb-2">Output</p>
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-5"
+              >
+                <p className="text-xs text-text-muted uppercase tracking-widest font-semibold mb-3">
+                  Output
+                </p>
                 <OutputDisplay output={data.output} />
               </motion.div>
             )}
 
+            {/* Error */}
             {data.error && (
               <div className="rounded-xl border border-danger/30 bg-danger/5 p-4 mt-4">
-                <p className="text-sm text-red-400 font-medium">Failed</p>
-                <p className="text-xs text-red-300 mt-1">{data.error}</p>
+                <div className="flex items-center gap-2 mb-1">
+                  <AlertCircle className="w-4 h-4 text-danger" />
+                  <p className="text-sm text-red-400 font-semibold">Goal Failed</p>
+                </div>
+                <p className="text-xs text-red-300 font-mono leading-relaxed">{data.error}</p>
               </div>
             )}
           </div>
         </div>
 
         {/* Right: Live Log */}
-        <div className="w-full lg:w-96 flex flex-col border-t lg:border-t-0 border-border">
-          <div className="border-b border-border px-4 py-3 flex items-center justify-between">
-            <p className="text-xs text-text-muted uppercase tracking-wider font-medium">Live Log</p>
+        <div className="w-full lg:w-96 flex flex-col border-t lg:border-t-0 border-white/6">
+          <div className="border-b border-white/6 px-5 py-3 flex items-center justify-between">
+            <p className="text-xs text-text-muted uppercase tracking-widest font-semibold">
+              Live Log
+            </p>
             {isActive && (
-              <span className="flex items-center gap-1.5 text-xs text-blue-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+              <span className="flex items-center gap-1.5 text-xs text-accent">
+                <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
                 Streaming
               </span>
             )}
