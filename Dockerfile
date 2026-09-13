@@ -19,7 +19,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PORT=8000 \
     DB_PATH=/data/mergit.db \
     WORKSPACE_DIR=/data/workspace \
-    RUNTIME_CONFIG_DIR=/data/config
+    RUNTIME_CONFIG_DIR=/data/config \
+    SOLCX_BINARY_PATH=/opt/solcx
 
 WORKDIR /app
 
@@ -31,6 +32,16 @@ RUN pip install --no-cache-dir --upgrade pip \
 
 COPY backend/ /app/backend/
 COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
+
+# Compile the Solidity contracts at BUILD time. Without this the first boot would try to
+# download solc from GitHub as an unprivileged user with no writable home — and because
+# _init_chain degrades rather than crashes, the chain would silently switch itself off
+# while the health check stayed green. Baking solc + the artifacts in makes startup
+# offline, fast and deterministic.
+RUN mkdir -p /opt/solcx \
+    && cd /app/backend \
+    && python -c "from chain import compiler; compiler.compile_all(); print('contracts compiled')" \
+    && chown -R mergit:mergit /opt/solcx /app/backend/contracts
 
 RUN mkdir -p /data/workspace /data/config /app/backend/logs \
     && chown -R mergit:mergit /data /app/backend/logs

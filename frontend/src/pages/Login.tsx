@@ -4,8 +4,10 @@ import { useState } from "react";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 import { auth, githubProvider, googleProvider } from "../lib/firebase";
+import { useChainBadge } from "../hooks/useChainBadge";
 
 export function Login() {
+  const chainBadge = useChainBadge();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -93,7 +95,7 @@ export function Login() {
         <section className="relative min-h-[calc(100vh-120px)] grid lg:grid-cols-2 gap-10 items-center py-10">
           <div className="w-full text-center lg:text-left">
             <p className="inline-flex items-center gap-2 px-5 py-2 rounded-full border border-white/10 bg-white/5 text-accent font-semibold tracking-[0.16em] text-xs uppercase mb-6">
-              <span className="w-2 h-2 rounded-full bg-accent" /> Live on Monad Testnet (simulated)
+              <span className="w-2 h-2 rounded-full bg-accent" /> {chainBadge.label}
             </p>
             <h1 className="font-display font-bold leading-[0.95] text-white text-[clamp(2.4rem,5.8vw,4.8rem)]">
               The AI Agent Economy
