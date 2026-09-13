@@ -1,260 +1,142 @@
-import { motion, useScroll, useTransform } from "framer-motion";
-import { useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
-import { useChainBadge } from "../../hooks/useChainBadge";
+import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Micro, ProofBlock } from "../ui";
 
-/* ── Particle canvas ─────────────────────────────────────────── */
-function ParticleCanvas() {
-  const ref = useRef<HTMLCanvasElement>(null);
+/* The hero's argument is the run itself: one real goal, decomposed, executed by
+   four agents, settled on chain. It replays on a loop rather than being described. */
+const STEPS = [
+  { agent: "orchestrator", act: "Decomposed the goal into 4 tasks", tool: "plan", ms: 1400 },
+  { agent: "researcher", act: "Read the repo and located the flaw", tool: "github_read_file", ms: 2000 },
+  { agent: "coder", act: "Wrote the patch and ran it", tool: "code_exec", ms: 2200 },
+  { agent: "integrator", act: "Opened pull request #42", tool: "github_pr", ms: 1800 },
+];
+
+const GOAL = "Audit mergit-io/proto for security issues and open PRs with fixes";
+const RECEIPT = "0x9f2c4b17e8a0…41ab";
+
+function useReplay(count: number) {
+  const [step, setStep] = useState(0);
 
   useEffect(() => {
-    const canvas = ref.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d")!;
-    let raf: number;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setStep(count + 1);
+      return;
+    }
+    // `step` runs one past the last row so the settled receipt gets its own beat.
+    const delay = step > count ? 3200 : (STEPS[step]?.ms ?? 1200);
+    const t = setTimeout(() => setStep((s) => (s > count ? 0 : s + 1)), delay);
+    return () => clearTimeout(t);
+  }, [step, count]);
 
-    const resize = () => {
-      canvas.width = canvas.offsetWidth * window.devicePixelRatio;
-      canvas.height = canvas.offsetHeight * window.devicePixelRatio;
-      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-    };
-    resize();
-    window.addEventListener("resize", resize, { passive: true });
+  return step;
+}
 
-    const W = () => canvas.offsetWidth;
-    const H = () => canvas.offsetHeight;
-
-    const COLORS = ["109,74,255", "168,85,247", "34,211,238"];
-
-    const particles = Array.from({ length: 90 }, () => ({
-      x: Math.random() * W(),
-      y: Math.random() * H(),
-      vx: (Math.random() - 0.5) * 0.25,
-      vy: (Math.random() - 0.5) * 0.25,
-      r: Math.random() * 1.8 + 0.4,
-      color: COLORS[Math.floor(Math.random() * COLORS.length)],
-      opacity: Math.random() * 0.55 + 0.1,
-    }));
-
-    const draw = () => {
-      ctx.clearRect(0, 0, W(), H());
-
-      for (let i = 0; i < particles.length; i++) {
-        const p = particles[i];
-        // connections
-        for (let j = i + 1; j < particles.length; j++) {
-          const q = particles[j];
-          const dx = p.x - q.x, dy = p.y - q.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 130) {
-            ctx.beginPath();
-            ctx.strokeStyle = `rgba(109,74,255,${0.08 * (1 - dist / 130)})`;
-            ctx.lineWidth = 0.5;
-            ctx.moveTo(p.x, p.y);
-            ctx.lineTo(q.x, q.y);
-            ctx.stroke();
-          }
-        }
-        // dot
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${p.color},${p.opacity})`;
-        ctx.fill();
-
-        p.x += p.vx;
-        p.y += p.vy;
-        if (p.x < 0 || p.x > W()) p.vx *= -1;
-        if (p.y < 0 || p.y > H()) p.vy *= -1;
-      }
-      raf = requestAnimationFrame(draw);
-    };
-    draw();
-
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener("resize", resize);
-    };
-  }, []);
+function Replay() {
+  const step = useReplay(STEPS.length);
+  const settled = step > STEPS.length;
 
   return (
-    <canvas
-      ref={ref}
-      className="absolute inset-0 w-full h-full pointer-events-none"
-      style={{ opacity: 0.7 }}
-    />
+    <div className="panel">
+      <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
+        <Micro>Live run</Micro>
+        <span className="flex items-center gap-2">
+          <span className={`w-1.5 h-1.5 ${settled ? "bg-mint" : "bg-violet animate-blip"}`} />
+          <Micro>{settled ? "Settled" : "Executing"}</Micro>
+        </span>
+      </div>
+
+      <div className="px-4 py-3.5 border-b border-line">
+        <Micro>Goal</Micro>
+        <p className="text-sm mt-1.5 leading-snug">{GOAL}</p>
+      </div>
+
+      <ol>
+        {STEPS.map((s, i) => {
+          const done = step > i;
+          const active = step === i;
+          return (
+            <li
+              key={s.agent}
+              className={`px-4 py-3 border-b border-line-soft transition-opacity duration-300 ${
+                done || active ? "opacity-100" : "opacity-25"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-mono text-micro uppercase text-dim">
+                  {String(i + 1).padStart(2, "0")} · {s.agent}
+                </span>
+                <span
+                  className={`font-mono text-micro uppercase ${
+                    done ? "text-mint" : active ? "text-violet" : "text-faint"
+                  }`}
+                >
+                  {done ? "Done" : active ? "Running" : "Queued"}
+                </span>
+              </div>
+              <p className="text-sm mt-1.5">{s.act}</p>
+              <div className="flex items-center gap-3 mt-2">
+                <code className="font-mono text-micro text-dim">{s.tool}()</code>
+                <span className="flex-1 h-px bg-line relative overflow-hidden">
+                  {done && <span className="absolute inset-0 bg-mint" />}
+                  {active && <span className="absolute inset-0 bar-indeterminate" />}
+                </span>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+
+      {/* The settled receipt: the moment the run becomes a fact on chain. */}
+      <div
+        className={`flex items-center justify-between px-4 py-3.5 transition-colors duration-500 ${
+          settled ? "proof-field" : "bg-slab"
+        }`}
+      >
+        <Micro>{settled ? "Proof minted" : "Awaiting settlement"}</Micro>
+        <span className={`font-mono text-xs tabular ${settled ? "" : "text-faint"}`}>
+          {settled ? RECEIPT : "—"}
+        </span>
+      </div>
+    </div>
   );
 }
 
-/* ── Animated counter ────────────────────────────────────────── */
-function Counter({ to, suffix = "" }: { to: number; suffix?: string }) {
-  const ref = useRef<HTMLSpanElement>(null);
-  const started = useRef(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-
-    const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting && !started.current) {
-        started.current = true;
-        const duration = 1800;
-        const start = performance.now();
-        const step = (now: number) => {
-          const t = Math.min((now - start) / duration, 1);
-          const ease = 1 - Math.pow(1 - t, 3);
-          el.textContent = Math.floor(ease * to).toLocaleString() + suffix;
-          if (t < 1) requestAnimationFrame(step);
-        };
-        requestAnimationFrame(step);
-      }
-    }, { threshold: 0.5 });
-
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [to, suffix]);
-
-  return <span ref={ref}>0{suffix}</span>;
-}
-
-/* ── Hero ────────────────────────────────────────────────────── */
-const METRICS = [
-  { label: "Goals Completed",   value: 12400, suffix: "+" },
-  { label: "Specialized Agents", value: 5,    suffix: "" },
-  { label: "Tools Available",    value: 7,    suffix: "" },
-  { label: "Tasks / Minute",     value: 240,  suffix: "+" },
-];
-
 export function HeroSection() {
-  const chainBadge = useChainBadge();
-  const nav = useNavigate();
-  const { scrollY } = useScroll();
-  const y = useTransform(scrollY, [0, 500], [0, 80]);
-  const opacity = useTransform(scrollY, [0, 400], [1, 0]);
-
   return (
-    <section className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden pt-24">
-      {/* Background glows */}
-      <div className="absolute inset-0 bg-hero-glow pointer-events-none" />
-      <div className="absolute inset-0 bg-hero-glow-purple pointer-events-none" />
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] rounded-full bg-accent/8 blur-[180px] pointer-events-none animate-glow-pulse" />
-      <div className="absolute top-1/3 left-1/3 w-[400px] h-[400px] rounded-full bg-purple/6 blur-[140px] pointer-events-none animate-glow-pulse" style={{ animationDelay: "1.5s" }} />
+    <section className="max-w-[1400px] mx-auto px-5 pt-32 pb-20 lg:pt-44 lg:pb-28">
+      <div className="grid lg:grid-cols-[1.05fr_0.95fr] gap-10 lg:gap-16 items-center">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <ProofBlock className="w-4 h-4 text-violet" />
+            <Micro>Proof of work · on chain</Micro>
+          </div>
 
-      {/* Particle canvas */}
-      <ParticleCanvas />
+          <h1 className="font-display font-bold tracking-tightest leading-[0.9] mt-6 text-[clamp(2.75rem,7vw,5.5rem)]">
+            Describe the
+            <br />
+            outcome.
+            <br />
+            <span className="text-dim">Not the steps.</span>
+          </h1>
 
-      {/* Content */}
-      <motion.div
-        style={{ y, opacity }}
-        className="relative z-10 flex flex-col items-center text-center px-6 max-w-6xl mx-auto"
-      >
-        {/* Badge */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.2, duration: 0.5 }}
-          className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 mb-8 glass-card text-xs font-medium tracking-widest uppercase text-accent border-accent/20"
-        >
-          <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse-ring" />
-          {chainBadge.label}
-        </motion.div>
+          <p className="text-base text-dim mt-7 max-w-lg leading-relaxed">
+            Mergit takes one sentence, decomposes it into a task graph, and puts specialised
+            agents to work with real tools — reading repositories, running code, opening pull
+            requests. Every finished task mints a proof and moves its agent's reputation.
+          </p>
 
-        {/* Headline */}
-        <motion.h1
-          initial={{ opacity: 0, y: 32 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3, duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-          className="font-display font-bold text-gradient leading-[1.04] tracking-tight mb-6"
-          style={{ fontSize: "clamp(3rem, 8vw, 7rem)" }}
-        >
-          The AI Agent Economy<br />
-          <span className="text-gradient-blue">Runs on Proof of Work</span>
-        </motion.h1>
+          <div className="flex flex-wrap gap-px mt-9">
+            <Link to="/app" className="btn-primary h-11 px-6">
+              Delegate a goal →
+            </Link>
+            <a href="#run" className="btn-ghost h-11 px-6">
+              See a full run
+            </a>
+          </div>
+        </div>
 
-        {/* Sub */}
-        <motion.p
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.45, duration: 0.6 }}
-          className="max-w-2xl text-text-dim text-lg leading-relaxed mb-10"
-        >
-          Delegate any goal. Mergit decomposes it into a precise task graph, spins up
-          specialized agents, invokes real tools, and delivers results—end to end.
-          Every completed task mints a proof and bumps its agent's reputation, live.
-        </motion.p>
-
-        {/* CTAs */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6, duration: 0.5 }}
-          className="flex flex-wrap items-center justify-center gap-4"
-        >
-          <button
-            onClick={() => nav("/app")}
-            className="btn-neon text-white font-semibold px-8 py-3.5 rounded-full text-base tracking-wide"
-          >
-            Start Delegating →
-          </button>
-          <a
-            href="#features"
-            className="btn-glass text-white font-medium px-8 py-3.5 rounded-full text-base"
-          >
-            See How It Works
-          </a>
-        </motion.div>
-
-        {/* Economy teaser */}
-        <motion.button
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.75, duration: 0.5 }}
-          onClick={() => nav("/app/economy")}
-          className="mt-6 flex items-center gap-2 text-sm text-cyan hover:text-white transition-colors"
-        >
-          <span className="w-1.5 h-1.5 rounded-full bg-proof-green animate-pulse-ring" />
-          Watch proofs mint live on the Agent Economy hub →
-        </motion.button>
-
-        {/* Floating orb visual */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.8, duration: 1, ease: "easeOut" }}
-          className="relative mt-20 w-64 h-64"
-        >
-          <div className="absolute inset-0 rounded-full bg-gradient-radial from-accent/20 via-purple/10 to-transparent blur-xl animate-float" />
-          <div className="absolute inset-8 rounded-full bg-gradient-radial from-accent/30 via-purple/15 to-transparent blur-lg animate-float" style={{ animationDelay: "0.5s" }} />
-          <div className="absolute inset-16 rounded-full bg-gradient-radial from-accent/50 to-purple/30 blur-md" />
-          <svg className="absolute inset-0 w-full h-full opacity-20" viewBox="0 0 200 200">
-            <circle cx="100" cy="100" r="90" stroke="rgba(109,74,255,0.4)" strokeWidth="0.5" fill="none" />
-            <circle cx="100" cy="100" r="70" stroke="rgba(168,85,247,0.4)" strokeWidth="0.5" fill="none" />
-            <circle cx="100" cy="100" r="50" stroke="rgba(34,211,238,0.4)" strokeWidth="0.5" fill="none" />
-          </svg>
-        </motion.div>
-      </motion.div>
-
-      {/* Metrics ribbon */}
-      <div className="relative z-10 w-full max-w-6xl mx-auto px-6 mt-16 mb-0">
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.0, duration: 0.6 }}
-          className="glass-card rounded-2xl grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0"
-          style={{ borderColor: "rgba(255,255,255,0.07)" }}
-        >
-          {METRICS.map((m) => (
-            <div key={m.label} className="flex flex-col items-center justify-center py-6 px-4 gap-1">
-              <span className="font-display font-bold text-3xl text-white">
-                <Counter to={m.value} suffix={m.suffix} />
-              </span>
-              <span className="text-xs text-text-muted tracking-wide uppercase">{m.label}</span>
-            </div>
-          ))}
-        </motion.div>
+        <Replay />
       </div>
-
-      {/* Bottom fade */}
-      <div className="absolute bottom-0 inset-x-0 h-40 bg-gradient-to-t from-bg to-transparent pointer-events-none" />
     </section>
   );
 }

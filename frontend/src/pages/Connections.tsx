@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 // lucide-react dropped its brand icons, so these are the generic equivalents already
 // used elsewhere in the app rather than inlined SVG logos.
-import { AlertTriangle, Check, GitBranch, Hash, Loader2, Plug, Trash2 } from "lucide-react";
-import { AppBackground } from "../components/AppBackground";
-import { AppNav } from "../components/AppNav";
+import { GitBranch, Hash } from "lucide-react";
+import { Shell } from "../components/AppNav";
+import { Micro, Notice, PageHead, Panel, Status } from "../components/ui";
 import { getCsrfToken } from "../lib/auth";
 
 /**
@@ -128,83 +128,89 @@ export function Connections() {
   const connectionFor = (key: string) => data?.connections.find((c) => c.provider === key);
 
   return (
-    <div className="relative min-h-screen" style={{ background: "#000" }}>
-      <AppBackground />
-      <div className="relative z-10 flex flex-col min-h-screen">
-        <AppNav />
-        <main className="flex-1 max-w-4xl mx-auto w-full px-6 py-10">
-          <header className="mb-8">
-            <h1 className="flex items-center gap-2 text-xl font-semibold text-white">
-              <Plug className="w-5 h-5" /> Connections
-            </h1>
-            <p className="mt-2 text-sm text-white/50 max-w-2xl">
-              Signing in with Google tells Mergit who you are. It does not give Mergit any
-              access to GitHub or Slack — each one is its own permission, granted here, and
-              revocable here.
-            </p>
-          </header>
+    <Shell>
+      <PageHead marker="ACCESS — CONNECTIONS" title="Connections">
+        Signing in with Google tells Mergit who you are. It does not give Mergit any access to
+        GitHub or Slack — each one is its own permission, granted here, and revocable here.
+      </PageHead>
 
-          {banner && <Banner provider={banner[0]} status={banner[1]!} onDismiss={() => setParams({})} />}
-          {error && (
-            <div className="mb-6 rounded-xl border border-red-400/25 bg-red-400/10 px-4 py-3 text-sm text-red-200/90">
-              {error}
-            </div>
-          )}
+      {banner && (
+        <div className="mb-6">
+          <ConnectionBanner provider={banner[0]} status={banner[1]!} onDismiss={() => setParams({})} />
+        </div>
+      )}
+      {error && (
+        <div className="mb-6">
+          <Notice onDismiss={() => setError("")}>{error}</Notice>
+        </div>
+      )}
 
-          <div className="space-y-4">
-            {PROVIDERS.map((p) => (
-              <ProviderCard
-                key={p.key}
-                meta={p}
-                connection={connectionFor(p.key)}
-                repos={p.key === "github" ? data?.github_repositories ?? [] : []}
-                available={data?.available?.[p.key] ?? false}
-                busy={busy === p.key}
-                onConnect={() => connect(p.key)}
-                onDisconnect={() => disconnect(p.key)}
-              />
-            ))}
-          </div>
-
-          <p className="mt-8 text-xs text-white/30 leading-relaxed">
-            Mergit records every use of these connections — which agent, which action, and on
-            what — on the{" "}
-            <a href="/app/audit" className="text-white/50 underline underline-offset-2">
-              activity page
-            </a>
-            .
-          </p>
-        </main>
+      <div className="space-y-6">
+        {PROVIDERS.map((p) => (
+          <ProviderCard
+            key={p.key}
+            meta={p}
+            connection={connectionFor(p.key)}
+            repos={p.key === "github" ? data?.github_repositories ?? [] : []}
+            available={data?.available?.[p.key] ?? false}
+            busy={busy === p.key}
+            onConnect={() => connect(p.key)}
+            onDisconnect={() => disconnect(p.key)}
+          />
+        ))}
       </div>
-    </div>
+
+      <p className="mt-8 text-xs text-dim leading-relaxed">
+        Mergit records every use of these connections — which agent, which action, and on what —
+        on the{" "}
+        <a href="/app/audit" className="text-dim hover:text-text underline underline-offset-2 transition-colors">
+          activity page
+        </a>
+        .
+      </p>
+    </Shell>
   );
 }
 
-function Banner({ provider, status, onDismiss }: {
-  provider: string; status: string; onDismiss: () => void;
+function ConnectionBanner({
+  provider,
+  status,
+  onDismiss,
+}: {
+  provider: string;
+  status: string;
+  onDismiss: () => void;
 }) {
-  const tone =
-    status === "connected" ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-200/90"
-    : status === "pending_org_approval" ? "border-amber-400/25 bg-amber-400/10 text-amber-200/90"
-    : "border-red-400/25 bg-red-400/10 text-red-200/90";
+  const tone: "done" | "wait" | "fail" =
+    status === "connected" ? "done" : status === "pending_org_approval" ? "wait" : "fail";
 
   const text =
-    status === "connected" ? `${provider} connected. Any paused goals have resumed.`
-    // The state every design forgets. A user who followed instructions and hit an org
-    // approval wall otherwise lands on a page that looks like it silently failed.
-    : status === "pending_org_approval"
-      ? "Your organisation's owner needs to approve Mergit before it can act on those repositories. They will have received a request — this page will update once they approve."
-      : `That ${provider} connection did not complete. Nothing was saved — you can try again.`;
+    status === "connected" ? (
+      `${provider} connected. Any paused goals have resumed.`
+    ) : status === "pending_org_approval" ? (
+      // The state every design forgets. A user who followed instructions and hit an org
+      // approval wall otherwise lands on a page that looks like it silently failed.
+      "Your organisation's owner needs to approve Mergit before it can act on those repositories. They will have received a request — this page will update once they approve."
+    ) : (
+      `That ${provider} connection did not complete. Nothing was saved — you can try again.`
+    );
 
   return (
-    <div className={`mb-6 flex items-start gap-3 rounded-xl border px-4 py-3 text-sm ${tone}`}>
-      <span className="flex-1">{text}</span>
-      <button onClick={onDismiss} className="opacity-60 hover:opacity-100">×</button>
-    </div>
+    <Notice tone={tone} onDismiss={onDismiss}>
+      {text}
+    </Notice>
   );
 }
 
-function ProviderCard({ meta, connection, repos, available, busy, onConnect, onDisconnect }: {
+function ProviderCard({
+  meta,
+  connection,
+  repos,
+  available,
+  busy,
+  onConnect,
+  onDisconnect,
+}: {
   meta: (typeof PROVIDERS)[number];
   connection?: Connection;
   repos: string[];
@@ -218,45 +224,45 @@ function ProviderCard({ meta, connection, repos, available, busy, onConnect, onD
   const needsReauth = connection?.status === "needs_reauth";
 
   return (
-    <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-      <div className="flex items-start gap-4">
-        <Icon className="w-5 h-5 mt-0.5 text-white/70 shrink-0" />
+    <Panel
+      title={
+        <span className="flex items-center gap-2">
+          <Icon className="w-3.5 h-3.5 text-dim" />
+          {meta.label}
+        </span>
+      }
+      right={
+        connected ? (
+          <Status status="DONE" label="Connected" />
+        ) : needsReauth ? (
+          <Status status="PENDING" label="Reconnect needed" />
+        ) : undefined
+      }
+      bodyClass="p-5"
+    >
+      <div className="flex items-start gap-6">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-medium text-white">{meta.label}</h2>
-            {connected && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/15 px-2 py-0.5 text-[11px] text-emerald-300">
-                <Check className="w-3 h-3" /> Connected
-              </span>
-            )}
-            {needsReauth && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/15 px-2 py-0.5 text-[11px] text-amber-300">
-                <AlertTriangle className="w-3 h-3" /> Reconnect needed
-              </span>
-            )}
-          </div>
-
-          <p className="mt-1 text-sm text-white/50">{meta.blurb}</p>
+          <p className="text-sm text-dim leading-relaxed">{meta.blurb}</p>
 
           {connected ? (
-            <div className="mt-3 space-y-2 text-xs text-white/45">
+            <div className="mt-4 space-y-2 text-sm text-dim">
               <p>
-                Connected as <span className="text-white/75">{connection!.account}</span>
+                Connected as <span className="text-text">{connection!.account}</span>
                 {connection!.account_type === "Organization" && " (organisation)"}
               </p>
               {meta.key === "github" && (
                 <div>
-                  <p className="text-white/60">Mergit can act on:</p>
+                  <Micro>Mergit can act on</Micro>
                   {repos.length ? (
-                    <ul className="mt-1 flex flex-wrap gap-1.5">
+                    <ul className="mt-2 flex flex-wrap gap-1.5">
                       {repos.map((r) => (
-                        <li key={r} className="rounded-md bg-white/[0.06] px-2 py-0.5 font-mono text-[11px] text-white/70">
+                        <li key={r} className="border border-line-soft px-2 py-0.5 font-mono text-xs text-dim">
                           {r}
                         </li>
                       ))}
                     </ul>
                   ) : (
-                    <p className="mt-1 text-white/40">
+                    <p className="mt-2 text-dim">
                       Every repository on this account. Narrow it on GitHub if you would rather
                       pick specific ones.
                     </p>
@@ -265,10 +271,10 @@ function ProviderCard({ meta, connection, repos, available, busy, onConnect, onD
               )}
             </div>
           ) : (
-            <ul className="mt-3 space-y-1 text-xs text-white/45">
+            <ul className="mt-4 space-y-1.5 text-sm text-dim">
               {meta.permissions.map((p) => (
                 <li key={p} className="flex gap-2">
-                  <span className="text-white/25">•</span> {p}
+                  <span className="text-faint">—</span> {p}
                 </li>
               ))}
             </ul>
@@ -277,46 +283,38 @@ function ProviderCard({ meta, connection, repos, available, busy, onConnect, onD
 
         <div className="shrink-0">
           {!available ? (
-            <span className="text-xs text-white/30">Not configured</span>
+            <Micro>Not configured</Micro>
           ) : connected ? (
             <button
               onClick={onDisconnect}
               disabled={busy}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5
-                         text-xs text-white/60 transition-all hover:border-red-400/30 hover:text-red-300"
+              className="btn-ghost hover:border-red hover:text-red"
             >
-              {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
-              Disconnect
+              {busy ? "Disconnecting…" : "Disconnect"}
             </button>
           ) : (
-            <button
-              onClick={onConnect}
-              disabled={busy}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5
-                         text-xs font-medium text-black transition-all hover:bg-white/90 disabled:opacity-50"
-            >
-              {busy && <Loader2 className="w-3 h-3 animate-spin" />}
-              {needsReauth ? "Reconnect" : "Connect"}
+            <button onClick={onConnect} disabled={busy} className="btn-primary">
+              {busy ? (needsReauth ? "Reconnecting…" : "Connecting…") : needsReauth ? "Reconnect" : "Connect"}
             </button>
           )}
         </div>
       </div>
 
       {connected && meta.key === "github" && (
-        <p className="mt-4 border-t border-white/[0.06] pt-3 text-[11px] text-white/30">
+        <p className="mt-4 border-t border-line-soft pt-3 text-xs text-dim leading-relaxed">
           Disconnecting removes Mergit's stored access. The app installation itself lives on
           GitHub — remove it at{" "}
           <a
             href="https://github.com/settings/installations"
             target="_blank"
             rel="noreferrer"
-            className="text-white/50 underline underline-offset-2"
+            className="text-dim hover:text-text underline underline-offset-2 transition-colors"
           >
             github.com/settings/installations
           </a>{" "}
           to revoke it fully.
         </p>
       )}
-    </section>
+    </Panel>
   );
 }

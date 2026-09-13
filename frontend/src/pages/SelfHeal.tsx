@@ -1,10 +1,9 @@
 import useSWR from "swr";
-import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { AppNav } from "../components/AppNav";
-import { AppBackground } from "../components/AppBackground";
+import { Shell } from "../components/AppNav";
 import { api } from "../lib/api";
 import type { HealAttempt } from "../lib/api";
+import { Empty, Hash, Metric, MetricRow, PageHead, Panel, Status } from "../components/ui";
 
 function timeAgo(ts: number): string {
   const diff = Date.now() / 1000 - ts;
@@ -14,98 +13,76 @@ function timeAgo(ts: number): string {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-const STATUS_META: Record<string, { label: string; className: string }> = {
-  filed: { label: "Issue filed", className: "text-cyan border-cyan/25 bg-cyan/8" },
-  simulated: {
-    label: "Simulated",
-    className: "text-amber-400 border-amber-400/25 bg-amber-400/8",
-  },
+const STATUS_LABEL: Record<string, string> = {
+  filed: "Issue filed",
+  simulated: "Simulated",
 };
 
-const OUTCOME_META: Record<string, { label: string; className: string }> = {
-  fixed: { label: "Fixed", className: "text-proof-green border-proof-green/25 bg-proof-green/8" },
-  failed: { label: "Fix failed", className: "text-red-400 border-red-400/25 bg-red-400/8" },
-  abandoned: { label: "Abandoned", className: "text-text-muted border-white/12 bg-white/4" },
+const OUTCOME_LABEL: Record<string, string> = {
+  fixed: "Fixed",
+  failed: "Fix failed",
+  abandoned: "Abandoned",
 };
 
-function Chip({ label, className }: { label: string; className: string }) {
+function AttemptRow({
+  attempt,
+  onOpenGoal,
+}: {
+  attempt: HealAttempt;
+  onOpenGoal: (goalId: string) => void;
+}) {
   return (
-    <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${className}`}>
-      {label}
-    </span>
-  );
-}
-
-function Stat({ value, label }: { value: number | string; label: string }) {
-  return (
-    <div className="card px-4 py-3">
-      <p className="font-mono text-xl text-white leading-none">{value}</p>
-      <p className="text-[11px] text-text-muted mt-1.5">{label}</p>
-    </div>
-  );
-}
-
-function AttemptRow({ attempt }: { attempt: HealAttempt }) {
-  const nav = useNavigate();
-  const status = STATUS_META[attempt.status];
-  const outcome = attempt.outcome ? OUTCOME_META[attempt.outcome] : null;
-
-  return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-      className="px-5 py-4"
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap mb-1.5">
-            <span className="text-xs font-medium text-white capitalize">{attempt.agent_name}</span>
-            {status && <Chip label={status.label} className={status.className} />}
-            {outcome && <Chip label={outcome.label} className={outcome.className} />}
-            {attempt.recurrence_count > 1 && (
-              <Chip
-                label={`seen ${attempt.recurrence_count}×`}
-                className="text-violet-300 border-violet-400/25 bg-violet-400/8"
-              />
-            )}
-          </div>
-
-          <p className="font-mono text-[11px] text-text-dim break-all">{attempt.error_summary}</p>
-
-          <div className="flex items-center gap-3 mt-2 flex-wrap">
-            <span className="font-mono text-[10px] text-text-muted">
-              {attempt.fingerprint.slice(0, 12)}
+    <tr>
+      <td className="font-mono text-micro uppercase">{attempt.agent_name}</td>
+      <td className="font-mono text-xs text-dim max-w-xs truncate">{attempt.error_summary}</td>
+      <td>
+        <div className="flex flex-wrap items-center gap-2">
+          <Status status={attempt.status} label={STATUS_LABEL[attempt.status] ?? attempt.status} />
+          {attempt.outcome && (
+            <Status
+              status={attempt.outcome}
+              label={OUTCOME_LABEL[attempt.outcome] ?? attempt.outcome}
+            />
+          )}
+          {attempt.recurrence_count > 1 && (
+            <span className="micro border border-violet text-violet px-1.5 py-0.5">
+              Seen {attempt.recurrence_count}×
             </span>
-            {attempt.issue_url && (
-              <a
-                href={attempt.issue_url}
-                target="_blank"
-                rel="noreferrer"
-                className="text-[11px] text-cyan hover:underline"
-              >
-                issue #{attempt.issue_number} ↗
-              </a>
-            )}
-            {attempt.fix_goal_id && (
-              <button
-                onClick={() => nav(`/app/goals/${attempt.fix_goal_id}`)}
-                className="text-[11px] text-accent-2 hover:underline"
-              >
-                view fix goal →
-              </button>
-            )}
-          </div>
+          )}
         </div>
-
-        <span className="text-[11px] text-text-muted shrink-0">{timeAgo(attempt.created_at)}</span>
-      </div>
-    </motion.div>
+      </td>
+      <td>
+        <Hash value={attempt.fingerprint} />
+      </td>
+      <td className="whitespace-nowrap">
+        {attempt.issue_url && (
+          <a
+            href={attempt.issue_url}
+            target="_blank"
+            rel="noreferrer"
+            className="micro hover:text-text transition-colors mr-3"
+          >
+            Issue #{attempt.issue_number}
+          </a>
+        )}
+        {attempt.fix_goal_id && (
+          <button
+            onClick={() => onOpenGoal(attempt.fix_goal_id!)}
+            className="micro hover:text-text transition-colors"
+          >
+            View fix goal
+          </button>
+        )}
+      </td>
+      <td className="text-right font-mono text-xs text-dim tabular whitespace-nowrap">
+        {timeAgo(attempt.created_at)}
+      </td>
+    </tr>
   );
 }
 
 export function SelfHeal() {
+  const nav = useNavigate();
   const { data: attempts } = useSWR("/api/heal/attempts", () => api.getHealAttempts(), {
     refreshInterval: 5000,
   });
@@ -114,59 +91,53 @@ export function SelfHeal() {
   });
 
   return (
-    <div className="relative min-h-screen" style={{ background: "#000" }}>
-      <AppBackground />
+    <Shell>
+      <PageHead marker="RELIABILITY — SELF-HEAL" title="Self-heal">
+        When a run fails from a bug in Mergit's own code — not a rate limit or a bad key — the
+        system fingerprints the error, files an issue, and spawns an agent pipeline to fix itself.
+        Repeat failures deduplicate instead of filing again.
+      </PageHead>
 
-      <div className="relative z-10 flex flex-col min-h-screen">
-        <AppNav />
+      {stats && (
+        <div className="mb-8">
+          <MetricRow>
+            <Metric label="Distinct bugs" value={stats.total} />
+            <Metric label="Total occurrences" value={stats.recurrences} />
+            <Metric label="Fixed" value={stats.fixed} />
+            <Metric label="Issues filed" value={stats.by_status?.filed ?? 0} />
+          </MetricRow>
+        </div>
+      )}
 
-        <main className="flex-1 max-w-4xl mx-auto w-full px-6 py-10">
-          <motion.div
-            initial={{ opacity: 0, y: -12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-            className="mb-8"
-          >
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-accent/25 bg-accent/8 mb-4">
-              <span className="w-1.5 h-1.5 rounded-full bg-proof-green animate-pulse-ring" />
-              <span className="text-xs font-medium text-accent-2">Autonomous repair</span>
-            </div>
-
-            <h1
-              className="font-display font-bold text-white mb-3"
-              style={{ fontSize: "clamp(1.8rem, 4vw, 2.6rem)" }}
-            >
-              Self-<span className="text-gradient-blue">Heal</span>
-            </h1>
-            <p className="text-text-dim text-sm max-w-xl leading-relaxed">
-              When a run fails from a bug in Mergit's own code — not a rate limit or a bad key —
-              the system fingerprints the error, files an issue, and spawns an agent pipeline to
-              fix itself. Repeat failures deduplicate instead of filing again.
-            </p>
-          </motion.div>
-
-          {stats && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
-              <Stat value={stats.total} label="Distinct bugs" />
-              <Stat value={stats.recurrences} label="Total occurrences" />
-              <Stat value={stats.fixed} label="Fixed" />
-              <Stat value={stats.by_status?.filed ?? 0} label="Issues filed" />
-            </div>
-          )}
-
-          {!attempts || attempts.length === 0 ? (
-            <div className="card px-6 py-10 text-center text-text-muted text-sm">
-              No bugs detected yet. Developer-side failures appear here automatically.
-            </div>
-          ) : (
-            <div className="card divide-y divide-white/6 overflow-hidden">
+      <Panel title="Repair attempts">
+        {!attempts || attempts.length === 0 ? (
+          <Empty title="No bugs detected yet">
+            Developer-side failures appear here automatically.
+          </Empty>
+        ) : (
+          <table className="dtable">
+            <thead>
+              <tr>
+                <th>Agent</th>
+                <th>Error</th>
+                <th>Status</th>
+                <th>Fingerprint</th>
+                <th>Links</th>
+                <th className="text-right">Seen</th>
+              </tr>
+            </thead>
+            <tbody>
               {attempts.map((attempt) => (
-                <AttemptRow key={attempt.id} attempt={attempt} />
+                <AttemptRow
+                  key={attempt.id}
+                  attempt={attempt}
+                  onOpenGoal={(goalId) => nav(`/app/goals/${goalId}`)}
+                />
               ))}
-            </div>
-          )}
-        </main>
-      </div>
-    </div>
+            </tbody>
+          </table>
+        )}
+      </Panel>
+    </Shell>
   );
 }

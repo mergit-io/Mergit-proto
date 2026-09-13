@@ -1,44 +1,51 @@
 /** @type {import('tailwindcss').Config} */
+
+// Every colour resolves through a CSS variable so a single class list renders in
+// both themes. Adding `dark:` variants to each utility was the alternative and it
+// doubles the class list on every element.
+const v = (name) => `rgb(var(${name}) / <alpha-value>)`;
+
 export default {
+  darkMode: ["class", '[data-theme="dark"]'],
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
-        bg:           "#07060f",
-        "bg-deep":    "#040309",
-        surface:      "#131024",
-        "surface-2":  "#1c1833",
-        border:       "#241f3d",
-        muted:        "#3a3550",
-        "text-muted": "#6b7280",
-        "text-dim":   "#9ca3af",
-        accent:       "#6d4aff",
-        "accent-2":   "#9c8bff",
-        cyan:         "#22d3ee",
-        purple:       "#a855f7",
-        "proof-green": "#2eff9e",
-        success:      "#22c55e",
-        warning:      "#f59e0b",
-        danger:       "#ef4444",
+        ink: v("--c-ink"),
+        slab: v("--c-slab"),
+        raise: v("--c-raise"),
+        line: v("--c-line"),
+        "line-soft": v("--c-line-soft"),
+        text: v("--c-text"),
+        dim: v("--c-dim"),
+        faint: v("--c-faint"),
+        violet: v("--c-violet"),
+        "violet-hi": v("--c-violet-hi"),
+        "on-violet": v("--c-on-violet"),
+        mint: v("--c-mint"),
+        amber: v("--c-amber"),
+        red: v("--c-red"),
       },
       fontFamily: {
-        sans:    ["Inter", "system-ui", "sans-serif"],
-        display: ["DM Sans", "Inter", "system-ui", "sans-serif"],
-        mono:    ["JetBrains Mono", "Fira Code", "monospace"],
+        display: ["Archivo Variable", "Archivo", "Inter", "system-ui", "sans-serif"],
+        sans: ["Inter", "system-ui", "sans-serif"],
+        mono: ["IBM Plex Mono", "ui-monospace", "monospace"],
       },
-      backgroundImage: {
-        "gradient-radial":  "radial-gradient(var(--tw-gradient-stops))",
-        "hero-glow":        "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(109,74,255,0.28) 0%, transparent 70%)",
-        "hero-glow-purple": "radial-gradient(ellipse 60% 50% at 60% 20%, rgba(168,85,247,0.20) 0%, transparent 60%)",
+      fontSize: {
+        // Micro-labels: the eyebrow/column-header voice used across the console.
+        micro: ["0.625rem", { lineHeight: "1", letterSpacing: "0.16em" }],
+        label: ["0.6875rem", { lineHeight: "1.1", letterSpacing: "0.12em" }],
       },
-      boxShadow: {
-        "neon-blue":    "0 0 20px rgba(109,74,255,0.35), 0 0 60px rgba(109,74,255,0.1)",
-        "neon-blue-lg": "0 0 40px rgba(109,74,255,0.5), 0 0 100px rgba(109,74,255,0.15)",
-        "glow-purple":  "0 0 30px rgba(168,85,247,0.35)",
-        "glass":        "0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06)",
+      letterSpacing: {
+        tightest: "-0.045em",
       },
-      backdropBlur: { "4xl": "72px" },
-      borderRadius: { "4xl": "2rem", "5xl": "2.5rem" },
+      borderRadius: {
+        // The design system is square. Nothing opts back in.
+        none: "0",
+      },
+      transitionTimingFunction: {
+        out: "cubic-bezier(0.16, 1, 0.3, 1)",
+      },
     },
   },
   plugins: [],

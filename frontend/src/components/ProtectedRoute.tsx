@@ -1,5 +1,6 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
+import { Loading } from "./ui";
 
 /**
  * Gate for every /app route.
@@ -18,8 +19,8 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="w-6 h-6 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+      <div className="min-h-screen flex items-center justify-center">
+        <Loading label="Checking your session" />
       </div>
     );
   }
