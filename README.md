@@ -1,7 +1,61 @@
-# Mergit — The AI Agent Economy
-Assign any goal to an AI. It decomposes the task, spins up specialized agents, uses your tools, and delivers results. Every completed task mints a proof of work on a real EVM — Solidity contracts, real tx hashes, real receipts — and bumps its agent's reputation. No workflows to define. No steps to configure. Just delegate.
+<h1 align="center">Mergit — The AI Agent Economy</h1>
 
-Out of the box the chain runs *inside* the app process (`CHAIN_TARGET=local`), so it needs no keys, no tokens and no network. Point `CHAIN_TARGET` at `monad-testnet` and the same code records the same proofs on a public network.
+<p align="center">
+  <b>Describe the outcome. Not the steps.</b><br>
+  Give Mergit one sentence. It plans the work, assigns specialist agents, runs real tools,
+  and settles every finished task as a proof on chain.
+</p>
+
+<p align="center">
+  <a href="https://mergit.onrender.com/app"><img alt="Live demo" src="https://img.shields.io/badge/live%20demo-mergit.onrender.com-6D4AFF?style=flat-square"></a>
+  <img alt="Python 3.11" src="https://img.shields.io/badge/python-3.11-3776AB?style=flat-square&logo=python&logoColor=white">
+  <img alt="React 19" src="https://img.shields.io/badge/react-19-149ECA?style=flat-square&logo=react&logoColor=white">
+  <img alt="FastAPI" src="https://img.shields.io/badge/fastapi-async-009688?style=flat-square&logo=fastapi&logoColor=white">
+  <img alt="Solidity EVM" src="https://img.shields.io/badge/solidity-EVM-363636?style=flat-square&logo=solidity&logoColor=white">
+  <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-blue?style=flat-square"></a>
+</p>
+
+<p align="center">
+  <img alt="Mergit landing page — a goal decomposed into four agent steps, awaiting settlement" src="docs/assets/landing.png" width="100%">
+</p>
+
+## What it does
+
+You write **one sentence**. Everything below follows from it — there is no workflow to define,
+no step list to keep current, and no template to fill in.
+
+| | |
+|---|---|
+| **Plans the work itself** | A planning model turns your sentence into a task graph: every node assigned to an agent, with inputs and dependencies resolved. You never write the steps. |
+| **Six specialist agents** | `orchestrator` plans · `researcher` reads repos and searches · `writer` produces prose and diagrams · `coder` writes and runs Python · `integrator` acts on the outside world · `notifier` reports. |
+| **Real tools, real side effects** | 20 GitHub tools (open PRs, comment on issues, create repos, set branch protection, wait on webhooks), `code_exec` running Python in a subprocess with a 30-second cap, and web search. Not simulated. |
+| **Proof of work on chain** | Each finished task is serialised canonically, hashed with SHA-256, and recorded to `ProofOfWork` against the agent's passport. Four deployed Solidity contracts: `AgentPassport`, `ProofOfWork`, `ReputationRegistry`, `AuditTrail`. |
+| **Verifiable, not just claimed** | Any proof can be re-checked from the UI: recompute the hash from the stored output, read the chain, compare. Every intermediate value is exposed so a human can redo the check by hand. |
+| **Reputation that moves** | Success rate, speed and volume combine into a composite score per agent role, updated as tasks land. |
+| **Runs up to five tasks at once** | Independent nodes of the graph execute in parallel, each agent driving its own tool-call loop. |
+| **Survives its own failures** | Crash mid-task and it resumes from the same step. A task whose lease expires is reclaimed and retried. Repeated tool calls are hash-matched and served from the stored result. A task that exhausts retries gets replanned. |
+| **Agents cannot fake success** | Guards reject a result that admits failure, carries a failed tool envelope, invents a URL, or claims it opened a PR without producing one. |
+| **Files its own bugs** | When Mergit hits a bug in itself, it fingerprints it, opens a GitHub issue, and can spawn a goal to fix it. |
+| **Live, not polled** | An SSE stream pushes plan, task, tool and proof events to the console as they happen. |
+
+### Two chain targets, one code path
+
+Out of the box the chain runs **inside the app process** (`CHAIN_TARGET=local`, chainId 31337) —
+no keys, no tokens, no network, nothing to fund. Point `CHAIN_TARGET` at `monad-testnet`
+(chainId 10143) and the same code records the same proofs on a public network.
+
+## Screenshots
+
+**The console** — delegate a goal, watch the swarm, see proofs land.
+
+![Mergit dashboard: goal input, run counters, recent goals and the agent roster](docs/assets/dashboard.png)
+
+**The proof ledger** — every settled task, its real block and transaction, each one re-checkable.
+
+![Mergit proof ledger: three proofs settled on chainId 31337 at blocks 7, 9 and 11](docs/assets/proof-ledger.png)
+
+> Both screenshots are the local chain (`CHAIN_TARGET=local`) with the demo seed loaded.
+> Blocks 7, 9 and 11 are real blocks on the in-process EVM, not placeholders.
 
 ## Documentation
 
