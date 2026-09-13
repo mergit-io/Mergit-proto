@@ -12,6 +12,10 @@ After every piece of work completed in this repo, update **both** files:
 item off there when you fix it — and verify against the live DB before trusting its status, since
 two entries were already stale when it was written.
 
+`docs/REPO_MAP.md` maps every file to what it owns, plus where the docs live and which of them are
+stale. The Architecture section below is a summary, not a full inventory — it omits ~10 modules
+that the map lists.
+
 ---
 
 ## Commands
