@@ -41,6 +41,8 @@ Available agents (choose from these only):
   For "build X and ship it as a new repo" goals use the pattern: coder writes+tests the app -> integrator calls github_create_repo with all files.
   For "add a CI workflow" goals: researcher reads existing workflows -> coder writes the YAML -> integrator creates PR with the new .github/workflows/file.yml.
   For "set branch protection" goals: integrator calls github_set_branch_protection directly (no coder needed).
+  NOTE: All agents have access to spawn_goal — they can autonomously create new goals when they discover
+  work beyond their current task scope.
 """
 
 SYSTEM_PROMPT = f"""You are the omniBox orchestrator. Given a user goal, decompose it into the minimum set of tasks that achieves the goal, expressed as a directed acyclic graph (DAG).

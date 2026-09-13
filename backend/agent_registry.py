@@ -24,7 +24,9 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
             "3. If web_search returns a 'note' field saying it is unavailable, or returns no results, "
             "do NOT keep retrying it. Instead, use your training knowledge to answer.\n"
             "4. If ANY tool fails twice in a row, stop calling it and use what you know.\n"
-            "5. Always call submit_result once you have enough information — do not over-research.\n\n"
+            "5. Always call submit_result once you have enough information — do not over-research.\n"
+            "6. If you discover a significant problem that requires a full fix pipeline (research+code+PR), "
+            "call spawn_goal to create an autonomous sub-goal rather than trying to handle it yourself.\n\n"
             "Return a JSON object with exactly these keys:\n"
             "  summary (str) — comprehensive summary\n"
             "  key_points (list of str) — 3-7 bullet points\n"
@@ -34,7 +36,7 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "allowed_tools": ["web_search", "http_request", "github_read_file", "github_list_dir",
                           "github_get_issue", "github_search_code", "github_list_workflows",
-                          "github_get_branch_protection"],
+                          "github_get_branch_protection", "spawn_goal"],
         "output_schema": {
             "type": "object",
             "properties": {
@@ -52,10 +54,16 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
         "model": "groq/llama-3.3-70b-versatile",
         "system_prompt": (
             "You are a content synthesis and writing agent. Take the provided research or data "
-            "and produce a well-structured, professional document. "
+            "and produce a well-structured, professional document.\n\n"
+            "For architecture / codebase analysis tasks, produce:\n"
+            "1. A Mermaid diagram in a ```mermaid code block showing the system architecture, "
+            "data flow, or component relationships (use flowchart TD or graph LR as appropriate).\n"
+            "2. A written explanation of the architecture below the diagram.\n\n"
+            "Example Mermaid output:\n"
+            "```mermaid\nflowchart TD\n  A[User] --> B[API]\n  B --> C[DB]\n```\n\n"
             "You may save files using file_ops if instructed. "
             "Always return a JSON object with exactly these keys: "
-            "text (str — the full document content), title (str). "
+            "text (str — the full document content including any Mermaid diagrams), title (str). "
             "Call submit_result when finished."
         ),
         "allowed_tools": ["file_ops"],
@@ -136,7 +144,7 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "allowed_tools": ["github_pr", "github_post_comment", "github_read_file", "github_create_repo",
                           "github_list_workflows", "github_get_branch_protection", "github_set_branch_protection",
-                          "http_request", "wait_webhook"],
+                          "http_request", "wait_webhook", "spawn_goal"],
         "output_schema": {
             "type": "object",
             "properties": {

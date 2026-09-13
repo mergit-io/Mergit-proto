@@ -10,8 +10,11 @@ import uuid
 from typing import Any
 
 import db
+import error_classifier
 import events
 import orchestrator as orch
+import replanner
+import self_heal
 from agent_runner import WaitingCredentialSignal, WaitingWebhookSignal, run as agent_run
 from config import settings
 from interpolation import resolve_inputs
@@ -170,10 +173,21 @@ async def _execute_task(task: Any) -> None:
         if fresh and fresh.attempt_count >= fresh.max_attempts:
             await db.settle_task(task.id, TaskStatus.FAILED, error=str(e))
             events.emit(goal_id, "task_update", {"task_id": task.id, "status": TaskStatus.FAILED, "error": str(e)})
+            # Before giving up, try to dynamically replan around the failure
+            if await replanner.should_replan(goal_id):
+                events.emit(goal_id, "goal_status", {"status": "REPLANNING", "goal_id": goal_id,
+                                                      "reason": f"Task {task.agent_name} failed — devising alternative plan"})
+                replanned = await replanner.attempt_replan(goal_id, task.id, str(e))
+                if replanned:
+                    logger.info("Goal %s successfully replanned after task %s failure", goal_id, task.id)
+                    events.emit(goal_id, "goal_status", {"status": "RUNNING", "goal_id": goal_id})
+                    return  # new tasks will be picked up by the executor loop
             await _handle_goal_failure(goal_id, task.id, str(e))
         else:
+            # Retry — inject failure context so next attempt knows what went wrong
             await db.settle_task(task.id, TaskStatus.READY, error=str(e))
-            events.emit(goal_id, "task_update", {"task_id": task.id, "status": TaskStatus.READY})
+            events.emit(goal_id, "task_update", {"task_id": task.id, "status": TaskStatus.READY,
+                                                  "retry_reason": str(e)[:200]})
 
 
 async def _requeue_task_later(task_id: str, goal_id: str, delay: int) -> None:
@@ -207,6 +221,21 @@ async def _handle_goal_failure(goal_id: str, failed_task_id: str, error: str) ->
     events.emit(goal_id, "goal_status", {
         "status": GoalStatus.FAILED, "goal_id": goal_id, "error": error,
     })
+    # Self-heal: if this looks like a developer bug, auto-file an issue and spawn a fix goal
+    classification = error_classifier.classify(error)
+    if classification["is_bug"]:
+        goal = await db.get_goal(goal_id)
+        task = await db.get_task(failed_task_id)
+        agent_name = task.agent_name if task else "unknown"
+        goal_title = goal.title if goal else goal_id
+        logger.warning(
+            "self_heal: developer error detected in goal=%s task=%s agent=%s — filing issue",
+            goal_id, failed_task_id, agent_name,
+        )
+        asyncio.create_task(
+            self_heal.trigger(goal_id, goal_title, agent_name, error, classification["summary"]),
+            name=f"self-heal-{goal_id[:8]}",
+        )
 
 
 # ── Reclaim ─────────────────────────────────────────────────────────────────────

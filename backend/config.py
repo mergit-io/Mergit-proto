@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     tavily_api_key: str = ""
     github_token: str = ""
     github_default_repo: str = ""
+    omnibox_repo: str = "viscous106/omniBox"  # repo where self-heal issues/PRs are filed
 
     # Tracing
     omium_api_key: str = ""

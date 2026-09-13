@@ -135,6 +135,13 @@ async def run(
     user_content = f"Task: {task.description}\n\nInputs:\n{json.dumps(resolved_inputs, indent=2)}"
     if ctx_prompt:
         user_content = f"Background context about the project:{ctx_prompt}\n\n{user_content}"
+    # Inject previous failure context on retries so the agent knows what went wrong
+    if task.attempt_count > 0 and task.error:
+        user_content += (
+            f"\n\n⚠️ RETRY ATTEMPT {task.attempt_count}: Previous attempt failed with:\n"
+            f"{task.error[:500]}\n"
+            "Take a different approach to avoid repeating the same failure."
+        )
 
     messages: list[dict] = [
         {"role": "system", "content": config["system_prompt"]},

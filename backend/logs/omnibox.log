@@ -735,3 +735,373 @@ LiteLLM completion() model= qwen-qwq-32b; provider = groq
 
 2026-05-16 07:15:31 ERROR    worker                   Task 37559c98_t3 FAILED: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
 
+2026-05-16 07:23:11 INFO     orchestrator             Orchestrator using model: anthropic/claude-haiku-4-5-20251001
+2026-05-16 07:23:11 INFO     orchestrator             Orchestrator using model: anthropic/claude-haiku-4-5-20251001
+2026-05-16 07:23:11 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:23:11 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:23:17 INFO     orchestrator             Orchestrator produced plan for goal=a5b031ce-1657-4874-a4cc-69c200e33803: 3 tasks (model=anthropic/claude-haiku-4-5-20251001)
+2026-05-16 07:23:17 INFO     orchestrator             Orchestrator produced plan for goal=a5b031ce-1657-4874-a4cc-69c200e33803: 3 tasks (model=anthropic/claude-haiku-4-5-20251001)
+2026-05-16 07:23:17 INFO     worker                   Goal a5b031ce-1657-4874-a4cc-69c200e33803 planned successfully
+2026-05-16 07:23:17 INFO     worker                   Goal a5b031ce-1657-4874-a4cc-69c200e33803 planned successfully
+2026-05-16 07:23:18 INFO     agent_runner             [task=a5b031ce_t1 agent=researcher] Starting agent loop (model=groq/meta-llama/llama-4-maverick-17b-128e-instruct max_iter=15)
+2026-05-16 07:23:18 INFO     agent_runner             [task=a5b031ce_t1 agent=researcher] Starting agent loop (model=groq/meta-llama/llama-4-maverick-17b-128e-instruct max_iter=15)
+2026-05-16 07:23:18 INFO     LiteLLM                  
+LiteLLM completion() model= meta-llama/llama-4-maverick-17b-128e-instruct; provider = groq
+2026-05-16 07:23:18 INFO     LiteLLM                  
+LiteLLM completion() model= meta-llama/llama-4-maverick-17b-128e-instruct; provider = groq
+2026-05-16 07:23:18 WARNING  llm                      Hard rate limit on groq/meta-llama/llama-4-maverick-17b-128e-instruct (cooldown 300s): litellm.NotFoundError: GroqException - {"error":{"message":"The model `meta-llama/llama-4-maverick-17b-128e-instruct` do; trying next model
+2026-05-16 07:23:18 WARNING  llm                      Hard rate limit on groq/meta-llama/llama-4-maverick-17b-128e-instruct (cooldown 300s): litellm.NotFoundError: GroqException - {"error":{"message":"The model `meta-llama/llama-4-maverick-17b-128e-instruct` do; trying next model
+2026-05-16 07:23:18 WARNING  llm                      Falling back from groq/meta-llama/llama-4-maverick-17b-128e-instruct → groq/llama-3.3-70b-versatile (rate limit / quota)
+2026-05-16 07:23:18 WARNING  llm                      Falling back from groq/meta-llama/llama-4-maverick-17b-128e-instruct → groq/llama-3.3-70b-versatile (rate limit / quota)
+2026-05-16 07:23:18 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:23:18 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:23:23 WARNING  agent_runner             [task=a5b031ce_t1] Tool github_list_dir returned error: 404 {"message": "Not Found", "documentation_url": "https://docs.github.com/rest/repos/contents#get-repository-content", "status": "404"}
+2026-05-16 07:23:23 WARNING  agent_runner             [task=a5b031ce_t1] Tool github_list_dir returned error: 404 {"message": "Not Found", "documentation_url": "https://docs.github.com/rest/repos/contents#get-repository-content", "status": "404"}
+2026-05-16 07:23:25 WARNING  agent_runner             [task=a5b031ce_t1] Tool github_read_file returned error: 404 {"message": "Not Found", "documentation_url": "https://docs.github.com/rest/repos/contents#get-repository-content", "status": "404"}
+2026-05-16 07:23:25 WARNING  agent_runner             [task=a5b031ce_t1] Tool github_read_file returned error: 404 {"message": "Not Found", "documentation_url": "https://docs.github.com/rest/repos/contents#get-repository-content", "status": "404"}
+2026-05-16 07:23:28 WARNING  agent_runner             [task=a5b031ce_t1] Tool github_read_file returned error: 404 {"message": "Not Found", "documentation_url": "https://docs.github.com/rest/repos/contents#get-repository-content", "status": "404"}
+2026-05-16 07:23:28 WARNING  agent_runner             [task=a5b031ce_t1] Tool github_read_file returned error: 404 {"message": "Not Found", "documentation_url": "https://docs.github.com/rest/repos/contents#get-repository-content", "status": "404"}
+2026-05-16 07:23:30 WARNING  agent_runner             [task=a5b031ce_t1] Tool github_read_file returned error: 404 {"message": "Not Found", "documentation_url": "https://docs.github.com/rest/repos/contents#get-repository-content", "status": "404"}
+2026-05-16 07:23:30 WARNING  agent_runner             [task=a5b031ce_t1] Tool github_read_file returned error: 404 {"message": "Not Found", "documentation_url": "https://docs.github.com/rest/repos/contents#get-repository-content", "status": "404"}
+2026-05-16 07:23:31 WARNING  agent_runner             [task=a5b031ce_t1] Tool github_search_code returned error: list index out of range
+2026-05-16 07:23:31 WARNING  agent_runner             [task=a5b031ce_t1] Tool github_search_code returned error: list index out of range
+2026-05-16 07:23:31 INFO     agent_runner             [task=a5b031ce_t1 agent=researcher] submit_result called — task done ✓
+2026-05-16 07:23:31 INFO     agent_runner             [task=a5b031ce_t1 agent=researcher] submit_result called — task done ✓
+2026-05-16 07:23:31 INFO     worker                   Task a5b031ce_t1 DONE (goal=a5b031ce-1657-4874-a4cc-69c200e33803)
+2026-05-16 07:23:31 INFO     worker                   Task a5b031ce_t1 DONE (goal=a5b031ce-1657-4874-a4cc-69c200e33803)
+2026-05-16 07:23:31 INFO     agent_runner             [task=a5b031ce_t2 agent=coder] Starting agent loop (model=anthropic/claude-haiku-4-5-20251001 max_iter=10)
+2026-05-16 07:23:31 INFO     agent_runner             [task=a5b031ce_t2 agent=coder] Starting agent loop (model=anthropic/claude-haiku-4-5-20251001 max_iter=10)
+2026-05-16 07:23:31 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:23:31 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:23:35 WARNING  agent_runner             [task=a5b031ce_t2] Tool github_read_file returned error: . is a directory — use github_list_dir instead
+2026-05-16 07:23:35 WARNING  agent_runner             [task=a5b031ce_t2] Tool github_read_file returned error: . is a directory — use github_list_dir instead
+2026-05-16 07:23:38 WARNING  agent_runner             [task=a5b031ce_t2] Tool github_read_file returned error: 404 {"message": "Not Found", "documentation_url": "https://docs.github.com/rest/repos/contents#get-repository-content", "status": "404"}
+2026-05-16 07:23:38 WARNING  agent_runner             [task=a5b031ce_t2] Tool github_read_file returned error: 404 {"message": "Not Found", "documentation_url": "https://docs.github.com/rest/repos/contents#get-repository-content", "status": "404"}
+2026-05-16 07:23:40 WARNING  agent_runner             [task=a5b031ce_t2] Tool github_read_file returned error: 404 {"message": "Not Found", "documentation_url": "https://docs.github.com/rest/repos/contents#get-repository-content", "status": "404"}
+2026-05-16 07:23:40 WARNING  agent_runner             [task=a5b031ce_t2] Tool github_read_file returned error: 404 {"message": "Not Found", "documentation_url": "https://docs.github.com/rest/repos/contents#get-repository-content", "status": "404"}
+2026-05-16 07:23:40 WARNING  agent_runner             [task=a5b031ce_t2] 3 consecutive tool errors (github_read_file) — forcing submit_result
+2026-05-16 07:23:40 WARNING  agent_runner             [task=a5b031ce_t2] 3 consecutive tool errors (github_read_file) — forcing submit_result
+2026-05-16 07:23:40 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:23:40 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:23:44 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:23:44 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:23:47 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:23:47 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:23:52 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:23:52 INFO     LiteLLM                  
+LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
+2026-05-16 07:23:58 INFO     agent_runner             [task=a5b031ce_t2 agent=coder] submit_result called — task done ✓
+2026-05-16 07:23:58 INFO     agent_runner             [task=a5b031ce_t2 agent=coder] submit_result called — task done ✓
+2026-05-16 07:23:58 INFO     worker                   Task a5b031ce_t2 DONE (goal=a5b031ce-1657-4874-a4cc-69c200e33803)
+2026-05-16 07:23:58 INFO     worker                   Task a5b031ce_t2 DONE (goal=a5b031ce-1657-4874-a4cc-69c200e33803)
+2026-05-16 07:23:58 INFO     agent_runner             [task=a5b031ce_t3 agent=integrator] Starting agent loop (model=groq/qwen-qwq-32b max_iter=5)
+2026-05-16 07:23:58 INFO     agent_runner             [task=a5b031ce_t3 agent=integrator] Starting agent loop (model=groq/qwen-qwq-32b max_iter=5)
+2026-05-16 07:23:58 INFO     LiteLLM                  
+LiteLLM completion() model= qwen-qwq-32b; provider = groq
+2026-05-16 07:23:58 INFO     LiteLLM                  
+LiteLLM completion() model= qwen-qwq-32b; provider = groq
+2026-05-16 07:23:58 ERROR    agent_runner             [task=a5b031ce_t3] LLM call failed on iteration 1: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:23:58 ERROR    agent_runner             [task=a5b031ce_t3] LLM call failed on iteration 1: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:23:58 ERROR    worker                   Task a5b031ce_t3 FAILED: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:23:58 ERROR    worker                   Task a5b031ce_t3 FAILED: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:23:59 INFO     agent_runner             [task=a5b031ce_t3 agent=integrator] Starting agent loop (model=groq/qwen-qwq-32b max_iter=5)
+2026-05-16 07:23:59 INFO     agent_runner             [task=a5b031ce_t3 agent=integrator] Starting agent loop (model=groq/qwen-qwq-32b max_iter=5)
+2026-05-16 07:23:59 INFO     LiteLLM                  
+LiteLLM completion() model= qwen-qwq-32b; provider = groq
+2026-05-16 07:23:59 INFO     LiteLLM                  
+LiteLLM completion() model= qwen-qwq-32b; provider = groq
+2026-05-16 07:23:59 ERROR    agent_runner             [task=a5b031ce_t3] LLM call failed on iteration 1: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:23:59 ERROR    agent_runner             [task=a5b031ce_t3] LLM call failed on iteration 1: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:23:59 ERROR    worker                   Task a5b031ce_t3 FAILED: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:23:59 ERROR    worker                   Task a5b031ce_t3 FAILED: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:24:00 INFO     agent_runner             [task=a5b031ce_t3 agent=integrator] Starting agent loop (model=groq/qwen-qwq-32b max_iter=5)
+2026-05-16 07:24:00 INFO     agent_runner             [task=a5b031ce_t3 agent=integrator] Starting agent loop (model=groq/qwen-qwq-32b max_iter=5)
+2026-05-16 07:24:00 INFO     LiteLLM                  
+LiteLLM completion() model= qwen-qwq-32b; provider = groq
+2026-05-16 07:24:00 INFO     LiteLLM                  
+LiteLLM completion() model= qwen-qwq-32b; provider = groq
+2026-05-16 07:24:00 ERROR    agent_runner             [task=a5b031ce_t3] LLM call failed on iteration 1: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:24:00 ERROR    agent_runner             [task=a5b031ce_t3] LLM call failed on iteration 1: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:24:00 ERROR    worker                   Task a5b031ce_t3 FAILED: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:24:00 ERROR    worker                   Task a5b031ce_t3 FAILED: litellm.BadRequestError: GroqException - {"error":{"message":"The model `qwen-qwq-32b` has been decommissioned and is no longer supported. Please refer to https://console.groq.com/docs/deprecations for a recommendation on which model to use instead.","type":"invalid_request_error","code":"model_decommissioned"}}
+
+2026-05-16 07:24:42 INFO     main                     Shutting down omniBox…
+2026-05-16 07:24:42 INFO     main                     Shutting down omniBox…
+2026-05-16 07:24:42 INFO     main                     omniBox stopped
+2026-05-16 07:24:42 INFO     main                     omniBox stopped
+2026-05-16 07:24:54 INFO     __main__                 Serving frontend from /home/viscous/Viscous/omniBox/frontend/dist
+2026-05-16 07:24:54 INFO     main                     Serving frontend from /home/viscous/Viscous/omniBox/frontend/dist
+2026-05-16 07:24:54 INFO     main                     Serving frontend from /home/viscous/Viscous/omniBox/frontend/dist
+2026-05-16 07:24:54 INFO     main                     Starting omniBox (host=0.0.0.0 port=8000 debug=False)
+2026-05-16 07:24:54 INFO     main                     Starting omniBox (host=0.0.0.0 port=8000 debug=False)
+2026-05-16 07:24:54 INFO     main                     DB initialised at ./omnibox.db
+2026-05-16 07:24:54 INFO     main                     DB initialised at ./omnibox.db
+2026-05-16 07:24:54 INFO     omium                    Omium initialized: project=omniBox, auto_trace=False, frameworks=[]
+2026-05-16 07:24:54 INFO     omium                    Omium initialized: project=omniBox, auto_trace=False, frameworks=[]
+2026-05-16 07:24:54 INFO     tracing                  Omium tracing initialised (project=omniBox)
+2026-05-16 07:24:54 INFO     tracing                  Omium tracing initialised (project=omniBox)
+2026-05-16 07:24:54 INFO     worker                   Worker started (id=84043eb9-007d-4696-bf4c-2fd7843e21f2)
+2026-05-16 07:24:54 INFO     worker                   Worker started (id=84043eb9-007d-4696-bf4c-2fd7843e21f2)
+2026-05-16 07:24:54 INFO     main                     omniBox ready ✓
+2026-05-16 07:24:54 INFO     main                     omniBox ready ✓
+2026-05-16 07:25:04 INFO     orchestrator             Orchestrator using model: groq/llama-3.3-70b-versatile
+2026-05-16 07:25:04 INFO     orchestrator             Orchestrator using model: groq/llama-3.3-70b-versatile
+2026-05-16 07:25:04 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:25:04 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:25:06 INFO     omium                    Auto-registered workflow 'omniBox' in Omium dashboard
+2026-05-16 07:25:06 INFO     omium                    Auto-registered workflow 'omniBox' in Omium dashboard
+2026-05-16 07:25:06 INFO     orchestrator             Orchestrator produced plan for goal=0e06a938-dc3f-4da5-b9e8-23a74c2b1db5: 3 tasks (model=groq/llama-3.3-70b-versatile)
+2026-05-16 07:25:06 INFO     orchestrator             Orchestrator produced plan for goal=0e06a938-dc3f-4da5-b9e8-23a74c2b1db5: 3 tasks (model=groq/llama-3.3-70b-versatile)
+2026-05-16 07:25:06 INFO     worker                   Goal 0e06a938-dc3f-4da5-b9e8-23a74c2b1db5 planned successfully
+2026-05-16 07:25:06 INFO     worker                   Goal 0e06a938-dc3f-4da5-b9e8-23a74c2b1db5 planned successfully
+2026-05-16 07:25:06 INFO     agent_runner             [task=0e06a938_t1 agent=coder] Starting agent loop (model=groq/llama-3.3-70b-versatile max_iter=10)
+2026-05-16 07:25:06 INFO     agent_runner             [task=0e06a938_t1 agent=coder] Starting agent loop (model=groq/llama-3.3-70b-versatile max_iter=10)
+2026-05-16 07:25:06 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:25:06 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:25:07 WARNING  agent_runner             [task=0e06a938_t1] Groq function-call failure (iter 1) — injecting retry hint
+2026-05-16 07:25:07 WARNING  agent_runner             [task=0e06a938_t1] Groq function-call failure (iter 1) — injecting retry hint
+2026-05-16 07:25:07 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:25:07 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:25:08 INFO     agent_runner             [task=0e06a938_t1 agent=coder] Parsed JSON result from assistant text (no tool call)
+2026-05-16 07:25:08 INFO     agent_runner             [task=0e06a938_t1 agent=coder] Parsed JSON result from assistant text (no tool call)
+2026-05-16 07:25:08 INFO     worker                   Task 0e06a938_t1 DONE (goal=0e06a938-dc3f-4da5-b9e8-23a74c2b1db5)
+2026-05-16 07:25:08 INFO     worker                   Task 0e06a938_t1 DONE (goal=0e06a938-dc3f-4da5-b9e8-23a74c2b1db5)
+2026-05-16 07:25:08 INFO     agent_runner             [task=0e06a938_t2 agent=integrator] Starting agent loop (model=groq/llama-3.3-70b-versatile max_iter=5)
+2026-05-16 07:25:08 INFO     agent_runner             [task=0e06a938_t2 agent=integrator] Starting agent loop (model=groq/llama-3.3-70b-versatile max_iter=5)
+2026-05-16 07:25:08 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:25:08 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:25:08 WARNING  llm                      Soft rate limit on groq/llama-3.3-70b-versatile; retrying in 10.48s (attempt 1/3)
+2026-05-16 07:25:08 WARNING  llm                      Soft rate limit on groq/llama-3.3-70b-versatile; retrying in 10.48s (attempt 1/3)
+2026-05-16 07:25:19 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:25:19 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:25:19 WARNING  llm                      Soft rate limit on groq/llama-3.3-70b-versatile; retrying in 19.39s (attempt 2/3)
+2026-05-16 07:25:19 WARNING  llm                      Soft rate limit on groq/llama-3.3-70b-versatile; retrying in 19.39s (attempt 2/3)
+2026-05-16 07:25:39 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:25:39 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:25:48 INFO     tools.github_pr          PR created directly on MaskedBug601/Nothing: https://github.com/MaskedBug601/Nothing/pull/3
+2026-05-16 07:25:48 INFO     tools.github_pr          PR created directly on MaskedBug601/Nothing: https://github.com/MaskedBug601/Nothing/pull/3
+2026-05-16 07:25:48 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:25:48 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:25:48 WARNING  llm                      Soft rate limit on groq/llama-3.3-70b-versatile; retrying in 3.03s (attempt 1/3)
+2026-05-16 07:25:48 WARNING  llm                      Soft rate limit on groq/llama-3.3-70b-versatile; retrying in 3.03s (attempt 1/3)
+2026-05-16 07:25:50 WARNING  main                     [92fb5ad9] ← 404 GET /api/docs (1ms)
+2026-05-16 07:25:50 WARNING  main                     [92fb5ad9] ← 404 GET /api/docs (1ms)
+2026-05-16 07:25:51 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:25:51 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:25:52 INFO     agent_runner             [task=0e06a938_t2 agent=integrator] submit_result called — task done ✓
+2026-05-16 07:25:52 INFO     agent_runner             [task=0e06a938_t2 agent=integrator] submit_result called — task done ✓
+2026-05-16 07:25:52 INFO     worker                   Task 0e06a938_t2 DONE (goal=0e06a938-dc3f-4da5-b9e8-23a74c2b1db5)
+2026-05-16 07:25:52 INFO     worker                   Task 0e06a938_t2 DONE (goal=0e06a938-dc3f-4da5-b9e8-23a74c2b1db5)
+2026-05-16 07:25:53 INFO     agent_runner             [task=0e06a938_t3 agent=writer] Starting agent loop (model=groq/llama-3.3-70b-versatile max_iter=4)
+2026-05-16 07:25:53 INFO     agent_runner             [task=0e06a938_t3 agent=writer] Starting agent loop (model=groq/llama-3.3-70b-versatile max_iter=4)
+2026-05-16 07:25:53 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:25:53 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:25:53 WARNING  llm                      Soft rate limit on groq/llama-3.3-70b-versatile; retrying in 21.01s (attempt 1/3)
+2026-05-16 07:25:53 WARNING  llm                      Soft rate limit on groq/llama-3.3-70b-versatile; retrying in 21.01s (attempt 1/3)
+2026-05-16 07:26:14 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:26:14 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:26:15 INFO     agent_runner             [task=0e06a938_t3 agent=writer] submit_result called — task done ✓
+2026-05-16 07:26:15 INFO     agent_runner             [task=0e06a938_t3 agent=writer] submit_result called — task done ✓
+2026-05-16 07:26:15 INFO     worker                   Task 0e06a938_t3 DONE (goal=0e06a938-dc3f-4da5-b9e8-23a74c2b1db5)
+2026-05-16 07:26:15 INFO     worker                   Task 0e06a938_t3 DONE (goal=0e06a938-dc3f-4da5-b9e8-23a74c2b1db5)
+2026-05-16 07:26:15 INFO     worker                   Goal 0e06a938-dc3f-4da5-b9e8-23a74c2b1db5 COMPLETED
+2026-05-16 07:26:15 INFO     worker                   Goal 0e06a938-dc3f-4da5-b9e8-23a74c2b1db5 COMPLETED
+2026-05-16 07:35:34 INFO     __main__                 Serving frontend from /home/viscous/Viscous/omniBox/frontend/dist
+2026-05-16 07:35:34 INFO     main                     Serving frontend from /home/viscous/Viscous/omniBox/frontend/dist
+2026-05-16 07:35:34 INFO     main                     Serving frontend from /home/viscous/Viscous/omniBox/frontend/dist
+2026-05-16 07:35:34 INFO     main                     Starting omniBox (host=0.0.0.0 port=8000 debug=False)
+2026-05-16 07:35:34 INFO     main                     Starting omniBox (host=0.0.0.0 port=8000 debug=False)
+2026-05-16 07:35:34 INFO     main                     DB initialised at ./omnibox.db
+2026-05-16 07:35:34 INFO     main                     DB initialised at ./omnibox.db
+2026-05-16 07:35:34 INFO     omium                    Omium initialized: project=omniBox, auto_trace=False, frameworks=[]
+2026-05-16 07:35:34 INFO     omium                    Omium initialized: project=omniBox, auto_trace=False, frameworks=[]
+2026-05-16 07:35:34 INFO     tracing                  Omium tracing initialised (project=omniBox)
+2026-05-16 07:35:34 INFO     tracing                  Omium tracing initialised (project=omniBox)
+2026-05-16 07:35:34 INFO     worker                   Worker started (id=cb27794a-c01f-45dc-bbea-460e08558038)
+2026-05-16 07:35:34 INFO     worker                   Worker started (id=cb27794a-c01f-45dc-bbea-460e08558038)
+2026-05-16 07:35:34 INFO     main                     omniBox ready ✓
+2026-05-16 07:35:34 INFO     main                     omniBox ready ✓
+2026-05-16 07:35:45 INFO     omium                    Auto-registered workflow 'omniBox' in Omium dashboard
+2026-05-16 07:35:45 INFO     omium                    Auto-registered workflow 'omniBox' in Omium dashboard
+2026-05-16 07:35:47 INFO     orchestrator             Orchestrator using model: groq/llama-3.3-70b-versatile
+2026-05-16 07:35:47 INFO     orchestrator             Orchestrator using model: groq/llama-3.3-70b-versatile
+2026-05-16 07:35:47 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:35:47 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:35:48 INFO     orchestrator             Orchestrator produced plan for goal=127ebab0-cede-4f2b-8be6-53e0f0460963: 4 tasks (model=groq/llama-3.3-70b-versatile)
+2026-05-16 07:35:48 INFO     orchestrator             Orchestrator produced plan for goal=127ebab0-cede-4f2b-8be6-53e0f0460963: 4 tasks (model=groq/llama-3.3-70b-versatile)
+2026-05-16 07:35:48 INFO     worker                   Goal 127ebab0-cede-4f2b-8be6-53e0f0460963 planned successfully
+2026-05-16 07:35:48 INFO     worker                   Goal 127ebab0-cede-4f2b-8be6-53e0f0460963 planned successfully
+2026-05-16 07:35:49 INFO     agent_runner             [task=127ebab0_t1 agent=researcher] Starting agent loop (model=groq/meta-llama/llama-4-maverick-17b-128e-instruct max_iter=15)
+2026-05-16 07:35:49 INFO     agent_runner             [task=127ebab0_t1 agent=researcher] Starting agent loop (model=groq/meta-llama/llama-4-maverick-17b-128e-instruct max_iter=15)
+2026-05-16 07:35:49 INFO     LiteLLM                  
+LiteLLM completion() model= meta-llama/llama-4-maverick-17b-128e-instruct; provider = groq
+2026-05-16 07:35:49 INFO     LiteLLM                  
+LiteLLM completion() model= meta-llama/llama-4-maverick-17b-128e-instruct; provider = groq
+2026-05-16 07:35:49 WARNING  llm                      Hard rate limit on groq/meta-llama/llama-4-maverick-17b-128e-instruct: litellm.NotFoundError: GroqException - {"error":{"message":"The model `meta-llama/llama-4-maverick-17b-128e-instruct` do; trying next model
+2026-05-16 07:35:49 WARNING  llm                      Hard rate limit on groq/meta-llama/llama-4-maverick-17b-128e-instruct: litellm.NotFoundError: GroqException - {"error":{"message":"The model `meta-llama/llama-4-maverick-17b-128e-instruct` do; trying next model
+2026-05-16 07:35:49 WARNING  llm                      Falling back from groq/meta-llama/llama-4-maverick-17b-128e-instruct → groq/llama-3.3-70b-versatile
+2026-05-16 07:35:49 WARNING  llm                      Falling back from groq/meta-llama/llama-4-maverick-17b-128e-instruct → groq/llama-3.3-70b-versatile
+2026-05-16 07:35:49 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:35:49 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:35:53 INFO     LiteLLM                  
+LiteLLM completion() model= meta-llama/llama-4-maverick-17b-128e-instruct; provider = groq
+2026-05-16 07:35:53 INFO     LiteLLM                  
+LiteLLM completion() model= meta-llama/llama-4-maverick-17b-128e-instruct; provider = groq
+2026-05-16 07:35:53 WARNING  llm                      Hard rate limit on groq/meta-llama/llama-4-maverick-17b-128e-instruct: litellm.NotFoundError: GroqException - {"error":{"message":"The model `meta-llama/llama-4-maverick-17b-128e-instruct` do; trying next model
+2026-05-16 07:35:53 WARNING  llm                      Hard rate limit on groq/meta-llama/llama-4-maverick-17b-128e-instruct: litellm.NotFoundError: GroqException - {"error":{"message":"The model `meta-llama/llama-4-maverick-17b-128e-instruct` do; trying next model
+2026-05-16 07:35:53 WARNING  llm                      Falling back from groq/meta-llama/llama-4-maverick-17b-128e-instruct → groq/llama-3.3-70b-versatile
+2026-05-16 07:35:53 WARNING  llm                      Falling back from groq/meta-llama/llama-4-maverick-17b-128e-instruct → groq/llama-3.3-70b-versatile
+2026-05-16 07:35:53 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:35:53 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:35:53 WARNING  llm                      Soft rate limit on groq/llama-3.3-70b-versatile; retrying in 23.51s (attempt 1/3)
+2026-05-16 07:35:53 WARNING  llm                      Soft rate limit on groq/llama-3.3-70b-versatile; retrying in 23.51s (attempt 1/3)
+2026-05-16 07:36:17 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:36:17 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:36:19 INFO     LiteLLM                  
+LiteLLM completion() model= meta-llama/llama-4-maverick-17b-128e-instruct; provider = groq
+2026-05-16 07:36:19 INFO     LiteLLM                  
+LiteLLM completion() model= meta-llama/llama-4-maverick-17b-128e-instruct; provider = groq
+2026-05-16 07:36:19 WARNING  llm                      Hard rate limit on groq/meta-llama/llama-4-maverick-17b-128e-instruct: litellm.NotFoundError: GroqException - {"error":{"message":"The model `meta-llama/llama-4-maverick-17b-128e-instruct` do; trying next model
+2026-05-16 07:36:19 WARNING  llm                      Hard rate limit on groq/meta-llama/llama-4-maverick-17b-128e-instruct: litellm.NotFoundError: GroqException - {"error":{"message":"The model `meta-llama/llama-4-maverick-17b-128e-instruct` do; trying next model
+2026-05-16 07:36:19 WARNING  llm                      Falling back from groq/meta-llama/llama-4-maverick-17b-128e-instruct → groq/llama-3.3-70b-versatile
+2026-05-16 07:36:19 WARNING  llm                      Falling back from groq/meta-llama/llama-4-maverick-17b-128e-instruct → groq/llama-3.3-70b-versatile
+2026-05-16 07:36:19 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:36:19 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:36:20 WARNING  llm                      Soft rate limit on groq/llama-3.3-70b-versatile; retrying in 26.02s (attempt 1/3)
+2026-05-16 07:36:20 WARNING  llm                      Soft rate limit on groq/llama-3.3-70b-versatile; retrying in 26.02s (attempt 1/3)
+2026-05-16 07:36:46 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:36:46 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:36:46 INFO     agent_runner             [task=127ebab0_t1 agent=researcher] submit_result called — task done ✓
+2026-05-16 07:36:46 INFO     agent_runner             [task=127ebab0_t1 agent=researcher] submit_result called — task done ✓
+2026-05-16 07:36:46 INFO     worker                   Task 127ebab0_t1 DONE (goal=127ebab0-cede-4f2b-8be6-53e0f0460963)
+2026-05-16 07:36:46 INFO     worker                   Task 127ebab0_t1 DONE (goal=127ebab0-cede-4f2b-8be6-53e0f0460963)
+2026-05-16 07:36:46 INFO     agent_runner             [task=127ebab0_t2 agent=coder] Starting agent loop (model=groq/llama-3.3-70b-versatile max_iter=10)
+2026-05-16 07:36:46 INFO     agent_runner             [task=127ebab0_t2 agent=coder] Starting agent loop (model=groq/llama-3.3-70b-versatile max_iter=10)
+2026-05-16 07:36:46 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:36:46 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:36:51 WARNING  agent_runner             [task=127ebab0_t2] Tool github_read_file returned error: 404 {"message": "Not Found", "documentation_url": "https://docs.github.com/rest/repos/contents#get-repository-content", "status": "404"}
+2026-05-16 07:36:51 WARNING  agent_runner             [task=127ebab0_t2] Tool github_read_file returned error: 404 {"message": "Not Found", "documentation_url": "https://docs.github.com/rest/repos/contents#get-repository-content", "status": "404"}
+2026-05-16 07:36:51 INFO     agent_runner             [task=127ebab0_t2 agent=coder] submit_result called — task done ✓
+2026-05-16 07:36:51 INFO     agent_runner             [task=127ebab0_t2 agent=coder] submit_result called — task done ✓
+2026-05-16 07:36:51 INFO     worker                   Task 127ebab0_t2 DONE (goal=127ebab0-cede-4f2b-8be6-53e0f0460963)
+2026-05-16 07:36:51 INFO     worker                   Task 127ebab0_t2 DONE (goal=127ebab0-cede-4f2b-8be6-53e0f0460963)
+2026-05-16 07:36:52 INFO     agent_runner             [task=127ebab0_t3 agent=integrator] Starting agent loop (model=groq/llama-3.3-70b-versatile max_iter=5)
+2026-05-16 07:36:52 INFO     agent_runner             [task=127ebab0_t3 agent=integrator] Starting agent loop (model=groq/llama-3.3-70b-versatile max_iter=5)
+2026-05-16 07:36:52 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:36:52 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:37:05 INFO     tools.github_pr          PR created directly on MaskedBug601/Nothing: https://github.com/MaskedBug601/Nothing/pull/4
+2026-05-16 07:37:05 INFO     tools.github_pr          PR created directly on MaskedBug601/Nothing: https://github.com/MaskedBug601/Nothing/pull/4
+2026-05-16 07:37:05 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:37:05 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:37:05 WARNING  llm                      Soft rate limit on groq/llama-3.3-70b-versatile; retrying in 9.34s (attempt 1/3)
+2026-05-16 07:37:05 WARNING  llm                      Soft rate limit on groq/llama-3.3-70b-versatile; retrying in 9.34s (attempt 1/3)
+2026-05-16 07:37:14 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:37:14 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:37:18 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:37:18 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:37:18 WARNING  llm                      Soft rate limit on groq/llama-3.3-70b-versatile; retrying in 10.07s (attempt 1/3)
+2026-05-16 07:37:18 WARNING  llm                      Soft rate limit on groq/llama-3.3-70b-versatile; retrying in 10.07s (attempt 1/3)
+2026-05-16 07:37:28 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:37:28 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:37:28 WARNING  llm                      Soft rate limit on groq/llama-3.3-70b-versatile; retrying in 3.14s (attempt 2/3)
+2026-05-16 07:37:28 WARNING  llm                      Soft rate limit on groq/llama-3.3-70b-versatile; retrying in 3.14s (attempt 2/3)
+2026-05-16 07:37:31 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:37:31 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:37:32 INFO     agent_runner             [task=127ebab0_t3 agent=integrator] submit_result called — task done ✓
+2026-05-16 07:37:32 INFO     agent_runner             [task=127ebab0_t3 agent=integrator] submit_result called — task done ✓
+2026-05-16 07:37:32 INFO     worker                   Task 127ebab0_t3 DONE (goal=127ebab0-cede-4f2b-8be6-53e0f0460963)
+2026-05-16 07:37:32 INFO     worker                   Task 127ebab0_t3 DONE (goal=127ebab0-cede-4f2b-8be6-53e0f0460963)
+2026-05-16 07:37:33 INFO     agent_runner             [task=127ebab0_t4 agent=writer] Starting agent loop (model=groq/llama-3.3-70b-versatile max_iter=4)
+2026-05-16 07:37:33 INFO     agent_runner             [task=127ebab0_t4 agent=writer] Starting agent loop (model=groq/llama-3.3-70b-versatile max_iter=4)
+2026-05-16 07:37:33 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:37:33 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:37:33 WARNING  llm                      Soft rate limit on groq/llama-3.3-70b-versatile; retrying in 28500.50s (attempt 1/3)
+2026-05-16 07:37:33 WARNING  llm                      Soft rate limit on groq/llama-3.3-70b-versatile; retrying in 28500.50s (attempt 1/3)
+2026-05-16 07:39:35 INFO     worker                   Reclaimed 1 stale task leases
+2026-05-16 07:39:35 INFO     worker                   Reclaimed 1 stale task leases
+2026-05-16 07:39:36 INFO     agent_runner             [task=127ebab0_t4 agent=writer] Starting agent loop (model=groq/llama-3.3-70b-versatile max_iter=4)
+2026-05-16 07:39:36 INFO     agent_runner             [task=127ebab0_t4 agent=writer] Starting agent loop (model=groq/llama-3.3-70b-versatile max_iter=4)
+2026-05-16 07:39:36 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:39:36 INFO     LiteLLM                  
+LiteLLM completion() model= llama-3.3-70b-versatile; provider = groq
+2026-05-16 07:39:37 INFO     agent_runner             [task=127ebab0_t4 agent=writer] submit_result called — task done ✓
+2026-05-16 07:39:37 INFO     agent_runner             [task=127ebab0_t4 agent=writer] submit_result called — task done ✓
+2026-05-16 07:39:37 INFO     worker                   Task 127ebab0_t4 DONE (goal=127ebab0-cede-4f2b-8be6-53e0f0460963)
+2026-05-16 07:39:37 INFO     worker                   Task 127ebab0_t4 DONE (goal=127ebab0-cede-4f2b-8be6-53e0f0460963)
+2026-05-16 07:39:37 INFO     worker                   Goal 127ebab0-cede-4f2b-8be6-53e0f0460963 COMPLETED
+2026-05-16 07:39:37 INFO     worker                   Goal 127ebab0-cede-4f2b-8be6-53e0f0460963 COMPLETED
+2026-05-16 08:36:08 WARNING  main                     [530e23fe] ← 404 GET /api/docs (1ms)
+2026-05-16 08:36:08 WARNING  main                     [530e23fe] ← 404 GET /api/docs (1ms)
