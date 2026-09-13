@@ -18,6 +18,8 @@ The agents behaved correctly; they were briefed wrongly.
 These tests do not assert model behaviour — they assert that the instruction exists, so the
 guidance cannot be dropped again without a test failing.
 """
+import re
+
 import orchestrator
 
 
@@ -47,3 +49,37 @@ def test_constraint_rule_is_in_the_numbered_rules():
     rules_start = next(i for i, line in enumerate(lines) if line.strip() == "Rules:")
     rules_block = "\n".join(lines[rules_start:]).lower()
     assert "constraint" in rules_block
+
+
+def test_the_decision_guide_only_recommends_agents_that_exist():
+    """Rule 7 says "do not invent agent names" — the prompt must not break its own rule.
+
+    The decision guide used to end a line with "send a Slack message" -> notifier is fine
+    as terminal.  There is no `notifier` in AGENT_REGISTRY and there has been no Slack tool
+    since `slack_notify` was deleted, so the one worked example of a non-GitHub goal pointed
+    the planner at an agent that cannot be scheduled.  `economy.ROLES` still mints a passport
+    for `notifier`, which is why the name looks real from the ledger side.
+    """
+    from agent_registry import AGENT_REGISTRY
+
+    real = set(AGENT_REGISTRY)
+    prompt = orchestrator.SYSTEM_PROMPT
+
+    # Every "<name> is fine as terminal" / "-> <name> alone" recommendation names a real agent.
+    for match in re.finditer(r"([a-z_]+) (?:is fine as terminal|alone)", prompt):
+        assert match.group(1) in real, (
+            f"the decision guide recommends {match.group(1)!r}, which is not in AGENT_REGISTRY "
+            f"({sorted(real)})"
+        )
+
+
+def test_the_prompt_never_promises_a_tool_that_is_not_registered():
+    """A prompt naming a deleted tool teaches the model to call something that 404s."""
+    from tools import TOOL_REGISTRY
+
+    prompt = orchestrator.SYSTEM_PROMPT.lower()
+    for gone in ["slack_notify", "notifier"]:
+        assert gone not in prompt, (
+            f"the orchestrator prompt still mentions {gone!r}, which does not exist "
+            f"(registered tools: {sorted(TOOL_REGISTRY)})"
+        )
