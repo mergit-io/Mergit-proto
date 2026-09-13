@@ -64,10 +64,12 @@ def _build_pr_review_goal(payload: dict) -> str:
         f"Repository: {repo['full_name']}\n"
         f"PR URL: {pr['html_url']}\n\n"
         "Steps to complete:\n"
-        "1. Read the base repository structure to understand the codebase\n"
-        "2. Read the files changed in this PR\n"
-        "3. Write a detailed code review: correctness, style, potential bugs, suggestions\n"
-        "4. Post the review as a comment on the PR"
+        f"1. Read the actual diff of PR #{pr['number']} — every changed file and its patch\n"
+        "2. Read the surrounding code in the base repository for the files this PR touches, "
+        "so the review judges the change in context\n"
+        "3. Write a detailed code review: correctness, style, potential bugs, suggestions. "
+        "Quote the specific lines you are commenting on — do not review from the PR title\n"
+        f"4. Submit it as a review on PR #{pr['number']}"
     )
 
 
