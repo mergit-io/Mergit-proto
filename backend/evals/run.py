@@ -234,6 +234,11 @@ async def run_one(cfg: sc.Config, scenario: sc.Scenario, run_no: int,
     before = await scenario.before(cfg)
 
     goal_id, status, seconds = await submit_and_wait(cfg, goal)
+    # Which run owns which artifact. Without it the checks fall back to "anything newer
+    # than the watermark", exact only while nothing else touches the services — and on
+    # 2026-09-13 two runs were graded against a pull request from the deployed site and
+    # one from an orphaned goal. See `checks.prs_opened_by`.
+    before["goal_id"] = goal_id
     verdicts = await scenario.verify(cfg, before)
     said = await reported_text(cfg, goal_id)
 
