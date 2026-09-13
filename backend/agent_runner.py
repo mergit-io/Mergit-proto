@@ -172,6 +172,42 @@ def _wrong_language_for_task(result: dict, task_text: str) -> str | None:
     return (f"the task asks for {wanted}, but the code you submitted is {actual}.")
 
 
+#: The only language this container can execute. `tools/code_exec.py` runs
+#: `sys.executable -c <code>` — there is no toolchain for anything else, so an `output`
+#: field for any other language is a claim rather than evidence.
+_RUNNABLE_LANGUAGES = {"Python"}
+
+#: Ways of saying "I did not run this". Any one of them is enough.
+_NOT_RUN = ("not executed", "not run", "cannot run", "could not run", "did not run",
+            "unverified", "not verified", "cannot verify", "could not verify",
+            "not compiled", "cannot compile", "could not compile", "no toolchain")
+
+
+def _unrunnable_execution_claim(result: dict, task_text: str) -> str | None:
+    """Describe an `output` presented as a run that cannot have happened.
+
+    Live failure, goal b4d3e69a. The wrong-language guard worked and the coder submitted
+    real Rust at `auth.rs`. It also submitted `output: "Login successful"` — a string
+    lifted out of its own source, because `code_exec` runs Python and nothing else. The
+    Rust did not even compile: the first line closes a brace with a paren. The writer then
+    reported the migration as successfully completed on the strength of that output.
+
+    Being unable to run something is not a failure; saying you ran it is. So this does not
+    reject the work, only the claim — an `output` that admits the code was not executed
+    passes untouched, and that is exactly what the message asks for.
+    """
+    wanted = language.requested_language(task_text)
+    if not wanted or wanted in _RUNNABLE_LANGUAGES:
+        return None
+    output = result.get("output")
+    if not isinstance(output, str) or not output.strip():
+        return None
+    if any(phrase in output.lower() for phrase in _NOT_RUN):
+        return None
+    return (f"you reported output {output.strip()[:60]!r} for {wanted} code, but nothing "
+            f"here can run {wanted} — code_exec is a Python interpreter.")
+
+
 def _submission_problem(result: Any, schema_required: list[str],
                         task_text: str = "") -> str | None:
     """The feedback to hand back when a submitted result cannot be accepted, else None.
@@ -210,6 +246,14 @@ def _submission_problem(result: Any, schema_required: list[str],
             "for. If you cannot run or verify that language with the tools you have, say "
             "so plainly instead of submitting something else and calling it done — an "
             "answer in the wrong language is not a partial answer, it is the wrong answer."
+        )
+    unrunnable = _unrunnable_execution_claim(result, task_text)
+    if unrunnable:
+        return (
+            f"submit_result rejected — {unrunnable} Say so in the output field instead: "
+            "that the code was not executed, and why. Not being able to run something is "
+            "not a failure and will be accepted. Reporting a run that did not happen is, "
+            "because everything downstream reads that field as evidence the code works."
         )
     contradiction = _self_reported_failure(result, schema_required)
     if contradiction:

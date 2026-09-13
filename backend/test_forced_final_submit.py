@@ -105,10 +105,14 @@ def _coder_task():
     import db as _db
 
     async def build():
-        goal = await _db.create_goal("Migrate auth.py to Rust")
+        goal = await _db.create_goal("Fix the login helper")
         tasks = await _db.create_tasks(
+            # Deliberately names no language. These tests are about WHERE a result may
+            # be returned from, not what is in it; a task that asked for Rust would also
+            # engage _wrong_language_for_task and _unrunnable_execution_claim, which are
+            # covered on their own in test_task_language.py.
             [{"id": "t1", "agent": "coder",
-              "description": "Migrate and enhance the auth.py code to Rust",
+              "description": "Fix the login helper in auth.py",
               "inputs": {}, "depends_on": []}],
             goal.id, goal.trace_id,
         )
