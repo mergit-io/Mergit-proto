@@ -1286,6 +1286,38 @@ def test_a_comment_containing_an_angle_bracket_placeholder_is_refused(monkeypatc
     assert posted == []
 
 
+def test_a_comment_whose_placeholder_is_uppercase_is_refused(monkeypatch):
+    """Live failure, 2026-08-22: `Fixed in PR #<PR_NUMBER>` was published on issue #25 of
+    the sandbox repo. The guard was lowercase-only, so the model shifting the casing was
+    enough to walk a blank straight onto a public thread."""
+    from tools import github_ops as gops
+
+    posted = []
+
+    class FakeIssue:
+        def create_comment(self, body):
+            posted.append(body)
+            return type("C", (), {"id": 1, "html_url": "u"})()
+
+    class FakeRepoObj:
+        def get_issue(self, n): return FakeIssue()
+
+    async def fake_client(args=None, *, as_user=False):
+        return type("G", (), {"get_repo": lambda s, r: FakeRepoObj()})()
+
+    async def always_authorised(args):
+        return None
+
+    monkeypatch.setattr(gops, "_client", fake_client)
+    monkeypatch.setattr(gops, "_credential_check", always_authorised)
+
+    result = run(gops.github_post_comment({
+        "repo": "o/r", "issue_number": 25, "body": "Fixed in PR #<PR_NUMBER>"}))
+
+    assert result["ok"] is False
+    assert posted == [], "the uppercase placeholder comment was published anyway"
+
+
 def test_an_ordinary_comment_is_posted(monkeypatch):
     """Angle brackets are normal in prose, code and markdown. Only a blank-shaped one is
     refused: lowercase snake_case with an underscore. CamelCase generics, HTML tags and
