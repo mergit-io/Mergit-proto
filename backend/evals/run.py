@@ -44,6 +44,10 @@ REPORTED_SHORTFALL = "reported_shortfall"
 LOUD_FAILURE = "loud_failure"
 PESSIMISTIC = "pessimistic"
 SKIPPED = "skipped"
+#: The services could not be read, so this run was not graded. Excluded from every rate
+#: for the same reason `SKIPPED` is: it says something about this machine's permissions,
+#: not about the agent.
+UNVERIFIED = "unverified"
 
 #: Words a run uses when it is owning up to something it could not do.
 _ADMISSION = re.compile(
@@ -175,11 +179,18 @@ def classify(goal_status: str, results: list[Check], reported: str = "") -> str:
         # shortfall — is the mistake this harness exists to avoid.
         return SILENT_FAILURE
 
-    everything_held = all(c.passed for c in results) if results else False
+    # A check that could not read its service knows nothing either way, and must not be
+    # counted as evidence against the run. When every check is in that state the run is
+    # ungraded rather than failed — see `Check.unverifiable` for the run that earned this.
+    gradable = [c for c in results if not c.unverifiable]
+    if results and not gradable:
+        return UNVERIFIED
+
+    everything_held = all(c.passed for c in gradable) if gradable else False
     if goal_status == "COMPLETED":
         if everything_held:
             return SUCCESS
-        unexplained = [c for c in results if not c.passed and not admits(c.name, reported)]
+        unexplained = [c for c in gradable if not c.passed and not admits(c.name, reported)]
         return SILENT_FAILURE if unexplained else REPORTED_SHORTFALL
     return PESSIMISTIC if everything_held else LOUD_FAILURE
 
@@ -247,7 +258,7 @@ def report(results: list[RunResult]) -> dict:
           f"{'median s':>10}")
     print("-" * 78)
     for name, runs in by_scenario.items():
-        counted = [r for r in runs if r.outcome != SKIPPED]
+        counted = [r for r in runs if r.outcome not in (SKIPPED, UNVERIFIED)]
         ok = sum(1 for r in counted if r.outcome == SUCCESS)
         silent = sum(1 for r in counted if r.outcome == SILENT_FAILURE)
         said = sum(1 for r in counted if r.outcome == REPORTED_SHORTFALL)
@@ -256,7 +267,8 @@ def report(results: list[RunResult]) -> dict:
         print(f"{name:<18}{len(counted):>5}{ok:>5}{silent:>8}{said:>9}{loud:>6}"
               f"{times[len(times) // 2]:>10.1f}")
 
-    counted = [r for r in results if r.outcome != SKIPPED]
+    counted = [r for r in results if r.outcome not in (SKIPPED, UNVERIFIED)]
+    ungraded = [r for r in results if r.outcome == UNVERIFIED]
     total = len(counted) or 1
     silent = sum(1 for r in counted if r.outcome == SILENT_FAILURE)
     ok = sum(1 for r in counted if r.outcome == SUCCESS)
@@ -267,6 +279,14 @@ def report(results: list[RunResult]) -> dict:
           "   ← reported COMPLETED, services say otherwise, run never said so")
     print(f"reported shortfall   {said}/{len(counted)}  ({100 * said / total:.0f}%)"
           "   ← missed an objective and named it; the bug is the COMPLETED status")
+    if ungraded:
+        # Printed rather than folded into a rate: an ungraded run is a job for whoever
+        # runs the suite, and silence about it is how a shrinking denominator goes unseen.
+        print(f"NOT GRADED           {len(ungraded)}"
+              "      ← the services could not be read; fix the access and re-run")
+        for r in ungraded:
+            for c in r.failed_checks:
+                print(f"      {r.scenario}: {c['name']}: {c['detail']}")
 
     for r in counted:
         if r.failed_checks:
@@ -277,6 +297,7 @@ def report(results: list[RunResult]) -> dict:
 
     return {
         "runs": [asdict(r) for r in counted],
+        "ungraded": [asdict(r) for r in ungraded],
         "success_rate": ok / total,
         "silent_failure_rate": silent / total,
         "reported_shortfall_rate": said / total,
