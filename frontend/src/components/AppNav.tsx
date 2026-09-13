@@ -1,4 +1,4 @@
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import { useTheme } from "../lib/theme";
 import { useChainBadge } from "../hooks/useChainBadge";
 import { WalletConnect } from "./WalletConnect";
@@ -84,10 +84,16 @@ export function AppNav() {
 
 /** Standard page frame: the bar, then a gutter-bounded column of panels. */
 export function Shell({ children, wide = false }: { children: React.ReactNode; wide?: boolean }) {
+  const { pathname } = useLocation();
   return (
     <div className="min-h-screen flex flex-col">
       <AppNav />
-      <main className={`flex-1 w-full mx-auto px-5 py-10 ${wide ? "max-w-[1400px]" : "max-w-6xl"}`}>
+      {/* Keyed on the route so moving between pages replays the settle, which
+          makes navigation feel like a step rather than a repaint. */}
+      <main
+        key={pathname}
+        className={`enter flex-1 w-full mx-auto px-5 py-10 ${wide ? "max-w-[1400px]" : "max-w-6xl"}`}
+      >
         {children}
       </main>
     </div>

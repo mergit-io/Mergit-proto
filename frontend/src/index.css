@@ -1,7 +1,5 @@
 @import "@fontsource-variable/archivo";
-@import "@fontsource/inter/400.css";
-@import "@fontsource/inter/500.css";
-@import "@fontsource/inter/600.css";
+@import "@fontsource-variable/inter";
 @import "@fontsource/ibm-plex-mono/400.css";
 @import "@fontsource/ibm-plex-mono/500.css";
 @import "@fontsource/ibm-plex-mono/600.css";
@@ -31,6 +29,7 @@
     --c-amber: 245 165 36;
     --c-red: 255 84 104;
     --grid-line: rgba(255, 255, 255, 0.028);
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
     color-scheme: dark;
   }
 
@@ -70,9 +69,24 @@
     min-height: 100%;
     background-color: rgb(var(--c-ink));
     color: rgb(var(--c-text));
-    font-family: "Inter", system-ui, sans-serif;
+    font-family: "Inter Variable", Inter, system-ui, sans-serif;
+    /* 440 rather than 400: the hairline system has no shadows or fills to give it
+       weight, so the type has to hold the page on its own. Variable Inter lets us
+       take the half-step without jumping to a true 500. */
+    font-weight: 440;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+  }
+
+  /* Small text loses more apparent weight than body copy, so it gets more back. */
+  .text-xs,
+  .text-sm {
+    font-weight: 460;
+  }
+
+  strong,
+  b {
+    font-weight: 620;
   }
 
   body {
@@ -132,7 +146,7 @@
 @layer components {
   /* Micro-label — the uppercase mono voice that titles every region and column. */
   .micro {
-    @apply font-mono text-micro uppercase text-dim;
+    @apply font-mono text-micro uppercase text-dim font-medium;
   }
 
   /* Panels butt against one another and share a single hairline. */
@@ -161,7 +175,14 @@
 
   .btn {
     @apply inline-flex items-center justify-center gap-2 border px-4 h-9
-           font-mono text-label uppercase transition-colors duration-150;
+           font-mono text-label uppercase font-medium;
+    /* One easing across the system. Transform is included so the press below
+       reads as a physical push rather than a colour change. */
+    transition: background-color 180ms var(--ease), border-color 180ms var(--ease),
+      color 180ms var(--ease), transform 120ms var(--ease);
+  }
+  .btn:active:not(:disabled) {
+    transform: translateY(1px);
   }
   .btn-primary {
     @apply btn border-violet bg-violet text-[rgb(var(--c-on-violet))]
@@ -176,8 +197,11 @@
 
   .field {
     @apply w-full bg-transparent border border-line px-3 py-2.5 text-sm
-           text-text transition-colors duration-150
-           focus:border-violet focus:outline-none;
+           text-text focus:border-violet focus:outline-none;
+    transition: border-color 180ms var(--ease), background-color 180ms var(--ease);
+  }
+  .field:hover:not(:focus) {
+    border-color: rgb(var(--c-faint));
   }
 
   /* Dense data table — the console's default way of showing a list. */
@@ -190,9 +214,19 @@
   }
   .dtable tbody td {
     @apply px-4 py-3 border-b border-line-soft align-middle;
+    transition: background-color 140ms var(--ease);
   }
   .dtable tbody tr:hover td {
     background: rgb(var(--c-raise));
+  }
+  /* A clickable row earns a violet edge so the whole row reads as the target,
+     rather than the eye hunting for a link inside it. */
+  .dtable tbody tr[role="link"] td:first-child {
+    box-shadow: inset 2px 0 0 transparent;
+    transition: box-shadow 140ms var(--ease), background-color 140ms var(--ease);
+  }
+  .dtable tbody tr[role="link"]:hover td:first-child {
+    box-shadow: inset 2px 0 0 rgb(var(--c-violet));
   }
 }
 
@@ -217,6 +251,32 @@
 @keyframes sweep {
   from { transform: translateX(-100%); }
   to   { transform: translateX(400%); }
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Scroll reveal. Elements start hidden only once JS has marked the document as
+   able to reveal them — without that guard a failed script would leave the whole
+   page invisible. */
+[data-reveal] {
+  opacity: 1;
+}
+html.reveal-ready [data-reveal] {
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 620ms var(--ease), transform 620ms var(--ease);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+html.reveal-ready [data-reveal].is-in {
+  opacity: 1;
+  transform: none;
+}
+
+/* The console's first paint: panels settle in rather than snapping. */
+.enter {
+  animation: rise 460ms var(--ease) both;
 }
 
 .animate-rail { animation: rail 44s linear infinite; }
@@ -244,6 +304,11 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
+  }
+  /* Reveal must not depend on a transition that no longer runs. */
+  html.reveal-ready [data-reveal] {
+    opacity: 1 !important;
+    transform: none !important;
   }
 }
 
