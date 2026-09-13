@@ -63,6 +63,12 @@ _EVIDENCE = (r"(?:tests?|suites?|commands?|scripts?|snippets?|code|checks?|pytes
 #: *will* run, or telling a reader how to run something, is not claiming anything.
 _CLAIMS: tuple[tuple[str, re.Pattern], ...] = (
     ("says it ran something", re.compile(rf"\bran\b(?=[^.]{{0,40}}\b{_EVIDENCE}\b)", re.I)),
+    # Passive voice. `mergit-e2e-sandbox#88` said "The following command **was run** to
+    # verify the fix" on a deployment where `code_exec` does not exist, and walked past a
+    # check that only knew the active form.
+    ("says something was run",
+     re.compile(rf"\b(?:was|were|been|is|are)\s+run\b(?=[^.]{{0,40}}\b{_EVIDENCE}\b)"
+                rf"|\b(?:was|were|been|is|are)\s+run\b(?=\s*(?:to|and|,|\.|$))", re.I)),
     ("says something was executed",
      re.compile(rf"\bexecut(?:ed|ing)\b(?=[^.]{{0,40}}\b{_EVIDENCE}\b)"
                 rf"|\b{_EVIDENCE}\b[^.]{{0,40}}\bwas executed\b", re.I)),
@@ -98,6 +104,13 @@ _NEGATED = re.compile(r"\bnot\b|n't\b|\bcannot\b|\bunable\b|\bwithout\b|\bno (?:
 _HYPOTHETICAL = re.compile(r"\bwill\b|\bwhether\b|\bshould\b|\bwould\b|\bgoing to\b"
                            r"|\bonce (?:merged|this|it|they)\b|^if\b", re.I)
 
+#: Where one clause ends and the next begins. Negation and hedging apply to the clause
+#: they sit in, not to the whole sentence: "Test passed: releasing more than reserved
+#: raises InventoryError and does not oversell" is a claim that the tests passed, followed
+#: by a clause describing what the code does. Reading the `not` as covering the whole
+#: sentence is how `#88` got its false "Test passed" past this guard.
+_CLAUSE_BREAK = re.compile(r"[:;,\u2014\u2013]|\s[-]\s")
+
 #: Fenced blocks, then inline spans. A transcript is evidence being quoted; the claim is
 #: the prose that introduces it.
 _FENCED = re.compile(r"```.*?```|~~~.*?~~~", re.S)
@@ -118,9 +131,17 @@ def prose(body: str) -> str:
     return _INLINE.sub(" ", _FENCED.sub(" ", body or ""))
 
 
-def _asserts(text: str) -> bool:
-    """Is this sentence making a claim at all — rather than denying or forecasting one?"""
-    return bool(text) and not _NEGATED.search(text) and not _HYPOTHETICAL.search(text)
+def _asserts(text: str, at: int = 0) -> bool:
+    """Is the match at `at` a claim — rather than something denied or forecast?
+
+    Scoped to the clause the match sits in, and only to the part of it *before* the match.
+    A denial has to precede what it denies: "the fix was **not** executed" negates the
+    claim; "Test passed: … does **not** oversell" does not.
+    """
+    if not text:
+        return False
+    head = _CLAUSE_BREAK.split(text[:at])[-1] if at else ""
+    return not _NEGATED.search(head) and not _HYPOTHETICAL.search(head)
 
 
 def claims(body: str) -> list[str]:
@@ -132,10 +153,11 @@ def claims(body: str) -> list[str]:
     found = []
     for sentence in _SENTENCE.findall(prose(body)):
         text = sentence.strip()
-        if not _asserts(text):
+        if not text:
             continue
         for label, pattern in _CLAIMS:
-            if pattern.search(text):
+            match = pattern.search(text)
+            if match and _asserts(text, match.start()):
                 found.append(f'{label}: "{text[:120]}"')
                 break
     return found
@@ -150,10 +172,11 @@ def success_claims(body: str) -> list[str]:
     found = []
     for sentence in _SENTENCE.findall(body or ""):
         text = sentence.strip()
-        if not _asserts(text):
+        if not text:
             continue
         for label, pattern in _SUCCESS_CLAIMS:
-            if pattern.search(text):
+            match = pattern.search(text)
+            if match and _asserts(text, match.start()):
                 found.append(f'{label}: "{text[:120]}"')
                 break
     return found
