@@ -121,6 +121,45 @@ def _recover_failed_tool_call(error: Exception) -> tuple[str, str, dict] | None:
     return tool_name.strip(), args_json, args
 
 
+#: How many times one task may call a tool that leaves a durable, public mark.
+#:
+#: Goal e6b9529c: the integrator opened PR #43 correctly, then posted EIGHT near-identical
+#: comments on it — 18:29:13, :16, :19, :22, :25, :28, :31, :34 — one every three seconds
+#: until its turns ran out. Raising its budget from 8 to 14 iterations is what gave it the
+#: room. The budget was right; what was missing was a reason to stop once the deliverable
+#: existed. An agent with nothing left to do will fill the space, and here the space was
+#: somebody's repository.
+#:
+#: Reads are deliberately absent. Surveying a repo is twenty list_dir and read_file calls
+#: and capping those would break the thing the researcher exists to do. Only writes leave
+#: a mark, so only writes are counted.
+#:
+#: Two comments, because the documented GitHub pattern posts on the original issue and may
+#: also comment on the pull request it just opened.
+WRITE_TOOL_CALL_CAP: dict[str, int] = {
+    "github_post_comment": 2,
+    "github_create_issue": 2,
+    "github_pr": 2,
+    "github_create_repo": 1,
+    "github_fork": 1,
+    "github_merge_pr": 1,
+    "github_review_pr": 1,
+    "github_set_branch_protection": 1,
+}
+
+
+def _over_write_cap(tool_name: str, counts: dict[str, int]) -> str | None:
+    """Feedback to hand back instead of firing a write tool again, or None to proceed."""
+    cap = WRITE_TOOL_CALL_CAP.get(tool_name)
+    if cap is None or counts.get(tool_name, 0) < cap:
+        return None
+    return (
+        f"{tool_name} has already been called {counts[tool_name]} time(s) in this task, "
+        f"which is the limit. Repeating it adds noise to the repository rather than "
+        f"progress. If the work is done, call submit_result now with what you have."
+    )
+
+
 def _tool_allowed(tool_name: str, allowed_tools: list[str]) -> bool:
     return tool_name == "submit_result" or tool_name in allowed_tools
 
@@ -629,6 +668,7 @@ async def run(
 
     consecutive_errors = 0  # consecutive tool-call errors; triggers forced submit
     _failing_tools: set[str] = set()  # tools that have failed — used in nudge messages
+    _write_calls: dict[str, int] = {}  # writes made this task — see WRITE_TOOL_CALL_CAP
 
     for iteration in range(max_iter):
         logger.debug("[task=%s] Iteration %d/%d — calling %s", task.id, iteration + 1, max_iter, model)
@@ -823,7 +863,23 @@ async def run(
             if emit:
                 emit("tool_call", {"task_id": task.id, "tool": tool_name, "args": args})
 
+            # Checked BEFORE dispatch: the point is that the eighth comment is never
+            # posted, not that it is posted and then regretted.
+            capped = _over_write_cap(tool_name, _write_calls)
+            if capped is not None:
+                logger.warning("[task=%s] %s refused — %s", task.id, tool_name, capped)
+                result = {"ok": False, "error": capped}
+                if emit:
+                    emit("tool_result", {"task_id": task.id, "tool": tool_name, "status": "REFUSED"})
+                result_str = json.dumps(result)
+                tool_results.append({"role": "tool", "tool_call_id": tc_id, "content": result_str})
+                await db.save_message(task.id, "tool", result_str,
+                                      sequence=len(messages) + iteration + 1, tool_call_id=tc_id)
+                continue
+
             result = await _execute_tool_idempotent(task, tool_name, args_str, args, ikey)
+            if tool_name in WRITE_TOOL_CALL_CAP and not (isinstance(result, dict) and result.get("error")):
+                _write_calls[tool_name] = _write_calls.get(tool_name, 0) + 1
 
             if isinstance(result, dict) and result.get(WAITING_WEBHOOK_SENTINEL):
                 wait_token = result["wait_token"]
