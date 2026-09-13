@@ -4,8 +4,11 @@ GitHub read/comment operations for agents.
 Complements github_pr.py (which handles PR creation).
 These tools let agents read repo contents, post comments, and get issue details.
 """
+import asyncio
 import logging
 import re
+
+from github import GithubException
 
 from tools.github_client import TOKEN_MISSING as _TOKEN_MISSING
 from tools.github_client import audit as _audit
@@ -512,6 +515,79 @@ GITHUB_CREATE_ISSUE_SCHEMA = {
                    "description": "Labels to apply (must already exist on the repo)"},
     },
     "required": ["repo", "title"],
+}
+
+
+# ── Fork ─────────────────────────────────────────────────────────────────────────
+
+#: GitHub creates forks asynchronously: `create_fork` returns before the repository is
+#: usable, and looking it up in that window 404s. Twenty tries at three seconds is the
+#: same budget `github_pr` uses for its own fork path.
+_FORK_POLL_ATTEMPTS = 20
+_FORK_POLL_SECONDS = 3
+
+
+async def github_fork(args: dict) -> dict:
+    """Fork a repository to the authenticated account, and wait until it is usable.
+
+    Forking already happened inside `github_pr`, but only as a fallback for when the
+    token cannot push to the upstream — so it could be stumbled into and never asked for.
+    A goal saying "fork this repo and raise an issue" (5981fe39) planned a task beginning
+    "Fork the repository and…", and the integrator had no action that forked. It did the
+    half it could and the goal failed.
+
+    Existing forks are a success, not a conflict. Goals get re-run, and the second run
+    asking for a fork that the first one made is asking for something already true.
+    """
+    _missing = await _credential_check(args)
+    if _missing:
+        return _missing
+    repo_name = args["repo"]
+    try:
+        g = await _client(args)
+        upstream = g.get_repo(repo_name)
+        me = g.get_user()
+        fork_full = f"{me.login}/{upstream.name}"
+
+        try:
+            existing = g.get_repo(fork_full)
+            return {"ok": True, "fork": fork_full, "url": existing.html_url,
+                    "upstream": repo_name, "already_existed": True}
+        except GithubException:
+            pass
+
+        logger.info("Forking %s → %s", repo_name, fork_full)
+        me.create_fork(upstream)
+        for _ in range(_FORK_POLL_ATTEMPTS):
+            await asyncio.sleep(_FORK_POLL_SECONDS)
+            try:
+                fork = g.get_repo(fork_full)
+                # A fork can exist a moment before it has any branches. Whatever runs
+                # next will want to push, so "exists" is not the bar — "has a default
+                # branch" is.
+                fork.get_branch(fork.default_branch)
+                return {"ok": True, "fork": fork_full, "url": fork.html_url,
+                        "upstream": repo_name, "already_existed": False}
+            except GithubException:
+                continue
+        return {"ok": False, "fork": None, "url": None,
+                "error": f"fork {fork_full} did not become ready in time"}
+    except Exception as e:
+        return {"ok": False, "fork": None, "url": None, "error": str(e)}
+
+
+GITHUB_FORK_SCHEMA = {
+    "description": (
+        "Fork a GitHub repository to your own account and wait until it is ready to push "
+        "to. Succeeds if the fork already exists. Note that github_pr forks automatically "
+        "when it cannot push to the upstream, so a fork is not required before opening a "
+        "pull request \u2014 use this when the goal asks for a fork in its own right."
+    ),
+    "type": "object",
+    "properties": {
+        "repo": {"type": "string", "description": "Repository to fork, in 'owner/repo' format"},
+    },
+    "required": ["repo"],
 }
 
 

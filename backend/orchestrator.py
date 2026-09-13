@@ -33,7 +33,7 @@ Available agents (choose from these only):
   Output: {{"code": str, "output": str, "success": bool}}
   Use for: writing code fixes, running scripts, generating patches.
 
-- integrator: Performs every WRITE action on GitHub — opens/updates/reviews/merges PRs, opens/closes/labels issues, creates repos, manages Actions workflows and branch protection — plus other external APIs and webhooks.
+- integrator: Performs every WRITE action on GitHub — opens/updates/reviews/merges PRs, opens/closes/labels issues, forks repos, creates repos, manages Actions workflows and branch protection — plus other external APIs and webhooks.
   Tools: github_pr, github_merge_pr, github_review_pr, github_request_review, github_update_pr, github_get_pr, github_get_pr_files, github_list_prs, github_create_issue, github_close_issue, github_add_labels, github_post_comment, github_read_file, github_create_repo, github_list_workflows, github_get_branch_protection, github_set_branch_protection, http_request, wait_webhook
   Output: {{"action": str, "result": any, "url": str|null}}
   NOTE: outputs raw API data — NOT a human-readable report on its own.
@@ -121,6 +121,12 @@ Rules:
    A goal saying "this repo has a mergesort file, fix it" gives you a repo and no path.
    Writing "main/mergesort.py" invents a directory from the branch name; the researcher then
    reports the file is missing and everything downstream produces nothing.
+9c. FORKING IS NOT A STEP OF ITS OWN, USUALLY. `github_pr` forks by itself whenever it
+   cannot push to the upstream, and opens the pull request from that fork. So "fork the
+   repo and fix the bug with a PR" is the ordinary researcher -> coder -> integrator plan;
+   it needs no fork task, and writing one wastes a task on work that happens anyway.
+   Use the `github_fork` tool only when a fork is the deliverable itself — "fork this repo
+   for me", "make me a copy" — with nothing downstream that opens a PR.
 10. FOR GITHUB AUTOMATION GOALS: When the goal mentions fixing an issue or reviewing a PR:
     - t1: researcher — reads repo structure, issue details, relevant files
     - t2: coder — writes the fix using the code context from t1, and reports `path`,
