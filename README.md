@@ -41,18 +41,23 @@ cp .env.example .env
 Required for normal agent runs:
 
 ```env
-GROQ_API_KEY=...
-ANTHROPIC_API_KEY=...
-TAVILY_API_KEY=...
+GROQ_API_KEY=...          # every role defaults to groq/llama-3.3-70b-versatile
 ```
 
-Optional integrations:
+Optional, with what each one actually buys you:
 
 ```env
-SLACK_WEBHOOK_URL=...
-GITHUB_TOKEN=...
+ANTHROPIC_API_KEY=...     # Claude models, and the first fallback tier
+OPENROUTER_API_KEY=...    # last-resort fallback once Groq's daily cap is hit
+TAVILY_API_KEY=...        # real web search — see the warning below
+GITHUB_TOKEN=...          # required by all 20 GitHub tools
 GITHUB_DEFAULT_REPO=owner/repo
 ```
+
+> **Without `TAVILY_API_KEY`, `web_search` returns nothing usable.** The fallback is the DuckDuckGo
+> *Instant Answer* API, which is not a web index — an ordinary developer query comes back with an
+> empty abstract and no related topics, so the tool hands the model a "use your training knowledge"
+> note instead of results.
 
 ## Test Locally
 
@@ -96,23 +101,22 @@ Use Render for the managed cloud deployment. The repo includes `render.yaml`, so
 FRONTEND_URL=https://your-render-or-custom-domain
 CORS_ORIGINS=https://your-render-or-custom-domain
 GROQ_API_KEY=...
+GITHUB_TOKEN=...
+GITHUB_DEFAULT_REPO=owner/repo
+```
+
+Optional:
+
+```env
 ANTHROPIC_API_KEY=...
+OPENROUTER_API_KEY=...
 TAVILY_API_KEY=...
 ```
 
-Optional integrations:
-
-```env
-SLACK_WEBHOOK_URL=...
-GITHUB_TOKEN=...
-GITHUB_DEFAULT_REPO=owner/repo
-OAUTH_GOOGLE_CLIENT_ID=...
-OAUTH_GOOGLE_CLIENT_SECRET=...
-OAUTH_GOOGLE_REDIRECT_URI=https://your-render-or-custom-domain/api/auth/google/callback
-OAUTH_GITHUB_CLIENT_ID=...
-OAUTH_GITHUB_CLIENT_SECRET=...
-OAUTH_GITHUB_REDIRECT_URI=https://your-render-or-custom-domain/api/auth/github/callback
-```
+> ⚠️ **The deployed API is unauthenticated.** `POST /api/goals` is open and the coder agent's
+> `code_exec` runs unsandboxed Python in the same process that holds `GITHUB_TOKEN`, so anyone with
+> the URL can run code and read that token. This is a deliberate showcase trade-off — don't point a
+> deployment at a repo or a token you care about.
 
 Open:
 
@@ -120,7 +124,10 @@ Open:
 https://your-render-or-custom-domain/app
 ```
 
-The Render service mounts a persistent disk at `/data`. The app stores state at `/data/mergit.db`, `/data/workspace`, and `/data/config`.
+**On Render's free plan there is no persistent disk.** `render.yaml` sets `plan: free` and declares no
+`disk:` block, so `/data` is ephemeral: `/data/mergit.db`, `/data/workspace` and `/data/config` are
+wiped on every restart and re-seeded by `SEED_DEMO=true`. For durable state, add a `disk:` block and
+move to `plan: starter`.
 
 Run one instance only. The planner/executor worker starts inside the FastAPI lifespan, so multiple app instances would start multiple internal workers.
 

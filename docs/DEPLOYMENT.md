@@ -146,35 +146,19 @@ First build takes 10–20 minutes (npm install, Vite build, Python deps). Then:
 podman-compose --env-file .env.production logs -f mergit
 ```
 
-## Step 8 — Lock the front door 🔒
+## Step 8 — Know what you are exposing 🔒
 
-**Do this before sharing the URL.** The backend exposes `PUT /api/config/keys`, which writes
-provider API keys to `.env` with no authentication, and the frontend ships with
-`VITE_DEMO_MODE=true`, which bypasses login. Worse than key theft: `POST /api/goals` is equally
-open, and the coder agent's `code_exec` tool runs its result in a subprocess — so an open URL is
-arbitrary code execution in your container, by design rather than by bug.
+**Read this before sharing the URL.** The app ships with no authentication of any kind:
 
-Set one variable in `.env.production`:
+- `PUT /api/config/keys` writes provider API keys with no auth.
+- `POST /api/goals` is equally open, and the coder agent's `code_exec` tool runs its result in a
+  subprocess — so an open URL is **arbitrary code execution in your container**, by design rather
+  than by bug. That subprocess shares the process environment, which holds `GITHUB_TOKEN`.
+- The frontend ships with `VITE_DEMO_MODE=true`, which bypasses its Firebase login.
 
-```bash
-ACCESS_PASSWORD=$(openssl rand -base64 24)
-```
-
-That turns on HTTP Basic across every route except `/api/health` (`backend/access_gate.py`).
-Any username works; the password is the secret. Restart the app container to pick it up.
-
-Prefer this over a proxy rule: it lives with the app, so it still protects you if the container is
-ever reached directly — a Caddy `basic_auth` block guards only traffic that goes through Caddy.
-Adding the Caddy block too is fine as defence in depth.
-
-**Verify before sharing** — the middle command must return 401:
-
-```bash
-curl -o /dev/null -w "%{http_code}\n" https://your-domain.com/api/health           # 200
-curl -o /dev/null -w "%{http_code}\n" https://your-domain.com/api/config/keys      # 401
-curl -o /dev/null -w "%{http_code}\n" -u x:"$ACCESS_PASSWORD" \
-     https://your-domain.com/api/config/keys                                       # 200
-```
+Nothing in the application closes this. If the deployment needs to be private, put the protection in
+front of it — a Caddy `basic_auth` block on the reverse proxy, an IP allowlist, or a private network —
+and keep the container off the public internet. Use a narrowly scoped `GITHUB_TOKEN` regardless.
 
 ## Step 9 — Verify
 

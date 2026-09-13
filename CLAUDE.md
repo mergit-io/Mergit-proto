@@ -63,11 +63,34 @@ Mergit is a generic multi-agent autonomy system: a user submits any natural lang
 
 The split is deliberate: `researcher` reads GitHub, `integrator` writes to it. `github_get_pr_files` sits on the researcher because a PR review that has not read the diff is a review of the PR title.
 
-**Model config** (`model_config.py`): Per-role model store. Defaults all roles to Groq. Persists to `backend/model_config.json` (gitignored). `get_model(role)`, `get_all()`, `update(dict)`. Cache invalidated on write. 40 predefined models across Groq (Llama 4, Llama 3.x, DeepSeek, Qwen, Mixtral, Gemma), Anthropic (Claude 4/3.5/3), OpenAI (GPT-4o, o-series, GPT-3.5), Google (Gemini 2.5/2.0/1.5), Mistral (Large/Medium/Small/Codestral). Any LiteLLM-compatible string also accepted. **Note**: `gemini-2.5-pro` and `gemini-1.5-pro` require paid Google AI billing (free tier quota = 0) — the fallback chain handles this automatically.
+> **There are exactly four executable agents.** `economy.ROLES` lists **six** —
+> `orchestrator`, `researcher`, `writer`, `coder`, `integrator`, `notifier` — because it also mints a
+> passport for the planner and for a `notifier` that was never built. `notifier` is a **ghost**: it
+> holds passport #6 and a reputation row, but it is not in `AGENT_REGISTRY`, has no tools, and can
+> never be assigned a task. `ROLES` is left as-is on purpose —
+> `seed_passports()` assigns `token_id` from `enumerate(ROLES, start=1)` and `mint_block_for()` from
+> `ROLES.index(role)`, so removing an entry would renumber every passport after it and invalidate
+> proofs already recorded on chain. Treat the sixth passport as a historical artifact, not a
+> capability.
 
-**LLM layer** (`llm.py`): `acompletion()` wraps LiteLLM with full provider fallback chains for all 40 models. At startup, sets env vars for all 5 providers from `config.settings`; bridges `GOOGLE_API_KEY` → `GEMINI_API_KEY` (LiteLLM uses `GEMINI_API_KEY` for `gemini/` prefix). `_is_hard_rate_limit()` catches daily quota (`tpd`, `quota`), Gemini `resource_exhausted`, and insufficient-quota errors — any of these trigger the fallback chain. `_is_soft_rate_limit()` catches per-minute throttling and sleeps the declared retry delay instead. **Claude 4 models** (`claude-opus-4-7`, `claude-sonnet-4-6`, `claude-haiku-4-5-20251001`) don't accept `temperature` — it's excluded for them. `not_found_error` (model deprecated) triggers fallback to next candidate and 1h cooldown.
+**Model config** (`model_config.py`): Per-role model store. Defaults all roles to `groq/llama-3.3-70b-versatile`. Persists to `backend/model_config.json` (gitignored). `get_model(role)`, `get_all()`, `update(dict)`. Cache invalidated on write. **`AVAILABLE_MODELS` holds 15 ids across 3 providers** — Groq (8: Llama 4 Maverick/Scout, Llama 3.3 70B, Llama 3.2 90B/11B Vision, DeepSeek R1 70B, Qwen QwQ 32B, Gemma 2 9B), Anthropic (5: Opus 4.7, Sonnet 4.6, Haiku 4.5, 3.5 Sonnet, 3.5 Haiku), OpenRouter (2: Llama 3.3 70B, Claude Haiku 4.5). `PUT /api/config/models` **validates against this list and rejects anything else with 400** — an arbitrary LiteLLM string is not accepted, so adding a provider means editing `AVAILABLE_MODELS`, `_FALLBACKS` and `_PROVIDER_KEY_ENV` together.
 
-**Tools** (`tools/`): `web_search` (Tavily → DuckDuckGo fallback → training-knowledge note), `http_request` (httpx), `slack_notify`, `file_ops` (workspace-scoped, path traversal protected), `code_exec` (subprocess, 30s timeout), `wait_webhook` (suspends task to `WAITING_WEBHOOK` state), `spawn_goal`, plus the GitHub surface below.
+> There is **no OpenAI, Google/Gemini, Mistral or Mixtral support.** Earlier revisions of this file claimed 40 models across 5 providers; that was never true of this code. `_PROVIDER_KEY_ENV` still lists `openai`/`gemini`/`mistral` prefixes, but no such model id exists, no `Settings` field holds their keys, and `llm.py` never exports their env vars — the entries are vestigial.
+
+**LLM layer** (`llm.py`): `acompletion()` wraps LiteLLM with a fallback chain per model id — one entry in `_FALLBACKS` for each of the 15 ids. At startup `_setenv` exports **three** keys from `config.settings`: `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`. `_is_hard_rate_limit()` catches daily quota (`tpd`, `daily`, `quota`), deprecated-model 404s and overload — any of these mark the model unhealthy for a cooldown (`_hard_limit_cooldown`: 1h for a daily cap, the declared retry-after otherwise, 5min default) and advance to the next candidate. `_is_soft_rate_limit()` catches per-minute throttling and sleeps the declared delay instead of falling back. `has_credentials()` skips any candidate whose provider key is absent, so a keyless provider is never tried.
+
+**OpenRouter last-resort tier**: every chain is post-processed to append `openrouter/meta-llama/llama-3.3-70b-instruct` then `openrouter/anthropic/claude-haiku-4.5`, so a Groq daily cap falls through to OpenRouter rather than failing the goal. Inert without `OPENROUTER_API_KEY` — `has_credentials()` skips the tier entirely.
+
+**Which key paid for a call**: a fallback swaps providers silently, so every successful call emits one JSON line — `logger.info("llm_call %s", …)` with `role`, `requested`, `served_by`, `provider`, `key` (the env var), and `fell_back`. `acompletion()` takes an optional `role=`, threaded from `orchestrator`, `replanner` and both `agent_runner` call sites. Read it in the Render live log:
+```
+llm_call {"role":"integrator","requested":"groq/llama-3.3-70b-versatile",
+          "served_by":"openrouter/meta-llama/llama-3.3-70b-instruct",
+          "provider":"openrouter","key":"OPENROUTER_API_KEY","fell_back":true}
+```
+
+**Tools** (`tools/`): `TOOL_REGISTRY` in `tools/__init__.py` is the single source of truth — **26 entries, 20 of them GitHub**. The six non-GitHub tools are `web_search`, `http_request` (httpx), `file_ops` (workspace-scoped, path-traversal protected), `code_exec` (subprocess, 30s timeout), `wait_webhook` (suspends the task to `WAITING_WEBHOOK`), `spawn_goal`. The tool surface is GitHub-only; anything not in `TOOL_REGISTRY` is not available to an agent.
+
+> **`web_search` degrades to nothing without a Tavily key.** Order is Tavily → DuckDuckGo *Instant Answer* API → a note telling the model to use its training knowledge. The DDG endpoint is not a web index: for an ordinary developer query (`how to fix a python off by one bug`) it returns `AbstractText: ""` and `RelatedTopics: []`, so the tool yields `{"results": [], "_source": "none"}`. Production currently has **no `TAVILY_API_KEY`**, so web search there is effectively the training-knowledge note.
 
 **GitHub tools** (`tools/github_ops.py`, `tools/github_pr.py`, `tools/github_client.py`):
 
@@ -149,13 +172,32 @@ set, so the feature demos with zero credentials — and spawn a fix goal tagged 
 to `fixed`/`failed` via `settle_outcome` when the fix goal ends. Tests: `test_self_heal.py`,
 `test_error_classifier.py`.
 
-**Access gate** (`access_gate.py`): HTTP Basic over every route except `/api/health`, enabled
-only when `ACCESS_PASSWORD` is set — empty leaves local dev and the test suite credential-free.
-Required on any reachable URL: the API is unauthenticated by design, so `POST /api/goals` plus the
-coder agent's `code_exec` is remote code execution, and `PUT /api/config/keys` rewrites the provider
-keys. Basic (not a bearer token) so the browser prompts natively and `EventSource` — which cannot
-send custom headers — still authenticates. Added last in `main.py` so it is the outermost
-middleware. Tests: `test_access_gate.py`.
+### Authentication — there is none in production
+
+Stated plainly, because this is the most misdescribed area of the repo:
+
+| Layer | What exists | Reality |
+|---|---|---|
+| **Frontend** | Firebase Auth (`lib/firebase.ts`, `ProtectedRoute.tsx`), Google + GitHub providers | **Bypassed.** `Dockerfile` line 6 is `ARG VITE_DEMO_MODE=true`, and `ProtectedRoute` returns children immediately when that is set. The deployed build has no login. |
+| **Backend** | `api/auth.py` — hand-rolled Google + GitHub OAuth, HMAC-signed `mergit_session` cookie | **Dead code.** The frontend never calls `/api/auth` (zero references in `frontend/src`), and no route checks `SESSION_COOKIE` or `_unsign` — grep outside `api/auth.py` returns nothing. Logging in changes nothing. |
+
+**The API is unauthenticated end to end.** `POST /api/goals` is open, and the coder agent's
+`code_exec` runs unsandboxed Python **in the same process that holds `GITHUB_TOKEN`**;
+`PUT /api/config/keys` rewrites provider keys. Anyone with the URL has both. This is a deliberate
+showcase trade-off. Do not put anything you care about behind it, and treat closing it as a
+prerequisite for any real user data — see the credential-store note below.
+
+Two facts that matter before anyone plans per-user or multi-tool OAuth:
+
+- **The OAuth in `api/auth.py` is identity-only, not authorization.** Google is requested with scope
+  `openid email profile`; GitHub with `read:user user:email` — which **cannot open a pull request**.
+  Both callbacks use the access token once to fetch the profile and then **discard it**; only
+  `email`/`name`/`picture` reach the cookie. No token is ever stored.
+- **Agent credentials are process-global and single-tenant.** `tools/github_client.py::github_token()`
+  reads `os.environ["GITHUB_TOKEN"]` then `settings.github_token`. One token serves every goal and
+  every visitor. The `goals` table has no user or owner column. "Sign in with Google" therefore
+  cannot, even in principle, grant a per-user GitHub identity — each third-party tool needs its own
+  OAuth app, its own scopes and its own stored token.
 
 **Demo seeding** (`demo_seed.py`): with `SEED_DEMO=true`, boot mints a canned goal + 3 proofs when
 the ledger is empty, after `_init_chain()` so they verify against the live chain. For hosts with no
@@ -166,7 +208,9 @@ module (with pacing) so the two cannot drift. Tests: `test_demo_seed.py`.
 
 **Interpolation** (`interpolation.py`): Resolves `{{task_id.output.field}}` templates in task inputs before execution. Supports array index access (`{{id.output.key_points[0]}}`) and nested paths (`{{id.output.field[0].subfield}}`). `_resolve_path()` splits on `.` and `[N]` segments.
 
-**API Keys** (`api/keys.py`): `GET/PUT /api/config/keys` — reads/writes provider API keys (Groq, Anthropic, OpenAI, Google, Mistral, Tavily) to `backend/.env` via `python-dotenv.set_key()` and updates `os.environ` immediately. Returns masked values. Saving the `google` key also sets `GEMINI_API_KEY` (LiteLLM's expected env var for `gemini/` models).
+**API Keys** (`api/keys.py`): `GET/PUT /api/config/keys` — reads/writes credentials to `$RUNTIME_CONFIG_DIR/.env` via `python-dotenv.set_key()` and updates `os.environ` immediately. Returns masked values. `PROVIDER_KEYS` has exactly **five** entries: `groq`, `anthropic`, `openrouter`, `tavily`, `github`. Any other provider name is a 400. A `PUT` also calls `db.resume_credential_tasks(env_var)`, releasing every task parked in `WAITING_CREDENTIAL` for that variable and emitting a `task_update` — this is the seam a future per-tool OAuth "Connect" flow would reuse.
+
+> Frontend note: `Models.tsx` styles only four of them in `PROVIDER_META` (`groq`, `anthropic`, `tavily`, `github`). `openrouter` still renders — the lookup falls back to `{label: provider}` — but unstyled and lowercase. Cosmetic only.
 
 ### Frontend (`frontend/`)
 
@@ -192,7 +236,7 @@ All routes under `/api/`. Key endpoints:
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| POST | `/api/goals` | Submit goal → 202 |
+| POST | `/api/goals` | Submit goal → 202. Body is `{"goal": "..."}` — **the field is `goal`, not `goal_text`**; anything else is a 422 |
 | GET | `/api/goals` | List goals |
 | GET | `/api/goals/{id}` | Full status + tasks + output |
 | GET | `/api/goals/{id}/stream` | SSE event stream |
@@ -202,7 +246,10 @@ All routes under `/api/`. Key endpoints:
 | PUT | `/api/config/keys` | Save provider API key to `.env` + `os.environ` |
 | POST | `/api/webhooks/{token}` | Resume WAITING_WEBHOOK task |
 | POST | `/api/webhooks/github` | GitHub webhook receiver — auto-creates goals |
-| GET | `/api/economy/passports` | List 6 agent passports |
+| GET | `/api/config/context` | Project context (repo, stack, notes) — note the `/config` prefix |
+| PUT | `/api/config/context` | Save project context |
+| GET | `/api/config/model-health` | Models currently in cooldown after a hard rate limit |
+| GET | `/api/economy/passports` | List 6 agent passports (see the `notifier` note below) |
 | GET | `/api/economy/leaderboard` | Ranked reputation (composite + badge) |
 | GET | `/api/economy/proofs` | Proof-of-work ledger (newest first) |
 | GET | `/api/economy/agents/{role}` | Passport + reputation breakdown + proofs |
@@ -217,7 +264,21 @@ All routes under `/api/`. Key endpoints:
 
 ### Environment
 
-Copy `backend/.env.example` to `backend/.env` and fill in: `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, `TAVILY_API_KEY`, `SLACK_WEBHOOK_URL`, `GITHUB_TOKEN`, `GITHUB_DEFAULT_REPO`.
+Copy `backend/.env.example` to `backend/.env`. The variables that are actually read by code:
+
+| Variable | Read by | Needed for |
+|---|---|---|
+| `GROQ_API_KEY` | `llm.py` | default model for every role |
+| `ANTHROPIC_API_KEY` | `llm.py` | Claude models + first fallback tier |
+| `OPENROUTER_API_KEY` | `llm.py` | last-resort fallback tier (see LLM layer) |
+| `TAVILY_API_KEY` | `tools/web_search.py` | real web search; without it `web_search` returns nothing useful |
+| `GITHUB_TOKEN` | `tools/github_client.py` | every GitHub tool |
+| `GITHUB_DEFAULT_REPO` | `tools/github_client.py` | repo when a tool call omits one |
+
+**Production (`mergit.onrender.com`) as of 2026-08-14**, from `GET /api/config/keys`: `GROQ_API_KEY`
+set, `OPENROUTER_API_KEY` set, `GITHUB_TOKEN` set (the `Mergit-bot` account), `ANTHROPIC_API_KEY`
+**not** set, `TAVILY_API_KEY` **not** set. `OPENROUTER_API_KEY` is a dashboard-only variable — it is
+not declared in `render.yaml`, so a blueprint re-sync will not recreate it.
 
 Chain settings (`CHAIN_TARGET`, `CHAIN_RPC_URL`, `CHAIN_PRIVATE_KEY`) default to `local`, which needs
 nothing. To use Monad testnet, fund the deployer (free MON: `chainstack.com/monad-faucet` has no gate;
@@ -254,8 +315,41 @@ The filename therefore has to survive every hop, and is defended three times:
    without it. The orchestrator threads it on as the integrator's `file_path` input.
 2. **Recoverable** — the integrator holds `github_list_dir`, so an integrator handed code and no
    filename can enumerate the repo instead of guessing. Its prompt forbids inventing one.
-3. **Visible** — `github_pr` returns `files_created` and `files_modified`. A fix meant for an
-   existing file showing up under `files_created` is the failure, stated in the tool result.
+3. **Visible** — `github_pr` returns `files_created` and `files_modified` on **all three** return
+   paths (direct, fork, and the already-open-PR path that `_find_open_pr` returns through). A fix
+   meant for an existing file showing up under `files_created` is the failure, stated in the tool
+   result. The re-run path matters most: the URL comes back unchanged, so a wrong path there reads
+   like a no-op.
+
+### The truncation guard (`_dropped_definitions`)
+
+`files[].content` replaces the **entire** file. An agent that returns only the function it changed
+therefore fixes one thing and **deletes the rest of the file** — and the PR still opens green.
+
+This is not hypothetical and it is model-dependent. On `llama-3.3-70b`, the model production runs, a
+`stats.py` fix landed as **`+3 −10`**: `spread()` corrected, `median()` and the module docstring
+gone. Claude Haiku returned the whole file every time from the identical prompt, which is why earlier
+runs never saw it. Prompting does not close this gap.
+
+`_dropped_definitions()` compares top-level `def`/`class` names (regex `_TOP_LEVEL_DEF`, column-zero
+only — nested defs are deliberately not matched) in the replacement against the file already at
+`base_branch`, and refuses **before any commit**, so a refusal leaves no branch and no partial commit
+behind. Missing paths and directories are skipped: a new file has nothing to lose. The error names
+what would be lost, because the agent must resend the complete file and "invalid content" would not
+tell it that:
+
+```
+files[].content replaces the ENTIRE file, and this content would delete code that is
+already there — stats.py would lose: median. Read the file, apply your change to it,
+and send the complete file back. Do not send only the part you changed.
+```
+
+Verified live on the production model: the agent read the refusal, resent the complete file, and the
+PR landed `+3 −3` with `median()` intact. Tests:
+`test_a_fix_that_would_delete_the_rest_of_the_file_is_refused`,
+`test_a_complete_file_with_the_fix_applied_is_committed`,
+`test_a_brand_new_file_has_nothing_to_lose`,
+`test_renaming_is_not_mistaken_for_deleting_when_the_file_is_whole`.
 
 PR review: **researcher** (`github_get_pr_files` — the real diff) → **writer** (the review text) →
 **integrator** (`github_review_pr` submits it as a review, not a bare comment).

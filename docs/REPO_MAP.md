@@ -79,7 +79,7 @@ Python 3, FastAPI, aiosqlite. Venv at `backend/.venv/` — always use `.venv/bin
 | File | Owns |
 |---|---|
 | `llm.py` | `acompletion()` — LiteLLM wrapper + provider fallback chains, hard/soft rate-limit handling |
-| `model_config.py` | Per-role model store → `backend/model_config.json` (gitignored). 40 predefined models |
+| `model_config.py` | Per-role model store → `backend/model_config.json` (gitignored). **15** predefined ids: Groq (8), Anthropic (5), OpenRouter (2). `PUT /api/config/models` rejects anything not on the list. No OpenAI/Gemini/Mistral support exists |
 | `model_health.py` | In-memory health tracker — cooldowns for deprecated/exhausted models |
 | `config.py` | `settings` — env/`.env` loading for every key and chain var |
 
@@ -124,10 +124,14 @@ Python 3, FastAPI, aiosqlite. Venv at `backend/.venv/` — always use `.venv/bin
 
 ### Tools — `backend/tools/`
 
-`web_search` · `http_request` · `file_ops` (workspace-scoped, traversal-protected) · `code_exec`
-(subprocess, 30s) · `slack_notify` · `github_ops` (read file/list dir/get issue/post comment/search
-code) · `github_pr` · `wait_webhook` (suspends to `WAITING_WEBHOOK`) · `credential_request`
-(suspends to `WAITING_CREDENTIAL`) · `spawn_goal` (an agent can create a new goal mid-run)
+`TOOL_REGISTRY` in `tools/__init__.py` is the source of truth: **26 entries, 20 of them GitHub.**
+
+`web_search` (Tavily → DuckDuckGo Instant Answer → training-knowledge note; the middle step returns
+nothing for ordinary dev queries) · `http_request` · `file_ops` (workspace-scoped,
+traversal-protected) · `code_exec` (subprocess, 30s) · `github_ops` (18 read/write tools) ·
+`github_pr` (commit + PR, forks when it lacks push access, refuses content that would truncate an
+existing file) · `wait_webhook` (suspends to `WAITING_WEBHOOK`) · `credential_request` (the
+`WAITING_CREDENTIAL` sentinel — a constant, not a callable tool) · `spawn_goal`
 
 ### Operator scripts — `backend/scripts/`
 

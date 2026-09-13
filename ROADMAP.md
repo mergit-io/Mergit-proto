@@ -38,7 +38,7 @@ is hard, and all of it is required.
 | 0.3 | `backend/scripts/loadtest.py` untracked | ✅ | Tracked. It's the evidence for the 10-user claim; untracked evidence is an anecdote |
 | 0.4 | Pick a host + deploy | 🔶 | **Render free** — `render.yaml` was already wired for it. Runbook: `docs/RENDER.md`. Oracle deferred (card verification kept failing), HF ruled out (Docker Spaces now need PRO). Revisit Oracle/AWS only when scaling |
 | 0.5 | Seed-on-boot (`SEED_DEMO=true`) | ✅ | `demo_seed.py`. Verified live: seeded proofs return `verified: true` against the running chain |
-| 0.7 | **Access gate for the public URL** (`ACCESS_PASSWORD`) | ✅ | `access_gate.py` — see the P0 note under M4. Verified live: 401 without credentials, 200 with |
+| 0.7 | **Gate the public URL** | ⬜ **REOPENED 2026-08-14** | The deployment is unauthenticated by choice — verified live, `GET /api/config/keys` on `mergit.onrender.com` returns **200**. Whatever closes it needs to survive a blueprint sync and not lock the operator out; the previous attempt generated a secret nobody could read and did exactly that. The P0 hole under M4 is open |
 | 0.6 | A stray SQLite db under `frontend/` is tracked — 68 KB, empty schema, pre-rebrand leftover from `e0f6b36` | ⬜ | Scanned clean (no credentials, all tables empty). `git rm --cached` it — gitignore does not untrack what is already tracked |
 
 > **SQLite files must never be tracked.** `.gitignore` previously anchored the rule to
@@ -96,8 +96,7 @@ someone asks "does it work?" — the honest answer today is "it has never been t
 | # | Item | Blocker | Fix |
 |---|---|---|---|
 | 1.1 | **GitHub automation — the headline demo** | no `GITHUB_TOKEN`; `GITHUB_DEFAULT_REPO` is literally the string `owner/repo` | Set both in `backend/.env`, then use the **Simulate GitHub Issue** form on `/app/webhooks` — no ngrok needed |
-| 1.2 | `web_search` | no `TAVILY_API_KEY` | Set it, or accept the DuckDuckGo → training-knowledge fallback (works, weaker) |
-| 1.3 | Slack notify | no `SLACK_WEBHOOK_URL` | Set it |
+| 1.2 | `web_search` | no `TAVILY_API_KEY` | Set it. The fallback is **not** "weaker" — it is the DuckDuckGo *Instant Answer* API, which is not a web index. Measured: `how to fix a python off by one bug` returns `AbstractText: ""` and `RelatedTopics: []`, so the tool yields zero results and a "use your training knowledge" note. Production has no Tavily key today |
 | 1.4 | Orchestrator constraint fix | covered by a unit test, never re-confirmed on a live model run | Submit a goal with an explicit constraint ("under 200 words") and check the terminal task restates it |
 
 **1.1 is the single highest-value item in this document.** `CLAUDE.md` calls the
@@ -174,9 +173,19 @@ variable, linked to the keys page, closes the loop.
 The frontend is built with `VITE_DEMO_MODE=true`, which bypasses Firebase login entirely. Correct
 for a manager demo — wrong for anything public.
 
-**Fix:** rebuild with `--build-arg VITE_DEMO_MODE=false` and set the 6 `OAUTH_*` vars. Do this
-before the URL goes anywhere beyond the demo, because the app currently writes provider API keys to
-`.env` from an unauthenticated UI endpoint (`PUT /api/config/keys`).
+**Fix:** rebuild with `--build-arg VITE_DEMO_MODE=false` **and configure the `VITE_FIREBASE_*` vars**,
+because the frontend's login is Firebase. Do this before the URL goes anywhere beyond the demo, because
+the app currently writes provider API keys to `.env` from an unauthenticated UI endpoint
+(`PUT /api/config/keys`).
+
+> ⚠️ **Setting the 6 `OAUTH_*` vars will not do this.** `backend/api/auth.py` implements Google and
+> GitHub OAuth with an HMAC-signed `mergit_session` cookie, but it is **dead code**: `frontend/src`
+> contains zero references to `/api/auth`, and no route anywhere checks `SESSION_COOKIE` or calls
+> `_unsign` — grep outside `api/auth.py` returns nothing. There are two unrelated auth systems in this
+> repo (Firebase on the frontend, hand-rolled OAuth on the backend) and neither one gates production.
+> Note also that the backend flow is identity-only: Google is requested with scope
+> `openid email profile`, GitHub with `read:user user:email` (which cannot open a PR), and both
+> callbacks **discard the access token** after reading the profile.
 
 > 🔒 **This rating was wrong, and M0.7 now covers the urgent half of it.** The original note said an
 > unlisted URL made this an acceptable trade-off. That understated it: the API is unauthenticated
@@ -184,9 +193,10 @@ before the URL goes anywhere beyond the demo, because the app currently writes p
 > submit a goal that reaches the coder agent's `code_exec` — arbitrary Python in a subprocess. On a
 > *listed* host (Hugging Face publishes public Spaces in a browsable directory) that is P0, not P3.
 >
-> `ACCESS_PASSWORD` (M0.7) closes it: HTTP Basic over everything except `/api/health`. What remains
-> at P3 here is genuine multi-user auth — per-user identity and sessions — which a single shared
-> secret does not provide and a demo does not need.
+> **This is open on the live URL right now** — see the reopened M0.7 row. Nothing gates the API
+> today. Beyond simply closing it, the P3 item is genuine multi-user auth: per-user identity,
+> sessions, and per-user credentials, none of which exist (one process-global `GITHUB_TOKEN` serves
+> every visitor, and `goals` has no owner column).
 
 ---
 
