@@ -15,7 +15,7 @@ export function GoalCard({ goal, index }: Props) {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05, duration: 0.25 }}
-      onClick={() => nav(`/goals/${goal.goal_id}`)}
+      onClick={() => nav(`/app/goals/${goal.goal_id}`)}
       className="group flex items-center justify-between rounded-xl border border-border bg-surface px-4 py-3.5 cursor-pointer hover:border-muted hover:bg-white/[0.02] transition-all duration-150"
     >
       <div className="flex items-center gap-3 min-w-0">

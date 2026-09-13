@@ -18,7 +18,7 @@ export function Dashboard() {
     try {
       const res = await api.submitGoal(goal);
       await mutate("/api/goals");
-      nav(`/goals/${res.goal_id}`);
+      nav(`/app/goals/${res.goal_id}`);
     } catch (e) {
       console.error(e);
     } finally {

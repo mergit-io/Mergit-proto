@@ -51,7 +51,7 @@ export function GoalDetail() {
       {/* Header */}
       <nav className="border-b border-border px-6 py-4 flex items-center gap-4">
         <button
-          onClick={() => nav("/")}
+          onClick={() => nav("/app")}
           className="flex items-center gap-1.5 text-text-muted hover:text-white text-sm transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />

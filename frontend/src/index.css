@@ -2,48 +2,178 @@
 @import "@fontsource/inter/500.css";
 @import "@fontsource/inter/600.css";
 @import "@fontsource/inter/700.css";
+@import "@fontsource/dm-sans/400.css";
+@import "@fontsource/dm-sans/500.css";
+@import "@fontsource/dm-sans/600.css";
+@import "@fontsource/dm-sans/700.css";
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
-html,
-body,
-#root {
-  height: 100%;
-  background-color: #0a0a0a;
+html { scroll-behavior: smooth; }
+
+html, body, #root {
+  background-color: #000;
   color: #f9fafb;
   font-family: "Inter", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
-  margin: 0;
-  width: 100%;
-  max-width: 100%;
-  text-align: left;
+  overflow-x: hidden;
 }
 
-::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: #000; }
+::-webkit-scrollbar-thumb { background: #1f1f2e; border-radius: 2px; }
+
+/* ── Keyframes ───────────────────────────────────────── */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
 }
-::-webkit-scrollbar-track {
-  background: #111111;
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-14px); }
 }
-::-webkit-scrollbar-thumb {
-  background: #3a3a3a;
-  border-radius: 2px;
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.45; transform: scale(1); }
+  50%       { opacity: 0.85; transform: scale(1.1); }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+@keyframes pulse-ring {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
 }
 
-.react-flow__node {
-  border-radius: 8px;
+.animate-marquee         { animation: marquee 32s linear infinite; }
+.animate-float           { animation: float 5s ease-in-out infinite; }
+.animate-glow-pulse      { animation: glow-pulse 3.5s ease-in-out infinite; }
+.animate-pulse-ring      { animation: pulse-ring 1.5s ease-in-out infinite; }
+
+/* ── Typography ──────────────────────────────────────── */
+.font-display { font-family: "DM Sans", "Inter", system-ui, sans-serif; }
+
+.text-gradient {
+  background: linear-gradient(135deg, #fff 0%, #fff 45%, #6b7280 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
-.react-flow__edge-path {
-  stroke: #3a3a3a;
-  stroke-width: 1.5;
+.text-gradient-blue {
+  background: linear-gradient(135deg, #3badff 0%, #0095ff 50%, #673ae4 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
-.react-flow__background {
-  background-color: #0a0a0a;
+.shimmer-text {
+  background: linear-gradient(90deg, rgba(255,255,255,0.5) 0%, #fff 40%, rgba(255,255,255,0.5) 80%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmer 4s linear infinite;
 }
+
+/* ── Glass card ──────────────────────────────────────── */
+.glass-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+/* ── Cursor-tracking glow card ───────────────────────── */
+.glow-card {
+  position: relative;
+  isolation: isolate;
+}
+.glow-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.4s;
+  background: radial-gradient(
+    600px circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    rgba(0,149,255,0.08), transparent 40%
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+.glow-card:hover::before { opacity: 1; }
+.glow-card::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.4s;
+  background: radial-gradient(
+    300px circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    rgba(255,255,255,0.18), transparent 50%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  padding: 1px;
+  pointer-events: none;
+  z-index: 2;
+}
+.glow-card:hover::after { opacity: 1; }
+
+/* ── Buttons ─────────────────────────────────────────── */
+.btn-neon {
+  background: linear-gradient(135deg, #0095ff, #673ae4);
+  box-shadow: 0 0 20px rgba(0,149,255,0.35), 0 0 60px rgba(0,149,255,0.1);
+  transition: box-shadow 0.3s, transform 0.2s;
+}
+.btn-neon:hover {
+  box-shadow: 0 0 32px rgba(0,149,255,0.6), 0 0 90px rgba(0,149,255,0.2);
+  transform: translateY(-2px);
+}
+.btn-glass {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.14);
+  backdrop-filter: blur(12px);
+  transition: background 0.2s, border-color 0.2s, transform 0.2s;
+}
+.btn-glass:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.26);
+  transform: translateY(-2px);
+}
+
+/* ── Nav links ───────────────────────────────────────── */
+.nav-link { position: relative; }
+.nav-link::after {
+  content: "";
+  position: absolute;
+  bottom: -3px; left: 0;
+  width: 0; height: 1px;
+  background: linear-gradient(90deg, #0095ff, #673ae4);
+  transition: width 0.3s;
+}
+.nav-link:hover::after { width: 100%; }
+
+/* ── Step number (outline only) ──────────────────────── */
+.step-number {
+  font-family: "DM Sans", sans-serif;
+  font-weight: 700;
+  font-size: 5rem;
+  line-height: 1;
+  -webkit-text-stroke: 1px rgba(255,255,255,0.12);
+  color: transparent;
+  user-select: none;
+  transition: -webkit-text-stroke-color 0.3s;
+}
+.glow-card:hover .step-number { -webkit-text-stroke-color: rgba(0,149,255,0.45); }
+
+/* ── React Flow (dashboard) ──────────────────────────── */
+.react-flow__node { border-radius: 8px; }
+.react-flow__background { background-color: #0a0a0a; }
+.react-flow__edge-path { stroke: #3a3a3a; stroke-width: 1.5; }
