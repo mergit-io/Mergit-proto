@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+litellm
+anthropic
+groq
+pydantic>=2.0
+pydantic-settings
+httpx
+tavily-python
+PyGithub
+aiosqlite
+python-dotenv
+sse-starlette
