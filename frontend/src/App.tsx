@@ -12,6 +12,7 @@ import { AgentDetail } from "./pages/AgentDetail";
 import { SelfHeal } from "./pages/SelfHeal";
 import { Connections } from "./pages/Connections";
 import { Approvals } from "./pages/Approvals";
+import { NotFound } from "./pages/NotFound";
 import { AuthProvider } from "./lib/auth";
 import { ThemeProvider } from "./lib/theme";
 import "./index.css";
@@ -107,6 +108,8 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+        {/* Must stay last. Without it an unmatched path rendered an empty document. */}
+        <Route path="*" element={<NotFound />} />
       </Routes>
       </BrowserRouter>
     </AuthProvider>
