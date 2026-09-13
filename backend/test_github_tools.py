@@ -657,12 +657,20 @@ def test_a_merge_plan_validates_even_though_it_has_no_coder():
 
 
 def test_the_issue_fix_shape_still_validates():
+    """This asserts the terminal-integrator exemption, not the contents of the inputs.
+
+    The fixture used to give the integrator no inputs at all, which PR #35 showed is a
+    real defect in its own right — an integrator with nothing to commit invents a
+    placeholder — so it now carries the code handoff a genuine issue-fix plan has.
+    """
     from orchestrator import _validate_plan
 
     _validate_plan(_plan(
         [_task("t1", "researcher", "read the repo"),
          _task("t2", "coder", "write the fix", depends_on=["t1"]),
-         _task("t3", "integrator", "open the PR", depends_on=["t2"])],
+         _task("t3", "integrator", "open the PR",
+               {"fixed_code": "{{t2.output.code}}", "file_path": "{{t2.output.path}}"},
+               ["t2"])],
         "t3",
     ))
 
@@ -1270,3 +1278,64 @@ def test_an_ordinary_comment_is_posted(monkeypatch):
 
     assert result["ok"] is True
     assert posted == [body]
+
+
+# ── A placeholder is not file content ───────────────────────────────────────────
+
+def test_a_file_whose_content_is_a_placeholder_is_refused(monkeypatch):
+    """Live failure, PR #35 on the sandbox. The integrator was never handed the coder's
+    Rust, so it committed the words it would have used to ask for it:
+
+        auth.rs  +1 -0
+        +TODO: replace with actual file content
+
+    Nothing objected. It is not empty, it is a new file so nothing is lost or displaced,
+    and it shows no marker of any language — which the language guard treats as "no
+    opinion" by design, because that is what keeps it from refusing real stubs.
+    """
+    repo = FakeRepo(existing_files=[("auth.py", AUTH_PY)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    result = run(gpr.github_pr({"repo": "o/r", "title": "Migrated to Rust", "body": "b",
+                                "head_branch": "feat/rust",
+                                "files": [{"path": "auth.rs",
+                                           "content": "TODO: replace with actual file content"}]}))
+
+    assert result["ok"] is False
+    assert "placeholder" in result["error"].lower()
+    assert repo.created_refs == [] and repo.created_files == []
+
+
+@pytest.mark.parametrize("content", [
+    "TODO: replace with actual file content",
+    "<file content here>",
+    "// placeholder — insert the real implementation",
+    "REPLACE THIS WITH THE ACTUAL CODE",
+    "your code here",
+])
+def test_the_shapes_a_model_writes_when_it_has_nothing(monkeypatch, content):
+    repo = FakeRepo(existing_files=[("auth.py", AUTH_PY)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "x",
+                                "files": [{"path": "new_file.py", "content": content}]}))
+
+    assert result["ok"] is False, f"accepted a placeholder: {content!r}"
+
+
+def test_a_real_file_that_merely_mentions_todo_is_committed(monkeypatch):
+    """`# TODO` is ordinary in working code — the original auth.py opens with one. Only a
+    file that is NOTHING BUT a placeholder is refused."""
+    repo = FakeRepo(existing_files=[("auth.py", AUTH_PY)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    content = ("# TODO: replace the dummy store with a real database\n\n"
+               "def login(username, password):\n"
+               "    return users.get(username) == password\n")
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "x",
+                                "files": [{"path": "login.py", "content": content}]}))
+
+    assert result["ok"] is True
+    assert result["files_created"] == ["login.py"]

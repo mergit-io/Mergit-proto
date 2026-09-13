@@ -95,6 +95,39 @@ def _language_mismatches(files) -> list[str]:
     return problems
 
 
+#: What a model writes when it has been asked to commit content it was never given.
+_PLACEHOLDER_CONTENT = re.compile(
+    r"(?:replace\s+(?:this\s+)?with|insert\s+the|your\s+\w+\s+here|"
+    r"actual\s+(?:file\s+)?(?:content|code)|file\s+content\s+here|placeholder)", re.I)
+
+
+def _placeholder_contents(files) -> list[str]:
+    """Paths whose whole content is a note standing in for the content.
+
+    Live failure, PR #35. The integrator was never handed the coder's Rust, so it
+    committed the words it would have used to ask for it:
+
+        auth.rs  +1 -0
+        +TODO: replace with actual file content
+
+    Nothing objected. It is not empty; it is a new file, so nothing is lost or displaced;
+    and it shows no marker of any language, which `_language_mismatches` treats as "no
+    opinion" by design — that silence is what stops it refusing real stubs.
+
+    Only files SHORT enough to be nothing but the note are examined. A working file that
+    happens to contain a TODO is ordinary — the original `auth.py` opens with one — so
+    the phrase has to be essentially the entire file, not a line in it.
+    """
+    problems = []
+    for f in files:
+        lines = [ln.strip() for ln in (f.get("content") or "").splitlines() if ln.strip()]
+        if not lines or len(lines) > 3:
+            continue  # long enough to be real work; a TODO inside it is just a comment
+        if any(_PLACEHOLDER_CONTENT.search(ln) for ln in lines):
+            problems.append(f"{f['path']} contains only a placeholder: {lines[0][:60]!r}")
+    return problems
+
+
 def _significant(source: str) -> str:
     """The source with blank lines and trailing whitespace removed.
 
@@ -344,6 +377,14 @@ async def github_pr(args: dict) -> dict:
                          "adds an empty file fixes nothing. If you were handed no code, or "
                          "the file you were told to change does not exist, say that instead "
                          "of opening a pull request — do not commit a placeholder."}
+
+    placeholders = _placeholder_contents(files)
+    if placeholders:
+        logger.warning("Refusing PR on %s — placeholder content: %s", repo_name, placeholders)
+        return {"action": "create_pr", "result": None, "url": None, "ok": False,
+                "error": f"{'; '.join(placeholders)}. That is a note describing the content, "
+                         "not the content. If you were not given the code to commit, say so "
+                         "— do not open a pull request that asks the reader to fill it in."}
 
     wrong_language = _language_mismatches(files)
     if wrong_language:
