@@ -4,6 +4,24 @@ Track of every significant piece of work completed. Update this after each sessi
 
 ---
 
+## 2026-07-19 — Ship the Mergit showcase prototype (issues #1–#7)
+
+Built the missing backend economy engine and integrated + merged all outstanding showcase PRs end-to-end.
+
+**Backend (Workstream A, #1 → PR #12):**
+- 3 SQLite tables (`agent_passports`, `agent_reputation`, `proofs`) + accessors in `db.py`.
+- `economy.py`: deterministic hashing + reputation math (composite 0..1000, Gold/Silver/Bronze badges, ±20% delta cap) + `seed_passports`/`recompute_role`/`record_proof`/`backfill`. `record_proof` never raises into the worker; emits `proof_recorded`/`reputation_update` on the `economy` SSE channel.
+- `worker._after_task_done` mints a proof per completed task; `main.py` seeds + backfills on startup and registers `api/economy.py` (`/passports|leaderboard|proofs|agents/{role}|chain|stream`). `deployments/10143.json` mocks Monad testnet. 13 pytest cases pass.
+
+**Integration + fixes:**
+- Merged PRs #8 (C: DEMO_MODE + wallet), #9 (E: rebrand), #10 (B: economy UI), #11 (D: replay), #12 (A: backend) into `main` — AppNav auto-merged cleanly (Mergit wordmark + Economy link + WalletConnect).
+- Reconciled the B frontend (was written against an imagined API) with the real backend: rewrote `lib/api.ts` economy types/fetchers (bare arrays, real fields) + all economy components/pages (badge + score bars, NFT-style passports with DID/soulbound/capabilities/mint block, tx/result-hash proof rows, `:role` route).
+- Rewrote `scripts/replay_demo.py` to the real `record_proof(task, output)` interface. `seed_passports` now seeds a neutral reputation row per role so all 6 agents rank. Dropped unused `Bell` imports blocking `tsc -b`.
+
+**Verified:** 13 backend tests pass; `npm run build` clean; replay mints 3 proofs (blocks 18100000+); live endpoints return chainId 10143, 6 passports, a 6-agent leaderboard. All 7 issues closed; all 5 PRs merged.
+
+---
+
 ## Session 1 — Initial Prototype
 **Commit:** `ca12e75 [init] initial prototype of the omniBox`
 
