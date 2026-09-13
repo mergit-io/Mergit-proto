@@ -367,6 +367,20 @@ async def github_pr(args: dict) -> dict:
     base_branch = _resolve_base(upstream, args.get("base_branch"))
     base_sha = upstream.get_branch(base_branch).commit.sha
 
+    # A pull request has to come from its own branch. PRs #35 and #36 were both opened
+    # with head_branch="main", so the commits landed on the fork's default branch —
+    # closing #35 did not remove its commit, and #36, opened from the same branch later,
+    # still carried #35's auth.rs. Left alone, every PR inherits every earlier run's work
+    # and the diff a reviewer sees stops being the change.
+    if head_branch == base_branch:
+        logger.warning("Refusing PR on %s — head branch equals base branch (%s)",
+                       repo_name, base_branch)
+        return {"action": "create_pr", "result": None, "url": None, "ok": False,
+                "error": f"head_branch is '{head_branch}', which is the base branch. A pull "
+                         "request needs its own branch, or the commits land on the default "
+                         "branch and every later pull request carries them too. Use a "
+                         "descriptive branch name such as 'fix/<what-you-changed>'."}
+
     # Every check below runs BEFORE any commit, so a refusal leaves no branch and no
     # partial commit behind. Ordered cheapest first: the local ones need no API call.
     empty = _empty_contents(files)

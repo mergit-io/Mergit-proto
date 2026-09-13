@@ -1339,3 +1339,56 @@ def test_a_real_file_that_merely_mentions_todo_is_committed(monkeypatch):
 
     assert result["ok"] is True
     assert result["files_created"] == ["login.py"]
+
+
+# ── Every pull request needs its own branch ─────────────────────────────────────
+
+def test_committing_onto_the_base_branch_is_refused(monkeypatch):
+    """Live failure, PRs #35 and #36 on the sandbox.
+
+    The integrator passed `head_branch: "main"`, so it committed straight onto the fork's
+    default branch. Closing #35 did not remove its commit, so #36 — opened from the same
+    branch days later — still carried #35's `auth.rs`. Every later PR would inherit every
+    earlier run's work, and the diff a reviewer sees stops being the change.
+    """
+    repo = FakeRepo(existing_files=[("auth.py", AUTH_PY)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "main",
+                                "files": [{"path": "auth.rs",
+                                           "content": "fn main() { let mut x = 1; }"}]}))
+
+    assert result["ok"] is False
+    assert "main" in result["error"]
+    assert repo.created_refs == [] and repo.created_files == []
+
+
+def test_a_feature_branch_is_committed_normally(monkeypatch):
+    repo = FakeRepo(existing_files=[("auth.py", AUTH_PY)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "feat/rust-auth",
+                                "files": [{"path": "auth.rs",
+                                           "content": "fn main() { let mut x = 1; }"}]}))
+
+    assert result["ok"] is True
+    assert result["files_created"] == ["auth.rs"]
+
+
+def test_an_explicit_base_branch_is_respected_too(monkeypatch):
+    """The rule is head != base, not head != "main" — a repo whose default is `develop`
+    must be protected the same way."""
+    repo = FakeRepo(default_branch="develop", branches=("develop",),
+                    existing_files=[("auth.py", AUTH_PY)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "develop",
+                                "files": [{"path": "auth.rs",
+                                           "content": "fn main() { let mut x = 1; }"}]}))
+
+    assert result["ok"] is False
+    assert "develop" in result["error"]
+    assert repo.created_refs == []
