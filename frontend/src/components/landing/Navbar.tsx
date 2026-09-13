@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { Wordmark, ThemeToggle } from "../AppNav";
+import { Wordmark } from "../AppNav";
 
 const LINKS = [
   { href: "#run", label: "The run" },
@@ -46,7 +46,9 @@ export function Navbar() {
   return (
     <header
       className={`fixed top-0 inset-x-0 z-50 transition-colors ${
-        stuck ? "border-b border-line bg-ink/92 backdrop-blur-md" : "border-b border-transparent"
+        stuck
+          ? "border-b border-line/70 bg-ink/70 backdrop-blur-xl"
+          : "border-b border-transparent"
       }`}
     >
       <div className="max-w-[1400px] mx-auto px-5 h-16 flex items-center gap-6">
@@ -81,7 +83,6 @@ export function Navbar() {
           >
             GitHub
           </a>
-          <ThemeToggle />
           <Link to="/app" className="btn-primary">
             Open console →
           </Link>
