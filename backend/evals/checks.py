@@ -15,10 +15,26 @@ class Check:
     passed: bool
     detail: str = ""
     evidence: dict[str, Any] = field(default_factory=dict)
+    #: The service could not be read at all, so this check knows nothing either way.
+    #:
+    #: Not the same as failing, and the difference is the whole point. The eval run on
+    #: 2026-09-13 pointed `report_only` at a channel the bot can post to but is not a
+    #: member of: the agent posted correctly and said so, `conversations.history` came
+    #: back `not_in_channel`, and the suite recorded a silent failure against a run that
+    #: had told the truth. A missing permission is the operator's problem — the same rule
+    #: the `needs` mechanism already applies to absent apps — and a harness that blames the
+    #: agent for its own blind spot is worse than no harness, because its numbers are
+    #: believed.
+    unverifiable: bool = False
 
     def line(self) -> str:
-        mark = "pass" if self.passed else "FAIL"
+        mark = "pass" if self.passed else ("????" if self.unverifiable else "FAIL")
         return f"  [{mark}] {self.name}: {self.detail}"
+
+
+def unreadable(name: str, detail: str) -> Check:
+    """A check that could not look. Neither a pass nor a failure."""
+    return Check(name, False, f"could not verify — {detail}", unverifiable=True)
 
 
 async def highest_pr_number(repo: str) -> int:
@@ -58,7 +74,7 @@ async def github_pr_opened(repo: str, *, since_pr: int, must_touch: str,
     import tools.github_ops as gh
 
     if since_pr < 0:
-        return Check("github_pr_opened", False, "could not read the repository")
+        return unreadable("github_pr_opened", "the repository could not be read")
     fresh = await _prs_since(repo, since_pr)
     if not fresh:
         return Check("github_pr_opened", False, "no pull request was opened")
@@ -98,7 +114,7 @@ async def github_no_new_pr(repo: str, *, since_pr: int) -> Check:
     refusal reaches the outside world.
     """
     if since_pr < 0:
-        return Check("github_no_new_pr", False, "could not read the repository")
+        return unreadable("github_no_new_pr", "the repository could not be read")
     fresh = await _prs_since(repo, since_pr)
     if fresh:
         # The number goes into evidence so cleanup can close it. Without that, the one
@@ -125,7 +141,7 @@ async def linear_issue_in_state(team: str, *, since: int, state: str,
         {"key": team.upper()},
     )
     if not res["ok"]:
-        return Check("linear_issue_in_state", False, res["error"])
+        return unreadable("linear_issue_in_state", res["error"])
 
     # Sorted here rather than by the server: an `orderBy` whose direction is assumed is a
     # harness that grades last week's ticket as this run's work.
@@ -162,7 +178,7 @@ async def notion_page_exists(parent_page_id: str, *, since: int,
 
     res = await notion._call({}, "GET", f"/blocks/{notion._page_id(parent_page_id)}/children?page_size=100")
     if not res.get("ok"):
-        return Check("notion_page_exists", False, res.get("error", "could not read parent"))
+        return unreadable("notion_page_exists", res.get("error", "the parent could not be read"))
 
     children = [b for b in res.get("results", [])
                 if b.get("type") == "child_page" and _iso_after(b.get("created_time"), since)]
@@ -187,6 +203,9 @@ async def notion_page_exists(parent_page_id: str, *, since: int,
 async def notion_nothing_filed(parent_page_id: str, *, since: int) -> Check:
     """Nothing was written to Notion — for the degraded run, where it is unreachable."""
     check = await notion_page_exists(parent_page_id, since=since)
+    if check.unverifiable:
+        # "Nothing was filed" cannot be concluded from a page listing we failed to fetch.
+        return unreadable("notion_nothing_filed", check.detail)
     if check.passed:
         return Check("notion_nothing_filed", False,
                      "a page was filed in a run where Notion was supposed to be unavailable")
@@ -206,7 +225,7 @@ async def slack_replied_in_thread(channel: str, thread_ts: str, *, since: int,
     thread = await slack.slack_read_thread(
         {"channel": channel, "thread_ts": thread_ts, "limit": 200})
     if not thread.get("ok"):
-        return Check("slack_replied_in_thread", False, thread.get("error", "could not read"))
+        return unreadable("slack_replied_in_thread", thread.get("error", "the thread could not be read"))
 
     fresh = [m for m in thread["messages"] if float(m.get("ts") or 0) > since]
     if not fresh:
@@ -228,7 +247,7 @@ async def slack_message_posted(channel: str, *, since: int, must_contain: list[s
 
     res = await slack.slack_read_channel({"channel": channel, "limit": 30})
     if not res.get("ok"):
-        return Check("slack_message_posted", False, res.get("error", "could not read"))
+        return unreadable("slack_message_posted", res.get("error", "the channel could not be read"))
     fresh = [m for m in res["messages"] if float(m.get("ts") or 0) > since]
     if not fresh:
         return Check("slack_message_posted", False, "nothing was posted")
