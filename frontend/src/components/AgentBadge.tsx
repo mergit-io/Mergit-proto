@@ -5,7 +5,6 @@ interface Props {
 const colors: Record<string, string> = {
   researcher: "bg-violet-500/15 text-violet-300 border-violet-500/30",
   writer:     "bg-sky-500/15 text-sky-300 border-sky-500/30",
-  notifier:   "bg-green-500/15 text-green-300 border-green-500/30",
   coder:      "bg-orange-500/15 text-orange-300 border-orange-500/30",
   integrator: "bg-pink-500/15 text-pink-300 border-pink-500/30",
 };
@@ -13,7 +12,6 @@ const colors: Record<string, string> = {
 const icons: Record<string, string> = {
   researcher: "🔍",
   writer:     "✍️",
-  notifier:   "📣",
   coder:      "💻",
   integrator: "🔗",
 };

@@ -12,6 +12,9 @@ from tools.github_ops import (
     github_post_comment, GITHUB_POST_COMMENT_SCHEMA,
     github_search_code, GITHUB_SEARCH_CODE_SCHEMA,
     github_create_repo, GITHUB_CREATE_REPO_SCHEMA,
+    github_list_workflows, GITHUB_LIST_WORKFLOWS_SCHEMA,
+    github_get_branch_protection, GITHUB_GET_BRANCH_PROTECTION_SCHEMA,
+    github_set_branch_protection, GITHUB_SET_BRANCH_PROTECTION_SCHEMA,
 )
 from tools.github_pr import github_pr
 from tools.github_pr import SCHEMA as GITHUB_PR_SCHEMA
@@ -40,6 +43,9 @@ TOOL_REGISTRY: dict[str, ToolEntry] = {
     "github_post_comment": ToolEntry(fn=github_post_comment, schema=GITHUB_POST_COMMENT_SCHEMA),
     "github_search_code":  ToolEntry(fn=github_search_code, schema=GITHUB_SEARCH_CODE_SCHEMA),
     "github_create_repo":  ToolEntry(fn=github_create_repo, schema=GITHUB_CREATE_REPO_SCHEMA),
+    "github_list_workflows":       ToolEntry(fn=github_list_workflows, schema=GITHUB_LIST_WORKFLOWS_SCHEMA),
+    "github_get_branch_protection": ToolEntry(fn=github_get_branch_protection, schema=GITHUB_GET_BRANCH_PROTECTION_SCHEMA),
+    "github_set_branch_protection": ToolEntry(fn=github_set_branch_protection, schema=GITHUB_SET_BRANCH_PROTECTION_SCHEMA),
     "code_exec":           ToolEntry(fn=code_exec, schema=CODE_EXEC_SCHEMA),
     "wait_webhook":        ToolEntry(fn=wait_webhook, schema=WAIT_WEBHOOK_SCHEMA),
 }

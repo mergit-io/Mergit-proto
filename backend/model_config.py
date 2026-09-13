@@ -82,9 +82,11 @@ def update(updates: dict[str, str]) -> dict[str, str]:
     current = _load()
     for role, model_id in updates.items():
         if role not in DEFAULTS:
-            raise ValueError(f"Unknown role: {role!r}")
+            continue  # silently skip stale/unknown roles
         if not model_id or not isinstance(model_id, str):
             raise ValueError(f"Model ID must be a non-empty string for role {role!r}")
         current[role] = model_id.strip()
+    # Drop any stale keys that are no longer valid roles
+    current = {r: m for r, m in current.items() if r in DEFAULTS}
     _save(current)
     return dict(current)

@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 import db
 import worker
-from api import auth, config, context as ctx_api, github_webhook, goals, health, keys, stream, tasks, webhooks
+from api import actions, auth, config, context as ctx_api, github_webhook, goals, health, keys, stream, tasks, webhooks
 from config import cors_origin_list, settings
 from tracing import init_tracing
 
@@ -121,6 +121,7 @@ app.include_router(tasks.router)
 app.include_router(stream.router)
 app.include_router(github_webhook.router)  # specific route before generic /{token}
 app.include_router(webhooks.router)
+app.include_router(actions.router)
 app.include_router(health.router)
 
 
