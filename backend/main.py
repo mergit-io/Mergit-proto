@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 import db
 import worker
 from api import actions, auth, config, context as ctx_api, github_webhook, goals, health, keys, stream, tasks, webhooks
+from api import economy as economy_api
 from config import cors_origin_list, settings
 from tracing import init_tracing
 
@@ -49,6 +50,9 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     logger.info("Starting omniBox (host=%s port=%s debug=%s)", settings.host, settings.port, settings.debug)
     await db.init_db()
+    import economy
+    await economy.seed_passports()
+    await economy.backfill()
     Path(settings.workspace_dir).mkdir(parents=True, exist_ok=True)
     logger.info("DB initialised at %s", settings.db_path)
     init_tracing(settings.omium_api_key, settings.omium_project)
@@ -122,6 +126,7 @@ app.include_router(stream.router)
 app.include_router(github_webhook.router)  # specific route before generic /{token}
 app.include_router(webhooks.router)
 app.include_router(actions.router)
+app.include_router(economy_api.router)
 app.include_router(health.router)
 
 

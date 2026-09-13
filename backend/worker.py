@@ -10,6 +10,7 @@ import uuid
 from typing import Any
 
 import db
+import economy
 import error_classifier
 import events
 import orchestrator as orch
@@ -203,6 +204,9 @@ async def _after_task_done(task: Any, output: dict) -> None:
     goal = await db.get_goal(task.goal_id)
     if not goal:
         return
+
+    # Simulated on-chain proof-of-work + reputation update (never breaks the run)
+    await economy.record_proof(task, output)
 
     promoted = await db.promote_ready_tasks(task.goal_id)
     for tid in promoted:
