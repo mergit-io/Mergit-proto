@@ -12,9 +12,16 @@ build/
 backend/.env
 backend/model_config.json
 backend/context.json
-backend/mergit.db
-backend/mergit.db-*
 backend/workspace/
+
+# SQLite — unanchored on purpose. These used to read `backend/mergit.db`, which only
+# matched that one path, so any tool run from another cwd (sqlite3.connect creates the
+# file when it is missing) left an untracked stray that git happily offered to commit.
+# frontend/omnibox.db got committed exactly this way before the rebrand.
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
 
 # Frontend
 frontend/node_modules/
