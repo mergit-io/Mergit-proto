@@ -987,3 +987,18 @@ Confirmed on the live preview for PR #13: `/api/goals`, `/api/config/models` and
 random 256-bit value when the variable does not already exist — an operator who wants a chosen
 password still sets one and it is left alone, but no environment can boot without a gate. The
 generated value is read from the Render dashboard.
+
+**Second follow-up — the merge route was unreachable.** Running the real goal ("Merge pull request
+#3 in OfficialAbhinavSingh/mergit-e2e-sandbox") against a live Groq model and live GitHub failed
+before a single GitHub call: `Orchestrator failed after 5 attempts. Last error: terminal task 't2'
+uses agent 'integrator' which produces raw data.` `_validate_plan` permitted a terminal integrator
+only when the plan also contained a `coder` — the issue-fix shape. A merge needs no coder, so the
+prompt was routing "merge PR #N → integrator alone" into a plan the validator rejected every time.
+`_integrator_terminal_is_an_action()` now also accepts a direct action on a named PR or issue,
+detected structurally by a `pr_number`/`issue_number` input with a write-verb fallback on the task
+description. The stubbed suite could not have caught this: it scripts the plan instead of asking a
+model for one, so the validator never saw a real merge plan — the same shape of blind spot as the
+reviewer that never read a diff. Re-run after the fix: plan `integrator → integrator`, t1 read PR #3
+(`mergeable: false`), t2 returned `merged: false, reason: "the branch has merge conflicts with the
+base"`, and GitHub confirms PR #3 is still open and unmerged. The agent attempted a real merge, was
+refused, and reported the refusal instead of claiming success. 220 tests passing.

@@ -254,6 +254,13 @@ Tests: `test_github_automation.py` covers the wiring (webhook → DAG → dispat
 truncation, self-review downgrade, PR-creation robustness, and that every tool an agent may call is
 actually registered. `scripts/github_e2e.py <owner/repo>` drives all of it against a real repository.
 
-`_validate_plan` in `orchestrator.py` allows `integrator` as terminal task when the plan has both `coder` and `integrator` agents (detected by `_is_github_automation_plan()`).
+`_validate_plan` in `orchestrator.py` normally refuses a terminal `researcher`/`integrator`, because
+raw API data is not the answer a user reads. `_integrator_terminal_is_an_action()` carves out the two
+cases where a terminal `integrator` *is* the answer: the issue-fix shape (`coder` and `integrator`
+both present), and a direct action on a named PR or issue — detected by a `pr_number`/`issue_number`
+input, falling back to a write verb in the task description. The second case was the miss: "merge PR
+#3" needs no coder, so the plan was rejected, the orchestrator burned all five attempts, and the goal
+failed with a validation error before touching GitHub. The stubbed suite could not see it — it scripts
+the plan instead of asking a model for one. Regression tests live in `test_github_tools.py`.
 
 **Local demo setup**: `ngrok http 8000` → copy ngrok URL → GitHub repo Settings → Webhooks → Add webhook. Or use the "Simulate GitHub Issue" form on the Automate page (`/app/webhooks`) to test without a real webhook.

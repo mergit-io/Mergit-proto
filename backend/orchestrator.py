@@ -313,11 +313,36 @@ def _salvage_failed_generation(error_str: str) -> dict | None:
 
 _RAW_OUTPUT_AGENTS = {"researcher", "integrator"}
 
-def _is_github_automation_plan(p: "PlanSchema") -> bool:
-    """Return True when the plan looks like a GitHub automation workflow (researcher→coder→integrator).
-    In this pattern the integrator IS the terminal action (creates PR + posts comment) — no writer needed."""
+# A terminal integrator whose job is to CHANGE something on GitHub — merge, comment,
+# review, label, close — is answering the goal, not gathering data for a writer. Wording
+# the model uses for those actions, checked against the terminal task only.
+_GITHUB_WRITE_VERBS = ("merge", "comment", "review", "label", "close", "reopen",
+                       "approve", "pull request", "issue")
+
+
+def _integrator_terminal_is_an_action(p: "PlanSchema") -> bool:
+    """Return True when a terminal integrator IS the answer rather than raw data.
+
+    Two shapes qualify:
+
+    1. The issue-fix workflow (researcher→coder→integrator), where the integrator opens
+       the PR and comments as the final act.
+    2. A direct GitHub action on a named pull request or issue — "merge PR #7", "close
+       issue #12". These need no coder, so shape 1 alone rejected them: the orchestrator
+       burned all five attempts on a plan that was correct and the goal failed without
+       ever reaching GitHub.
+    """
     agent_names = {t.agent for t in p.tasks}
-    return "coder" in agent_names and "integrator" in agent_names
+    if "coder" in agent_names and "integrator" in agent_names:
+        return True
+
+    terminal = next(t for t in p.tasks if t.id == p.terminal)
+    if terminal.agent != "integrator":
+        return False
+    # Structural signal first: acting on a specific PR/issue is a side effect, not a lookup.
+    if any(k in ("pr_number", "issue_number", "pull_number") for k in (terminal.inputs or {})):
+        return True
+    return any(v in (terminal.description or "").lower() for v in _GITHUB_WRITE_VERBS)
 
 
 def _validate_plan(p: PlanSchema) -> None:
@@ -339,7 +364,7 @@ def _validate_plan(p: PlanSchema) -> None:
     # integrator creates real side-effects (PR + comment) as the final action.
     terminal_task = next(t for t in p.tasks if t.id == p.terminal)
     if terminal_task.agent in _RAW_OUTPUT_AGENTS and len(p.tasks) > 1:
-        if terminal_task.agent == "integrator" and _is_github_automation_plan(p):
+        if terminal_task.agent == "integrator" and _integrator_terminal_is_an_action(p):
             return  # automation pattern: integrator is the correct terminal
         raise ValueError(
             f"terminal task '{p.terminal}' uses agent '{terminal_task.agent}' which produces raw data. "
