@@ -21,6 +21,7 @@ and a test suite must not be the thing that does that.
 """
 import json
 import os
+import re
 import time
 
 import httpx
@@ -280,13 +281,42 @@ def test_every_task_finished(completed_goal):
 
 
 @live_goal
-def test_no_unresolved_template_reached_an_agent(completed_goal):
-    """`{{t1.output}}` left in a task's inputs means interpolation silently failed."""
+def test_every_template_points_at_a_task_that_produced_output(completed_goal):
+    """Stored inputs keep their `{{task_id.output}}` templates on purpose — the worker
+    resolves them in memory per attempt (`resolve_inputs`) and never writes the resolved
+    values back, which is what lets a retry re-resolve against current outputs. So the
+    checkable invariant is not "no templates remain" but "every template resolves":
+    each referenced task must exist in this goal and have produced an output.
+    """
+    template_re = re.compile(r"\{\{(\w+)\.output(?:\.[\w\[\]\.0-9]+)?\}\}")
+    by_id = {t["id"]: t for t in completed_goal["tasks"]}
+
     for task in completed_goal["tasks"]:
-        rendered = json.dumps(task["inputs"])
-        assert "{{" not in rendered, (
-            f"task {task['id']} ran with an unresolved template: {rendered[:200]}"
-        )
+        for referenced in template_re.findall(json.dumps(task["inputs"])):
+            assert referenced in by_id, (
+                f"task {task['id']} references {referenced}, which is not a task on this "
+                f"goal — interpolation would raise KeyError. Tasks: {list(by_id)}"
+            )
+            assert by_id[referenced]["output"] is not None, (
+                f"task {task['id']} consumes {referenced}, which produced no output"
+            )
+
+
+@live_goal
+def test_no_task_failed_on_interpolation(completed_goal):
+    """A template the worker cannot resolve fails the task with this exact prefix."""
+    broken = [
+        (t["id"], t["error"]) for t in completed_goal["tasks"]
+        if t["error"] and "Interpolation error" in t["error"]
+    ]
+    assert not broken, f"tasks failed to interpolate their inputs: {broken}"
+
+
+@live_goal
+def test_the_final_answer_contains_no_raw_template(completed_goal):
+    """If an agent were handed an unresolved template it would tend to echo it back."""
+    rendered = json.dumps(completed_goal["output"])
+    assert "{{" not in rendered, f"a template leaked into the final answer: {rendered[:200]}"
 
 
 @live_goal
