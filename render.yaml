@@ -19,6 +19,19 @@ services:
         value: /data/config
       - key: DEBUG
         value: "false"
+      # REQUIRED before sharing the URL. The API is unauthenticated: POST /api/goals is open
+      # and the coder agent's code_exec runs its result in a subprocess, so an open URL is
+      # arbitrary code execution. sync:false = set it by hand in the Render dashboard.
+      - key: ACCESS_PASSWORD
+        sync: false
+      # No persistent disk on the free plan, so every restart starts from an empty database.
+      # This mints a canned goal + 3 verifiable proofs on boot so the dashboard and ledger
+      # are never empty for a visitor.
+      - key: SEED_DEMO
+        value: "true"
+      # Groq's free-tier rate limits bite long before 0.1 CPU does.
+      - key: MAX_CONCURRENT_TASKS
+        value: "3"
       # Chain. "local" runs an in-process EVM that is wiped on every restart — fine for a
       # showcase, but proofs are then only verifiable from inside this container. Set
       # CHAIN_TARGET=monad-testnet plus a funded CHAIN_PRIVATE_KEY to record proofs on the

@@ -831,3 +831,76 @@ force push, which rewrites every SHA and breaks existing clones.
 built as a real product. The pitch/submission track is dropped. `ROADMAP.md` is currently framed
 around "show the manager a working demo" and needs rewriting against the actual product vision
 before it drives work again.
+
+---
+
+## 2026-08-13 — Legacy brand purge, and the gate a public URL needed
+
+**Chose Hugging Face Spaces over Oracle Always Free.** Oracle's signup could not be completed,
+and on inspection the free x86 shape (1 core / 1 GB) was the weaker box anyway — `npm run build`
+would have needed a swap file to avoid OOM. HF gives 2 vCPU / 16 GB, builds on x86 so the solcx
+arch bug is moot, and needs no card. It costs an ephemeral disk and a *listed* public URL, and the
+second of those turned out to matter far more than the first.
+
+**Checking whether HF was safe found a P0 that had been filed as P3.** `PUT /api/config/keys` has
+no authentication — no dependency, no token. Neither does `POST /api/goals`, and `VITE_DEMO_MODE=true`
+removes the login. So on any reachable URL a stranger can overwrite the provider keys, read them
+masked, burn the LLM quota, and reach the coder agent's `code_exec` — arbitrary Python in a
+subprocess. That is remote code execution by design rather than by bug. It was rated P3 under
+"real authentication"; on a discoverable host it is P0, and the roadmap now says so.
+
+Fix is `access_gate.py`: HTTP Basic on every route except `/api/health`, active only when
+`ACCESS_PASSWORD` is set, so local dev and the suite stay credential-free. Basic rather than a
+bearer token on purpose — the browser prompts natively, which covers the SPA, the REST API and SSE
+in one move, and `EventSource` cannot send custom headers but the browser attaches Basic
+credentials for it. `secrets.compare_digest`, not `==`. Added last in `main.py` so it is the
+outermost middleware and rejects before anything else touches the request.
+
+**`demo_seed.py` — seeding, not shipping, the demo data.** The ephemeral disk wipes SQLite and the
+chain on every restart. Committing a populated database looked like the obvious answer and is the
+wrong one: its proofs reference a chain that died with the process that minted them, so every
+Verify button would answer `verified: null` — worse than an empty ledger, because it looks broken
+rather than new. Seeding mints against the chain running *now*. Confirmed end to end: booted with
+`SEED_DEMO=true`, `/api/economy/verify/{id}` returned `verified: true` with computed and on-chain
+hashes matching. `scripts/replay_demo.py` is now a thin wrapper over the same module so the two
+cannot drift.
+
+Verified live rather than only in tests: health open (200) so the container healthcheck still
+passes, `/api/config/keys` and `POST /api/goals` both 401 without credentials, 200 with, 401 on a
+wrong password, and 3 proofs seeded and verifying.
+
+**Legacy brand purge.** `frontend/src/lib/firebase.ts` hardcoded a Firebase project id — and a
+project id is immutable, so it could never be renamed, only replaced. Config now comes from
+`VITE_FIREBASE_*` env vars with no fallback, so the source tree names no project at all and
+swapping projects is a config change. Added `frontend/.env.example`. Scrubbed the legacy brand and
+the old tracing SDK's name from `progress.md` and the superpowers plans/specs by rewording rather
+than deleting, so the changelog still records that a rebrand and a tracing removal happened.
+Regenerated the pitch PDF from `pitch/generate_pdf.py` (which already emitted the current name) and
+verified 0 byte-matches for the old brand in the output. One gotcha for anyone repeating this:
+`omium` is a substring of `chromium`, so a naive grep hits `package-lock.json`.
+
+Also: `.gitignore`'s SQLite rules were anchored to `backend/mergit.db`, so a tool run from any
+other cwd left a stray `mergit.db` that git offered to commit — `sqlite3.connect()` creates the
+file when it is missing. Now unanchored (`*.db`, `-wal`, `-shm`, `-journal`). A stray db under
+`frontend/` had already been committed exactly that way; scanned clean (empty schema, no
+credentials) so it needs untracking, not a history rewrite. Dockerfile now creates the app user at
+UID/GID 1000 because HF Spaces runs containers as user 1000, and a system user below 1000 owning
+`/data` means the app cannot write its own database.
+
+**186 tests passing**, up from 170. Runbook at `deploy/HUGGINGFACE.md`.
+
+**Host decision, after two dead ends.** Oracle Always Free was the technical pick — persistent
+disk, always on, and arm64 builds fine now that `contracts/out/artifacts.json` is tracked
+(`compile_all()` returns the cache before it ever asks solcx for solc, so the x86-only solc
+download never happens). Card verification could not be completed, so it is deferred rather than
+rejected; `docs/DEPLOYMENT.md` stands. Hugging Face Spaces was the no-card fallback until the
+Space creation page showed Docker Spaces now require PRO — only Static Spaces are free, and a
+static host cannot run this backend. That runbook is kept, marked out of date, for anyone with PRO.
+
+Landed on **Render free**, which `render.yaml` had been wired for all along — including a comment
+anticipating that the free plan has no disk and would need to "re-seed on boot", which is exactly
+what `demo_seed.py` now does. Added `ACCESS_PASSWORD` (sync:false), `SEED_DEMO=true` and
+`MAX_CONCURRENT_TASKS=3` to it, and wrote `docs/RENDER.md`. The free plan's real cost is the 15-minute
+idle sleep and the ~70s cold start behind it; a free 10-minute cron against `/api/health` — which sits
+outside the access gate precisely so unauthenticated pings work — keeps it warm inside the 750h/month
+allowance. Oracle and AWS come back into scope when there is a reason to scale, not before.
