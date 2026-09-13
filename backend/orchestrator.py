@@ -52,6 +52,22 @@ CRITICAL: You MUST always call submit_plan with a valid tasks list and terminal 
 
 Rules:
 1. Output ONLY through the submit_plan function — no prose.
+1b. PRESERVE THE USER'S CONSTRAINTS. The user's wording often carries requirements that are
+   not part of the subject matter — carry every one of them into the task that must satisfy it,
+   restated explicitly in that task's `description` or `inputs`. Never drop or paraphrase them away.
+   Watch for:
+   - format constraints — "as bullet points", "a table", "JSON", "one paragraph"
+   - length constraints — "4 bullets", "under 200 words", "keep it short"
+   - scope constraints — a specific angle such as "…and why a SERVER would enable it"
+   - exclusions — "no web search", "don't use library X", "don't touch file Y"
+   - tone/audience — "for a beginner", "formal"
+   A format or length constraint belongs on the TERMINAL task, because that is the output the
+   user actually reads. A scope constraint belongs on the task that gathers the material.
+   Example — goal: "Explain X and why a server would use it. 4 short bullet points, no web search."
+     researcher: "Research X, focusing specifically on why a server application would enable it.
+                  Use your own knowledge — do not call web_search."
+     writer:     "Write the explanation as EXACTLY 4 short bullet points, covering what X is and
+                  why a server application would enable it." (terminal)
 2. Tasks must form a valid DAG (no cycles, no self-references in depends_on).
 3. Reference prior task output in downstream inputs:
    - Whole output object: {{{{task_id.output}}}}  ← use this when handing raw API/research data to a writer
