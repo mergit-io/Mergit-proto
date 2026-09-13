@@ -5,6 +5,9 @@ from dotenv import dotenv_values, set_key
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+import db
+import events as event_bus
+
 router = APIRouter(prefix="/api/config", tags=["config"])
 
 _ENV_FILE = Path(__file__).parent.parent / ".env"
@@ -16,6 +19,8 @@ PROVIDER_KEYS: dict[str, str] = {
     "google":    "GOOGLE_API_KEY",
     "mistral":   "MISTRAL_API_KEY",
     "tavily":    "TAVILY_API_KEY",
+    "github":    "GITHUB_TOKEN",
+    "slack":     "SLACK_WEBHOOK_URL",
 }
 
 
@@ -62,4 +67,18 @@ async def update_key(body: KeyBody):
     set_key(str(_ENV_FILE), env_var, key_value)
     os.environ[env_var] = key_value
 
-    return {"ok": True, "provider": provider, "env_var": env_var, "masked": _mask(key_value)}
+    # LiteLLM uses GEMINI_API_KEY for gemini/ models — bridge from GOOGLE_API_KEY
+    if provider == "google":
+        set_key(str(_ENV_FILE), "GEMINI_API_KEY", key_value)
+        os.environ["GEMINI_API_KEY"] = key_value
+
+    # Resume any tasks that were waiting for this credential
+    resumed = await db.resume_credential_tasks(env_var)
+    for task in resumed:
+        event_bus.emit(task["goal_id"], "task_update", {
+            "task_id": task["id"],
+            "status": "READY",
+            "agent": task["agent_name"],
+        })
+
+    return {"ok": True, "provider": provider, "env_var": env_var, "masked": _mask(key_value), "resumed_tasks": len(resumed)}

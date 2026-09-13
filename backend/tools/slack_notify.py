@@ -1,14 +1,21 @@
+import os
+
 import httpx
 
-from config import settings
+from tools.credential_request import WAITING_CREDENTIAL_SENTINEL
 from tracing import trace
 
 
 @trace("slack_notify")
 async def slack_notify(args: dict) -> dict:
-    webhook_url = settings.slack_webhook_url
+    webhook_url = os.environ.get("SLACK_WEBHOOK_URL", "")
     if not webhook_url:
-        return {"sent": False, "error": "SLACK_WEBHOOK_URL not configured"}
+        return {
+            WAITING_CREDENTIAL_SENTINEL: True,
+            "credential": "SLACK_WEBHOOK_URL",
+            "provider": "slack",
+            "message": "Slack Webhook URL required to send notifications",
+        }
 
     message = args["message"]
     channel = args.get("channel")
@@ -20,7 +27,11 @@ async def slack_notify(args: dict) -> dict:
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.post(webhook_url, json=payload)
 
-    return {"sent": resp.is_success, "destination": channel or "default", "status_code": resp.status_code}
+    body = resp.text.strip()
+    slack_ok = resp.is_success and body == "ok"
+    if not slack_ok:
+        return {"sent": False, "error": f"Slack rejected the message: {body or resp.status_code}"}
+    return {"sent": True, "destination": channel or "default"}
 
 
 SCHEMA = {

@@ -12,7 +12,7 @@ from typing import Any
 import db
 import events
 import orchestrator as orch
-from agent_runner import WaitingWebhookSignal, run as agent_run
+from agent_runner import WaitingCredentialSignal, WaitingWebhookSignal, run as agent_run
 from config import settings
 from interpolation import resolve_inputs
 from state import GoalStatus, TaskStatus
@@ -116,9 +116,11 @@ async def _execute_task(task: Any) -> None:
         }
         resolved = resolve_inputs(task.inputs, task_outputs)
     except KeyError as e:
+        error_msg = f"Interpolation error: {e}"
         logger.error("Interpolation failed for task %s: %s", task.id, e)
-        await db.settle_task(task.id, TaskStatus.FAILED, error=f"Interpolation error: {e}")
-        events.emit(goal_id, "task_update", {"task_id": task.id, "status": TaskStatus.FAILED})
+        await db.settle_task(task.id, TaskStatus.FAILED, error=error_msg)
+        events.emit(goal_id, "task_update", {"task_id": task.id, "status": TaskStatus.FAILED, "error": error_msg})
+        await _handle_goal_failure(goal_id, task.id, error_msg)
         return
 
     # Re-enter the goal's Omium trace context so this task's spans are
@@ -145,6 +147,14 @@ async def _execute_task(task: Any) -> None:
 
     except WaitingWebhookSignal:
         events.emit(goal_id, "task_update", {"task_id": task.id, "status": TaskStatus.WAITING_WEBHOOK})
+
+    except WaitingCredentialSignal as e:
+        events.emit(goal_id, "task_update", {
+            "task_id": task.id,
+            "status": TaskStatus.WAITING_CREDENTIAL,
+            "credential": e.credential_var,
+            "provider": e.provider,
+        })
 
     except Exception as e:
         if _is_rate_limit_error(e):
@@ -207,6 +217,24 @@ async def _reclaim_loop() -> None:
             reclaimed = await db.reclaim_expired_leases()
             if reclaimed:
                 logger.info("Reclaimed %d stale task leases", reclaimed)
+            await _reclaim_orphaned_goals()
         except Exception as e:
             logger.error("Reclaim error: %s", e)
         await asyncio.sleep(30)
+
+
+async def _reclaim_orphaned_goals() -> None:
+    """Resolve goals stuck in RUNNING/PLANNING whose tasks are all terminal (no progress possible)."""
+    orphans = await db.find_orphaned_goals()
+    for row in orphans:
+        gid, terminal_id, terminal_status = row["id"], row["terminal_task_id"], row["terminal_status"]
+        if terminal_status == TaskStatus.DONE:
+            output = row["terminal_output"]
+            await db.update_goal_status(gid, GoalStatus.COMPLETED, output=output)
+            events.emit(gid, "goal_done", {"status": GoalStatus.COMPLETED, "goal_id": gid, "output": output})
+            logger.info("Reclaimed orphaned COMPLETED goal %s", gid)
+        else:
+            error = row["error"] or "All tasks failed — no progress possible"
+            await db.update_goal_status(gid, GoalStatus.FAILED, error=error)
+            events.emit(gid, "goal_status", {"status": GoalStatus.FAILED, "goal_id": gid, "error": error})
+            logger.info("Reclaimed orphaned FAILED goal %s", gid)

@@ -53,10 +53,6 @@ AVAILABLE_MODELS = [
     # Google — Gemini 2.0
     {"id": "gemini/gemini-2.0-flash",                            "label": "Gemini 2.0 Flash",     "provider": "Google", "tier": "fast"},
     {"id": "gemini/gemini-2.0-flash-lite",                       "label": "Gemini 2.0 Flash Lite","provider": "Google", "tier": "instant"},
-    # Google — Gemini 1.5
-    {"id": "gemini/gemini-1.5-pro",                              "label": "Gemini 1.5 Pro",       "provider": "Google", "tier": "powerful"},
-    {"id": "gemini/gemini-1.5-flash",                            "label": "Gemini 1.5 Flash",     "provider": "Google", "tier": "fast"},
-    {"id": "gemini/gemini-1.5-flash-8b",                         "label": "Gemini 1.5 Flash 8B",  "provider": "Google", "tier": "instant"},
     # Mistral
     {"id": "mistral/mistral-large-latest",                       "label": "Mistral Large",        "provider": "Mistral", "tier": "powerful"},
     {"id": "mistral/mistral-medium-3",                           "label": "Mistral Medium 3",     "provider": "Mistral", "tier": "fast"},

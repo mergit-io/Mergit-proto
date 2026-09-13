@@ -1,15 +1,24 @@
+import os
+
 from config import settings
+from tools.credential_request import WAITING_CREDENTIAL_SENTINEL
 from tracing import trace
 
 
 @trace("github_pr")
 async def github_pr(args: dict) -> dict:
-    if not settings.github_token:
-        return {"action": "create_pr", "result": None, "url": None, "error": "GITHUB_TOKEN not configured", "ok": False}
+    token = os.environ.get("GITHUB_TOKEN", "")
+    if not token:
+        return {
+            WAITING_CREDENTIAL_SENTINEL: True,
+            "credential": "GITHUB_TOKEN",
+            "provider": "github",
+            "message": "GitHub personal access token required to create PRs",
+        }
 
     from github import Github, GithubException
 
-    repo_name = args.get("repo") or settings.github_default_repo
+    repo_name = args.get("repo") or os.environ.get("GITHUB_DEFAULT_REPO", "") or settings.github_default_repo
     title = args["title"]
     body = args["body"]
     head_branch = args["head_branch"]
@@ -17,7 +26,7 @@ async def github_pr(args: dict) -> dict:
     files = args.get("files", [])
 
     try:
-        g = Github(settings.github_token)
+        g = Github(token)
         repo = g.get_repo(repo_name)
 
         base_ref = repo.get_branch(base_branch)

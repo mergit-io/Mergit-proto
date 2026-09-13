@@ -17,25 +17,31 @@ logger = logging.getLogger(__name__)
 AGENT_DESCRIPTIONS = """
 Available agents (choose from these only):
 
-- researcher: Searches the web, reads URLs, gathers facts.
-  Tools: web_search, http_request
-  Output: {"summary": str, "key_points": [str], "sources": [str]}
+- researcher: Searches the web, reads GitHub repos, gathers facts.
+  Tools: web_search, http_request, github_read_file, github_list_dir, github_get_issue, github_search_code
+  Output: {{"summary": str, "key_points": [str], "sources": [str], "code_context": str}}
+  NOTE: outputs raw structured data — NOT a human-readable report on its own.
+  Use for: web research, reading GitHub repos/files/issues, understanding codebases.
 
-- writer: Synthesizes research into polished text (reports, emails, docs).
+- writer: Synthesizes research or API data into polished, human-readable text (profiles, reports, emails, docs, code reviews).
   Tools: file_ops
-  Output: {"text": str, "title": str}
+  Output: {{"text": str, "title": str}}
+  NOTE: use this as the terminal agent whenever the goal is to produce a report or readable summary.
 
 - notifier: Sends messages to Slack or any HTTP endpoint.
   Tools: slack_notify, http_request
-  Output: {"sent": bool, "destination": str}
+  Output: {{"sent": bool, "destination": str}}
 
-- coder: Writes and executes Python code, saves results to files.
-  Tools: code_exec, file_ops, web_search
-  Output: {"code": str, "output": str, "success": bool}
+- coder: Writes and executes Python code, reads GitHub files for context, saves results to files.
+  Tools: code_exec, file_ops, web_search, github_read_file
+  Output: {{"code": str, "output": str, "success": bool}}
+  Use for: writing code fixes, running scripts, generating patches.
 
-- integrator: Interacts with external APIs, creates GitHub PRs, waits for inbound webhooks.
-  Tools: github_pr, http_request, wait_webhook
-  Output: {"action": str, "result": any, "url": str|null}
+- integrator: Creates GitHub PRs, posts GitHub comments, interacts with external APIs, waits for webhooks.
+  Tools: github_pr, github_post_comment, github_read_file, http_request, wait_webhook
+  Output: {{"action": str, "result": any, "url": str|null}}
+  NOTE: outputs raw API data — NOT a human-readable report on its own.
+  Use for: creating PRs, posting comments on issues/PRs, API actions with side effects.
 """
 
 SYSTEM_PROMPT = f"""You are the omniBox orchestrator. Given a user goal, decompose it into the minimum set of tasks that achieves the goal, expressed as a directed acyclic graph (DAG).
@@ -45,12 +51,39 @@ SYSTEM_PROMPT = f"""You are the omniBox orchestrator. Given a user goal, decompo
 Rules:
 1. Output ONLY through the submit_plan function — no prose.
 2. Tasks must form a valid DAG (no cycles, no self-references in depends_on).
-3. Reference a prior task's output field as: {{{{task_id.output.field_name}}}}
-   Example: if task t1 outputs {{summary: "...", key_points: [...]}}, then t2's input can be {{{{t1.output.summary}}}}
+3. Reference prior task output in downstream inputs:
+   - Whole output object: {{{{task_id.output}}}}  ← use this when handing raw API/research data to a writer
+   - Specific field:      {{{{task_id.output.field_name}}}}
+   - Example: researcher produces {{summary, key_points, sources, code_context}}; coder input can be {{{{t1.output.code_context}}}} for the code snippets.
+   - For integrator → writer handoff, ALWAYS use {{{{t1.output}}}} (whole object).
+   - For researcher → coder handoff, use {{{{t1.output.code_context}}}} for the code snippets and {{{{t1.output.summary}}}} for context.
 4. Assign task IDs as t1, t2, t3... in topological order (t1 has no dependencies).
 5. terminal = the task whose output IS the final answer to the goal.
 6. Use the fewest tasks possible. A single-agent task is fine for simple goals.
 7. Do not invent agent names — only use the agents listed above.
+8. CRITICAL — terminal task MUST produce human-readable output:
+   - researcher and integrator produce raw structured data, not readable reports.
+   - Whenever the goal involves fetching data, looking something up, or producing a report/summary,
+     ALWAYS add a writer task after researcher/integrator to present findings as polished text.
+   - Only make researcher or integrator terminal if the user explicitly asks for raw data or JSON.
+   - Decision guide: "fetch/get/look up X" → integrator/researcher then writer.
+     "summarise/report on X" → researcher then writer. "run a script" → coder is fine as terminal.
+     "send a Slack message" → notifier is fine as terminal.
+     "fix a GitHub issue" → researcher (reads code) → coder (writes fix) → integrator (creates PR + posts comment).
+     "review a GitHub PR" → researcher (reads changed files) → writer (writes review) → integrator (posts comment).
+9. Task inputs MUST be self-contained — include every parameter the agent needs:
+   - GitHub tasks: inputs must include "repo" (owner/repo format) and relevant issue/PR numbers.
+   - researcher reading GitHub: inputs must include {{"repo": "owner/repo", "issue_number": N, "task": "read the repo structure and find files related to the issue"}}.
+   - coder fixing a bug: inputs must include {{"code_context": "{{{{t1.output.code_context}}}}", "issue_summary": "{{{{t1.output.summary}}}}", "repo": "owner/repo", "file_to_fix": "path/to/file.py"}}.
+   - integrator creating PR: inputs must include {{"repo": "owner/repo", "issue_number": N, "fixed_code": "{{{{t2.output.code}}}}"}}.
+   - web researcher: inputs must include "search_query".
+   - writer: inputs must reference prior task output e.g. {{"data": "{{{{t1.output}}}}"}}.
+   - A task with empty inputs {{{{}}}} has no information to act on and will fail.
+10. FOR GITHUB AUTOMATION GOALS: When the goal mentions fixing an issue or reviewing a PR:
+    - t1: researcher — reads repo structure, issue details, relevant files
+    - t2: coder — writes the fix using the code context from t1
+    - t3: integrator — creates PR with the fix AND posts a comment on the original issue/PR
+    This 3-task pattern is the correct approach. The integrator is the terminal task for GitHub automation.
 """
 
 
@@ -85,8 +118,12 @@ async def plan(goal: GoalRow) -> PlanSchema:
     orchestrator_model = model_config.get_model("orchestrator")
     logger.info("Orchestrator using model: %s", orchestrator_model)
 
+    import context as ctx_store
+    ctx_prompt = ctx_store.get_context_prompt()
+    system_content = SYSTEM_PROMPT + ctx_prompt if ctx_prompt else SYSTEM_PROMPT
+
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": system_content},
         {"role": "user", "content": f"Goal: {goal.goal_text}"},
     ]
 
@@ -112,6 +149,8 @@ async def plan(goal: GoalRow) -> PlanSchema:
                 temperature=0.1,
                 max_tokens=2048,
             )
+            if not response.choices:
+                raise ValueError("LLM returned empty response (no choices)")
             msg = response.choices[0].message
             if msg.tool_calls:
                 raw = json.loads(msg.tool_calls[0].function.arguments)
@@ -125,6 +164,7 @@ async def plan(goal: GoalRow) -> PlanSchema:
             else:
                 raise ValueError("Empty orchestrator response")
             plan_obj = PlanSchema.model_validate(raw)
+            plan_obj = _auto_fill_deps(plan_obj)  # ensure depends_on reflects inputs templates
             _validate_plan(plan_obj)
             logger.info("Orchestrator produced plan for goal=%s: %d tasks (model=%s)",
                         goal.id, len(plan_obj.tasks), orchestrator_model)
@@ -148,6 +188,7 @@ async def plan(goal: GoalRow) -> PlanSchema:
                 if salvaged:
                     try:
                         plan_obj = PlanSchema.model_validate(salvaged)
+                        plan_obj = _auto_fill_deps(plan_obj)
                         _validate_plan(plan_obj)
                         logger.warning(
                             "Orchestrator (attempt %d): salvaged plan from failed_generation", attempt + 1
@@ -167,9 +208,43 @@ async def plan(goal: GoalRow) -> PlanSchema:
     raise RuntimeError(f"Orchestrator failed after {max_attempts} attempts. Last error: {last_error}")
 
 
+_TMPL_DEP = re.compile(r"\{\{(\w+)\.output")
+
+
+def _extract_template_deps(inputs: dict) -> set[str]:
+    """Return task IDs referenced in {{task_id.output...}} templates anywhere in inputs."""
+    deps: set[str] = set()
+
+    def scan(v: Any) -> None:
+        if isinstance(v, str):
+            for m in _TMPL_DEP.finditer(v):
+                deps.add(m.group(1))
+        elif isinstance(v, dict):
+            for vv in v.values():
+                scan(vv)
+        elif isinstance(v, list):
+            for item in v:
+                scan(item)
+
+    scan(inputs)
+    return deps
+
+
+def _auto_fill_deps(plan: PlanSchema) -> PlanSchema:
+    """Ensure depends_on includes every task ID referenced in inputs templates.
+    The LLM sometimes forgets to list deps even when inputs clearly reference prior outputs."""
+    id_set = {t.id for t in plan.tasks}
+    for task in plan.tasks:
+        from_templates = _extract_template_deps(task.inputs) & id_set - {task.id}
+        if from_templates - set(task.depends_on):
+            task.depends_on = list(set(task.depends_on) | from_templates)
+            logger.debug("Auto-added deps for %s: %s", task.id, task.depends_on)
+    return plan
+
+
 def _rewrite_templates(inputs: dict, id_map: dict[str, str]) -> dict:
-    """Replace {{old_id.output.field}} with {{new_id.output.field}} in all string values."""
-    TMPL = re.compile(r"\{\{(\w+)(\.output\.[\w\[\]\.0-9]+)\}\}")
+    """Replace {{old_id.output[.field]}} with {{new_id.output[.field]}} in all string values."""
+    TMPL = re.compile(r"\{\{(\w+)(\.output(?:\.[\w\[\]\.0-9]+)?)\}\}")
 
     def rewrite(v: Any) -> Any:
         if isinstance(v, str):
@@ -205,6 +280,15 @@ def _salvage_failed_generation(error_str: str) -> dict | None:
     return None
 
 
+_RAW_OUTPUT_AGENTS = {"researcher", "integrator"}
+
+def _is_github_automation_plan(p: "PlanSchema") -> bool:
+    """Return True when the plan looks like a GitHub automation workflow (researcher→coder→integrator).
+    In this pattern the integrator IS the terminal action (creates PR + posts comment) — no writer needed."""
+    agent_names = {t.agent for t in p.tasks}
+    return "coder" in agent_names and "integrator" in agent_names
+
+
 def _validate_plan(p: PlanSchema) -> None:
     ids = {t.id for t in p.tasks}
     if p.terminal not in ids:
@@ -219,6 +303,17 @@ def _validate_plan(p: PlanSchema) -> None:
     for t in p.tasks:
         if t.agent not in known_agents:
             raise ValueError(f"unknown agent '{t.agent}' in task '{t.id}'")
+    # Enforce: researcher/integrator must not be terminal unless they are the only task,
+    # OR it's a GitHub automation workflow (researcher → coder → integrator) where the
+    # integrator creates real side-effects (PR + comment) as the final action.
+    terminal_task = next(t for t in p.tasks if t.id == p.terminal)
+    if terminal_task.agent in _RAW_OUTPUT_AGENTS and len(p.tasks) > 1:
+        if terminal_task.agent == "integrator" and _is_github_automation_plan(p):
+            return  # automation pattern: integrator is the correct terminal
+        raise ValueError(
+            f"terminal task '{p.terminal}' uses agent '{terminal_task.agent}' which produces raw data. "
+            "Add a writer task after it to present the findings in human-readable form."
+        )
 
 
 async def run_plan(goal: GoalRow) -> None:

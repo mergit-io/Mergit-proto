@@ -4,11 +4,12 @@ import {
   Check, RotateCcw, Save, Cpu, FlaskConical, PenLine,
   Bell, Code2, Plug, Settings2, ChevronDown, AlertCircle,
   Layers, FileJson, Plus, X, Key, Eye, EyeOff, CheckCircle,
+  FolderGit2, Thermometer,
 } from "lucide-react";
 import { AppNav } from "../components/AppNav";
 import { AppBackground } from "../components/AppBackground";
 import { api } from "../lib/api";
-import type { ModelConfig, ModelOption, ProviderKeyStatus } from "../lib/api";
+import type { ModelConfig, ModelOption, ProviderKeyStatus, ProjectContext } from "../lib/api";
 
 // -- Role metadata
 
@@ -60,6 +61,8 @@ const PROVIDER_META: Record<string, { label: string; color: string; bg: string; 
   google:    { label: "Google",    color: "text-sky-400",     bg: "bg-sky-400/8",       border: "border-sky-400/20"     },
   mistral:   { label: "Mistral",   color: "text-amber-400",   bg: "bg-amber-400/8",     border: "border-amber-400/20"   },
   tavily:    { label: "Tavily",    color: "text-cyan-400",    bg: "bg-cyan-400/8",      border: "border-cyan-400/20"    },
+  github:    { label: "GitHub",    color: "text-white",       bg: "bg-white/8",         border: "border-white/20"       },
+  slack:     { label: "Slack",     color: "text-purple-400",  bg: "bg-purple-400/8",    border: "border-purple-400/20"  },
 };
 
 function ApiKeysSection() {
@@ -190,6 +193,127 @@ function ApiKeysSection() {
   );
 }
 
+function ProjectContextSection() {
+  const EMPTY: ProjectContext = { github_repo: "", description: "", tech_stack: "", notes: "" };
+  const [ctx, setCtx] = useState<ProjectContext>(EMPTY);
+  const [draft, setDraft] = useState<ProjectContext>(EMPTY);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const c = await api.getContext();
+      setCtx(c);
+      setDraft(c);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const isDirty = JSON.stringify(draft) !== JSON.stringify(ctx);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setErr(null);
+    try {
+      const res = await api.updateContext(draft);
+      const saved = { github_repo: res.github_repo, description: res.description, tech_stack: res.tech_stack, notes: res.notes };
+      setCtx(saved);
+      setDraft(saved);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.15 }}
+      className="mt-6 rounded-2xl border border-white/10 bg-[#0e0e0e] overflow-hidden"
+    >
+      <div className="px-6 py-4 border-b border-white/6 flex items-center gap-3">
+        <FolderGit2 className="w-4 h-4 text-text-muted" />
+        <div>
+          <h2 className="text-xs font-semibold text-white uppercase tracking-widest">Project Context</h2>
+          <p className="text-[11px] text-text-muted mt-0.5">
+            Injected into the orchestrator and every agent so they understand your project
+          </p>
+        </div>
+      </div>
+
+      <div className="p-6 space-y-4">
+        {[
+          { key: "github_repo" as const, label: "GitHub Repo", placeholder: "owner/repo", mono: true },
+          { key: "description" as const, label: "Project Description", placeholder: "What does this project do?", mono: false },
+          { key: "tech_stack" as const, label: "Tech Stack", placeholder: "e.g. Python, FastAPI, React, PostgreSQL", mono: false },
+          { key: "notes" as const, label: "Notes for Agents", placeholder: "Any special instructions, conventions, or context…", mono: false },
+        ].map(({ key, label, placeholder, mono }) => (
+          <div key={key}>
+            <label className="block text-[11px] font-medium text-text-muted mb-1.5 uppercase tracking-widest">
+              {label}
+            </label>
+            {key === "notes" ? (
+              <textarea
+                value={draft[key]}
+                onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value }))}
+                placeholder={placeholder}
+                rows={3}
+                className="w-full bg-white/3 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-accent/50 placeholder:text-text-muted resize-none font-sans leading-relaxed"
+              />
+            ) : (
+              <input
+                type="text"
+                value={draft[key]}
+                onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value }))}
+                placeholder={placeholder}
+                className={`w-full bg-white/3 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-accent/50 placeholder:text-text-muted ${mono ? "font-mono" : "font-sans"}`}
+              />
+            )}
+          </div>
+        ))}
+
+        {err && (
+          <p className="flex items-center gap-1.5 text-xs text-danger">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {err}
+          </p>
+        )}
+
+        <div className="flex justify-end pt-1">
+          <button
+            onClick={handleSave}
+            disabled={saving || !isDirty}
+            className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-semibold transition-all ${
+              saved
+                ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                : isDirty
+                ? "bg-accent text-white hover:bg-accent/90 shadow-[0_0_16px_rgba(59,130,246,0.3)]"
+                : "bg-white/6 text-text-muted cursor-not-allowed"
+            }`}
+          >
+            {saved ? (
+              <><Check className="w-3.5 h-3.5" /> Saved</>
+            ) : saving ? "Saving…" : (
+              <><Save className="w-3.5 h-3.5" /> Save context</>
+            )}
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function fmtCooldown(secs: number): string {
+  if (secs >= 3600) return `${Math.ceil(secs / 3600)}h`;
+  if (secs >= 60)   return `${Math.ceil(secs / 60)}m`;
+  return `${Math.ceil(secs)}s`;
+}
+
 export function Models() {
   const [config, setConfig]   = useState<ModelConfig | null>(null);
   const [draft, setDraft]     = useState<Record<string, string>>({});
@@ -200,6 +324,7 @@ export function Models() {
   const [saved, setSaved]     = useState(false);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [saveErr, setSaveErr] = useState<string | null>(null);
+  const [modelHealthStatus, setModelHealthStatus] = useState<Record<string, number>>({});
 
   // Sync draft → jsonText when switching to JSON tab or draft changes
   useEffect(() => {
@@ -221,6 +346,22 @@ export function Models() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Poll model health — every 5s while any model is cooling down, else every 30s
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      try {
+        const h = await api.getModelHealth();
+        setModelHealthStatus(h.unhealthy);
+        timer = setTimeout(poll, Object.keys(h.unhealthy).length > 0 ? 5000 : 30000);
+      } catch {
+        timer = setTimeout(poll, 30000);
+      }
+    };
+    poll();
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleJsonChange = (val: string) => {
     setJsonText(val);
@@ -298,6 +439,33 @@ export function Models() {
           </div>
         )}
 
+        <AnimatePresence>
+          {Object.keys(modelHealthStatus).length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3"
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <Thermometer className="w-4 h-4 text-amber-400 shrink-0" />
+                <p className="text-sm font-semibold text-amber-300">Auto-switch active</p>
+              </div>
+              <p className="text-xs text-amber-300/70 mb-2">
+                These models hit rate limits and are cooling down. Agents are automatically using their fallbacks.
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {Object.entries(modelHealthStatus).map(([model, secs]) => (
+                  <span key={model} className="flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/25 text-[11px] font-mono text-amber-300">
+                    {model.split("/").slice(-1)[0]}
+                    <span className="text-amber-400/60">· {fmtCooldown(secs)}</span>
+                  </span>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Main card */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -340,19 +508,35 @@ export function Models() {
                   ROLES.map((role, i) => {
                     const { label, desc, Icon } = ROLE_META[role];
                     const value = draft[role] ?? config.defaults[role];
+                    const cooldownSecs = modelHealthStatus[value];
+                    const isCooling = cooldownSecs !== undefined && cooldownSecs > 0;
                     return (
                       <motion.div
                         key={role}
                         initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.04 }}
-                        className="flex items-center gap-4 p-4 rounded-xl bg-white/3 border border-white/6 hover:border-white/10 transition-all"
+                        className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${
+                          isCooling
+                            ? "bg-amber-500/5 border-amber-500/25"
+                            : "bg-white/3 border-white/6 hover:border-white/10"
+                        }`}
                       >
-                        <div className="w-9 h-9 rounded-xl bg-white/6 border border-white/8 flex items-center justify-center shrink-0">
-                          <Icon className="w-4 h-4 text-text-muted" />
+                        <div className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${
+                          isCooling ? "bg-amber-500/10 border-amber-500/25" : "bg-white/6 border-white/8"
+                        }`}>
+                          <Icon className={`w-4 h-4 ${isCooling ? "text-amber-400" : "text-text-muted"}`} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-white">{label}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium text-white">{label}</p>
+                            {isCooling && (
+                              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/10 border border-amber-500/25 text-amber-400">
+                                <Thermometer className="w-2.5 h-2.5" />
+                                cooling {fmtCooldown(cooldownSecs)}
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[11px] text-text-muted truncate">{desc}</p>
                         </div>
                         <ModelPicker
@@ -467,6 +651,9 @@ export function Models() {
 
         {/* API Keys */}
         <ApiKeysSection />
+
+        {/* Project Context */}
+        <ProjectContextSection />
 
         {/* Reference table */}
         {config && (

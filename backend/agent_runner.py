@@ -14,6 +14,7 @@ from agent_registry import get_agent_config
 from llm import acompletion
 from state import TaskRow
 from tools import TOOL_REGISTRY
+from tools.credential_request import WAITING_CREDENTIAL_SENTINEL
 from tools.wait_webhook import WAITING_WEBHOOK_SENTINEL
 from tracing import set_execution_context, trace, tool_span
 
@@ -129,7 +130,11 @@ async def run(
     model = config["model"]
     max_iter = config["max_iterations"]
 
+    import context as ctx_store
+    ctx_prompt = ctx_store.get_context_prompt()
     user_content = f"Task: {task.description}\n\nInputs:\n{json.dumps(resolved_inputs, indent=2)}"
+    if ctx_prompt:
+        user_content = f"Background context about the project:{ctx_prompt}\n\n{user_content}"
 
     messages: list[dict] = [
         {"role": "system", "content": config["system_prompt"]},
@@ -188,6 +193,18 @@ async def run(
                         if emit:
                             emit("task_waiting", {"task_id": task.id, "wait_token": wait_token, "webhook_url": result.get("webhook_url", "")})
                         raise WaitingWebhookSignal(wait_token)
+                    if isinstance(result, dict) and result.get(WAITING_CREDENTIAL_SENTINEL):
+                        cred_var = result["credential"]
+                        provider = result.get("provider", "")
+                        await db.set_task_waiting_credential(task.id, cred_var)
+                        if emit:
+                            emit("credential_request", {
+                                "task_id": task.id,
+                                "credential": cred_var,
+                                "provider": provider,
+                                "message": result.get("message", f"{cred_var} is required"),
+                            })
+                        raise WaitingCredentialSignal(cred_var, provider)
                     if tspan and "error" not in result:
                         tspan.set_output(result)
 
@@ -300,6 +317,20 @@ async def run(
                     if emit:
                         emit("task_waiting", {"task_id": task.id, "wait_token": wait_token, "webhook_url": result.get("webhook_url", "")})
                     raise WaitingWebhookSignal(wait_token)
+
+                if isinstance(result, dict) and result.get(WAITING_CREDENTIAL_SENTINEL):
+                    cred_var = result["credential"]
+                    provider = result.get("provider", "")
+                    await db.set_task_waiting_credential(task.id, cred_var)
+                    logger.info("[task=%s] Task suspended — waiting for credential %s", task.id, cred_var)
+                    if emit:
+                        emit("credential_request", {
+                            "task_id": task.id,
+                            "credential": cred_var,
+                            "provider": provider,
+                            "message": result.get("message", f"{cred_var} is required"),
+                        })
+                    raise WaitingCredentialSignal(cred_var, provider)
 
                 if "error" in result:
                     logger.warning("[task=%s] Tool %s returned error: %s", task.id, tool_name, result["error"])
@@ -425,3 +456,10 @@ class WaitingWebhookSignal(Exception):
     def __init__(self, wait_token: str):
         self.wait_token = wait_token
         super().__init__(f"Task waiting for webhook: {wait_token}")
+
+
+class WaitingCredentialSignal(Exception):
+    def __init__(self, credential_var: str, provider: str = ""):
+        self.credential_var = credential_var
+        self.provider = provider
+        super().__init__(f"Task waiting for credential: {credential_var}")
