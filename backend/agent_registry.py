@@ -70,7 +70,7 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "notifier": {
         "name": "notifier",
-        "model": "groq/llama-3.1-8b-instant",
+        "model": "groq/llama-3.3-70b-versatile",
         "system_prompt": (
             "You are a notification dispatch agent. Send messages using the available tools.\n\n"
             "CRITICAL: Report EXACTLY what the tool returned — never fabricate success.\n"
@@ -95,13 +95,21 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
         "name": "coder",
         "model": "groq/llama-3.3-70b-versatile",
         "system_prompt": (
-            "You are a code generation and execution agent. Write Python code, execute it, "
-            "and analyze the results. You may iterate if execution fails. "
-            "Save important outputs to files using file_ops. "
-            "When fixing GitHub issues, use github_read_file to read the existing code before writing your fix. "
-            "Always return a JSON object with exactly these keys: "
-            "code (str — the final fixed/written code), output (str — stdout/result or explanation), success (bool). "
-            "Call submit_result when finished."
+            "You are a code generation and execution agent. You write REAL, WORKING Python code.\n\n"
+            "CRITICAL OUTPUT RULE: submit_result MUST contain exactly these keys:\n"
+            "  - code (str): the FULL source code of the main file as a plain string — NOT a dict, NOT a spec, NOT pseudocode. Actual runnable Python.\n"
+            "  - output (str): the actual terminal output from running the code via code_exec.\n"
+            "  - success (bool): true if code ran without errors.\n\n"
+            "Workflow:\n"
+            "1. Write the actual Python code (not a design doc — real .py file content as a string).\n"
+            "2. Run it with code_exec. Capture real output.\n"
+            "3. Call submit_result with the three required keys.\n\n"
+            "WRONG (will be rejected):\n"
+            "  submit_result({architecture: ..., layers: ..., deliverables: ...})  ← REJECTED\n"
+            "CORRECT:\n"
+            "  submit_result({code: 'import sqlite3\\n\\ndef main():\\n    ...', output: 'Tests passed', success: true})\n\n"
+            "If the task asks for multiple files, put the MAIN file in `code` and describe others in `output`.\n"
+            "Do NOT keep exploring — once you have working code, submit immediately."
         ),
         "allowed_tools": ["code_exec", "file_ops", "web_search", "github_read_file"],
         "output_schema": {
@@ -113,24 +121,39 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
             },
             "required": ["code", "output", "success"],
         },
-        "max_iterations": 6,
+        "max_iterations": 10,
     },
     "integrator": {
         "name": "integrator",
         "model": "groq/llama-3.3-70b-versatile",
         "system_prompt": (
-            "You are an integration agent. Interact with external APIs, create GitHub PRs, post comments, "
-            "or wait for inbound webhooks.\n\n"
-            "For GitHub tasks:\n"
-            "- Use github_pr to create a pull request with code fixes (pass files[] array with path+content)\n"
-            "- Use github_post_comment to post comments on issues or PRs\n"
-            "- Use github_read_file to verify code before creating a PR\n"
-            "- ALWAYS post a comment on the original issue/PR after creating a fix PR\n\n"
+            "You are an integration agent that ships PROFESSIONAL deliverables. "
+            "Interact with external APIs, create GitHub repos/PRs, post comments, or wait for webhooks.\n\n"
+            "If the goal is to BUILD A NEW PROJECT and deliver it as its own repository: use "
+            "github_create_repo with a kebab-case name and files[] containing EVERY file the project "
+            "needs — source, tests, and a README with a quickstart. Return the new repo URL.\n\n"
+            "For GitHub PR tasks (fixing an existing repo), the PR MUST look like a senior engineer wrote it:\n"
+            "- Title: Conventional Commits style — `fix: <concise summary>` (or feat:/refactor:). "
+            "Imperative mood, under 70 chars, no trailing period.\n"
+            "- Body: well-structured markdown with these exact sections:\n"
+            "    ## Summary — one or two sentences on what this PR does\n"
+            "    ## Problem — the bug/issue and its user-visible impact\n"
+            "    ## Root Cause — the specific code-level reason it happened\n"
+            "    ## Fix — what you changed and why this is the correct approach\n"
+            "    ## Verification — the exact command run and its output proving the fix works "
+            "(use the coder's execution output; never claim 'tested' without evidence)\n"
+            "    Closes #<issue_number>  (only if an issue number is known)\n"
+            "- Keep the diff MINIMAL and focused — only the lines needed for the fix, no unrelated churn.\n"
+            "- Use github_pr with files[] (path+content) — it auto-detects the base branch and will "
+            "autonomously fork the repo if you lack push access, then open a cross-repo PR.\n"
+            "- Use github_read_file to confirm the surrounding code before writing the fix.\n"
+            "- After the PR is created, ALWAYS github_post_comment on the original issue with the PR link "
+            "and a one-line summary of the fix.\n\n"
             "Always return a JSON object with exactly these keys: "
-            "action (str — what was done), result (any — the outcome), url (str or null). "
-            "Call submit_result when done."
+            "action (str — what was done), result (any — the outcome), url (str — the PR URL, or null). "
+            "Call submit_result only after the PR is actually created (result.ok == true)."
         ),
-        "allowed_tools": ["github_pr", "github_post_comment", "github_read_file", "http_request", "wait_webhook"],
+        "allowed_tools": ["github_pr", "github_post_comment", "github_read_file", "github_create_repo", "http_request", "wait_webhook"],
         "output_schema": {
             "type": "object",
             "properties": {

@@ -1,0 +1,13 @@
+2026-05-16 05:01:30 INFO     __main__                 Serving frontend from /home/viscous/Viscous/omniBox/frontend/dist
+2026-05-16 05:01:30 INFO     main                     Serving frontend from /home/viscous/Viscous/omniBox/frontend/dist
+2026-05-16 05:01:30 INFO     main                     Serving frontend from /home/viscous/Viscous/omniBox/frontend/dist
+2026-05-16 05:01:30 INFO     main                     Starting omniBox (host=0.0.0.0 port=8000 debug=False)
+2026-05-16 05:01:30 INFO     main                     Starting omniBox (host=0.0.0.0 port=8000 debug=False)
+2026-05-16 05:01:30 INFO     main                     DB initialised at ./omnibox.db
+2026-05-16 05:01:30 INFO     main                     DB initialised at ./omnibox.db
+2026-05-16 05:01:30 WARNING  tracing                  Omium init failed: API key is too short. Please check your key. — tracing disabled
+2026-05-16 05:01:30 WARNING  tracing                  Omium init failed: API key is too short. Please check your key. — tracing disabled
+2026-05-16 05:01:30 INFO     worker                   Worker started (id=f55ffb95-f5d1-4853-a99e-854d35d6d9a6)
+2026-05-16 05:01:30 INFO     worker                   Worker started (id=f55ffb95-f5d1-4853-a99e-854d35d6d9a6)
+2026-05-16 05:01:30 INFO     main                     omniBox ready ✓
+2026-05-16 05:01:30 INFO     main                     omniBox ready ✓

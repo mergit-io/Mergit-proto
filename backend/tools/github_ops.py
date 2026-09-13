@@ -205,3 +205,79 @@ GITHUB_SEARCH_CODE_SCHEMA = {
     },
     "required": ["repo", "query"],
 }
+
+
+# ── Create a brand-new repo and push files ──────────────────────────────────────
+
+@trace("github_create_repo")
+async def github_create_repo(args: dict) -> dict:
+    """Create a NEW GitHub repo under the authenticated account and commit files into it.
+    Used when a goal asks to build something and ship it as its own repository."""
+    if not _require_token():
+        return _TOKEN_MISSING
+    name = args["name"].strip().replace(" ", "-")
+    description = args.get("description", "")
+    private = args.get("private", True)
+    files = args.get("files", [])
+    if not files:
+        return {"ok": False, "error": "files[] is required — a repo with no code is not a deliverable"}
+    try:
+        from github import GithubException
+        g = _client()
+        user = g.get_user()
+        try:
+            repo = user.create_repo(name=name, description=description,
+                                    private=private, auto_init=True)
+        except GithubException as e:
+            # Name taken — reuse the existing repo if we own it, else suffix it
+            try:
+                repo = g.get_repo(f"{user.login}/{name}")
+            except GithubException:
+                import time
+                name = f"{name}-{int(time.time())}"
+                repo = user.create_repo(name=name, description=description,
+                                        private=private, auto_init=True)
+        committed = []
+        for f in files:
+            path, content = f["path"], f["content"]
+            try:
+                existing = repo.get_contents(path)
+                repo.update_file(path, f"Add {path}", content, existing.sha)
+            except GithubException:
+                repo.create_file(path, f"Add {path}", content)
+            committed.append(path)
+        return {
+            "ok": True,
+            "repo": repo.full_name,
+            "url": repo.html_url,
+            "default_branch": repo.default_branch,
+            "files_committed": committed,
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+GITHUB_CREATE_REPO_SCHEMA = {
+    "description": "Create a NEW GitHub repository under the authenticated account and commit "
+                   "files into it. Use this to ship a freshly-built app/project as its own repo. "
+                   "Pass files[] with path+content for every file the project needs.",
+    "type": "object",
+    "properties": {
+        "name":        {"type": "string", "description": "Repo name (kebab-case)"},
+        "description": {"type": "string", "description": "Short repo description"},
+        "private":     {"type": "boolean", "description": "Private repo (default true)"},
+        "files": {
+            "type": "array",
+            "description": "Every file to commit (README, source, tests, etc.)",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "path":    {"type": "string"},
+                    "content": {"type": "string"},
+                },
+                "required": ["path", "content"],
+            },
+        },
+    },
+    "required": ["name", "files"],
+}
