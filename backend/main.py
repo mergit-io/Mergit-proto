@@ -15,7 +15,7 @@ import db
 import redaction
 import worker
 from access_gate import add_access_gate
-from api import actions, approvals, auth, config, connections, context as ctx_api, github_webhook, goals, health, keys, stream, tasks, webhooks
+from api import actions, approvals, auth, config, connections, context as ctx_api, github_webhook, goals, health, keys, services, stream, tasks, webhooks
 from api import economy as economy_api
 from api import heal as heal_api
 from auth.gate import SessionGate
@@ -208,6 +208,7 @@ app.include_router(webhooks.router)
 app.include_router(actions.router)
 app.include_router(economy_api.router)
 app.include_router(heal_api.router)
+app.include_router(services.router)
 app.include_router(health.router)
 
 
