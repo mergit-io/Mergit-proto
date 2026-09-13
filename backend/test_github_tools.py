@@ -967,3 +967,115 @@ def test_a_python_docstring_that_quotes_another_language_does_not_trip_the_guard
                                 "files": [{"path": "port.py", "content": content}]}))
 
     assert result["ok"] is True
+
+
+# ── A pull request has to change something ──────────────────────────────────────
+
+SORTED_MERGESORT = '''def merge_sort(arr):
+    if len(arr) <= 1:
+        return arr
+    mid = len(arr) // 2
+    return merge(merge_sort(arr[:mid]), merge_sort(arr[mid:]))
+
+
+def merge(left, right):
+    result = []
+    i = j = 0
+    while i < len(left) and j < len(right):
+        if left[i] <= right[j]:
+            result.append(left[i])
+            i += 1
+        else:
+            result.append(right[j])
+            j += 1
+    result.extend(left[i:])
+    result.extend(right[j:])
+    return result
+
+
+arr = [5, 2, 8, 1, 3]
+print(merge_sort(arr))
+'''
+
+
+def test_a_pull_request_that_only_removes_a_blank_line_is_refused(monkeypatch):
+    """Live failure, PR #33 on the sandbox.
+
+    `mergesort.py` had already been fixed and merged. Asked to "check if the code is
+    correct, if not fix it, raise a PR", the pipeline found nothing to fix and opened a PR
+    anyway to satisfy the last clause — deleting one blank line, `+0 -1`.
+
+    Every guard passed it: the content is not empty, it is Python under a `.py` path, the
+    file exists so it is not a misplaced creation, and no definition is lost. None of them
+    asked whether the diff changes anything.
+    """
+    repo = FakeRepo(existing_files=[("mergesort.py", SORTED_MERGESORT)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    blank_line_removed = SORTED_MERGESORT.replace("\n\n\narr = [5", "\n\narr = [5")
+    assert blank_line_removed != SORTED_MERGESORT, "fixture must actually differ"
+
+    result = run(gpr.github_pr({"repo": "o/r", "title": "fix: merge sort bug", "body": "b",
+                                "head_branch": "fix/merge-sort-bug",
+                                "files": [{"path": "mergesort.py",
+                                           "content": blank_line_removed}]}))
+
+    assert result["ok"] is False
+    assert "already" in result["error"] or "no change" in result["error"]
+    assert repo.created_refs == [], "refused before committing — no branch left behind"
+    assert repo.updated_files == []
+
+
+def test_a_pull_request_with_byte_identical_content_is_refused(monkeypatch):
+    repo = FakeRepo(existing_files=[("mergesort.py", SORTED_MERGESORT)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "fix/x",
+                                "files": [{"path": "mergesort.py",
+                                           "content": SORTED_MERGESORT}]}))
+
+    assert result["ok"] is False
+    assert repo.created_refs == []
+
+
+def test_a_real_one_line_fix_is_still_committed(monkeypatch):
+    """The guard must not block the case it sits next to."""
+    repo = FakeRepo(existing_files=[("mergesort.py", SORTED_MERGESORT)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    fixed = SORTED_MERGESORT.replace("if left[i] <= right[j]", "if left[i] < right[j]")
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "fix/x",
+                                "files": [{"path": "mergesort.py", "content": fixed}]}))
+
+    assert result["ok"] is True
+    assert result["files_modified"] == ["mergesort.py"]
+
+
+def test_adding_a_brand_new_file_is_always_a_real_change(monkeypatch):
+    repo = FakeRepo(existing_files=[("mergesort.py", SORTED_MERGESORT)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                               "head_branch": "feat/tests",
+                                "files": [{"path": "tests/test_sort.py",
+                                           "content": "def test_it():\n    assert True\n"}]}))
+
+    assert result["ok"] is True
+
+
+def test_one_real_change_carries_an_unchanged_file_alongside_it(monkeypatch):
+    """Only a PR where NOTHING changes is refused. A resent-but-identical file next to a
+    genuine fix is untidy, not a lie, and blocking it would cost real work."""
+    repo = FakeRepo(existing_files=[("mergesort.py", SORTED_MERGESORT),
+                                    ("stats.py", STATS_PY)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    fixed = STATS_PY + "\n\ndef spread(values):\n    return max(values) - min(values)\n"
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "fix/x",
+                                "files": [{"path": "mergesort.py", "content": SORTED_MERGESORT},
+                                          {"path": "stats.py", "content": fixed}]}))
+
+    assert result["ok"] is True
