@@ -57,7 +57,7 @@ export function PartnersMarquee() {
             Built on the Best
           </h2>
           <p className="text-text-dim max-w-md mx-auto">
-            omniBox is powered by the most trusted infrastructure in the AI ecosystem.
+            Mergit is powered by the most trusted infrastructure in the AI ecosystem.
           </p>
         </motion.div>
       </div>

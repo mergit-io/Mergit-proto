@@ -18,7 +18,7 @@ function TerminalMockup() {
         <span className="w-2.5 h-2.5 rounded-full bg-danger/70" />
         <span className="w-2.5 h-2.5 rounded-full bg-warning/70" />
         <span className="w-2.5 h-2.5 rounded-full bg-success/70" />
-        <span className="ml-2 text-text-muted">omnibox — agent</span>
+        <span className="ml-2 text-text-muted">mergit — agent</span>
       </div>
       <div className="p-4 space-y-2 leading-relaxed">
         <div><span className="text-accent">→</span> <span className="text-text-dim">Goal received:</span> <span className="text-white">"Research top LLM frameworks"</span></div>
@@ -87,7 +87,7 @@ export function FeaturesSection() {
           </h2>
           <p className="text-text-dim max-w-xl mx-auto text-lg leading-relaxed">
             From intelligent orchestration to real side-effects—
-            omniBox handles the full stack of autonomous AI execution.
+            Mergit handles the full stack of autonomous AI execution — and mints proof of every task.
           </p>
         </motion.div>
 

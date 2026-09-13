@@ -18,7 +18,7 @@ export function AppBackground() {
       <div
         className="absolute -top-32 -right-32 w-[640px] h-[640px] rounded-full opacity-20 animate-glow-pulse"
         style={{
-          background: "radial-gradient(ellipse at center, rgba(0,149,255,0.4) 0%, rgba(103,58,228,0.18) 45%, transparent 70%)",
+          background: "radial-gradient(ellipse at center, rgba(109,74,255,0.4) 0%, rgba(168,85,247,0.18) 45%, transparent 70%)",
           filter: "blur(90px)",
         }}
       />
@@ -27,7 +27,7 @@ export function AppBackground() {
       <div
         className="absolute -bottom-40 -left-20 w-[500px] h-[500px] rounded-full opacity-15 animate-glow-pulse"
         style={{
-          background: "radial-gradient(ellipse at center, rgba(103,58,228,0.45) 0%, transparent 65%)",
+          background: "radial-gradient(ellipse at center, rgba(168,85,247,0.45) 0%, transparent 65%)",
           filter: "blur(100px)",
           animationDelay: "1.8s",
         }}
@@ -37,7 +37,7 @@ export function AppBackground() {
       <div
         className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[400px] rounded-full opacity-[0.06] animate-glow-pulse"
         style={{
-          background: "radial-gradient(ellipse at center, rgba(0,149,255,0.6) 0%, transparent 70%)",
+          background: "radial-gradient(ellipse at center, rgba(109,74,255,0.6) 0%, transparent 70%)",
           filter: "blur(120px)",
           animationDelay: "0.9s",
         }}

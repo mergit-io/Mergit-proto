@@ -23,7 +23,7 @@ const LINKS = {
 };
 
 const SOCIALS = [
-  { Icon: Code2,         href: "#", label: "GitHub" },
+  { Icon: Code2,         href: "https://github.com/mergit-io/Mergit-proto", label: "GitHub" },
   { Icon: X,             href: "#", label: "Twitter" },
   { Icon: MessageCircle, href: "#", label: "Discord" },
 ];
@@ -42,7 +42,7 @@ export function LandingFooter() {
         </div>
 
         {/* Fade to black at bottom */}
-        <div className="absolute bottom-0 inset-x-0 h-48 bg-gradient-to-t from-black to-transparent pointer-events-none z-10" />
+        <div className="absolute bottom-0 inset-x-0 h-48 bg-gradient-to-t from-bg to-transparent pointer-events-none z-10" />
 
         <motion.div
           initial={{ opacity: 0, y: 40 }}
@@ -71,7 +71,7 @@ export function LandingFooter() {
             >
               Start for Free →
             </button>
-            <a href="#" className="btn-glass text-white font-medium px-10 py-4 rounded-full text-base flex items-center gap-2">
+            <a href="https://github.com/mergit-io/Mergit-proto" target="_blank" rel="noopener noreferrer" className="btn-glass text-white font-medium px-10 py-4 rounded-full text-base flex items-center gap-2">
               <Code2 className="w-4 h-4" />
               View on GitHub
             </a>
@@ -80,7 +80,7 @@ export function LandingFooter() {
       </div>
 
       {/* Footer grid */}
-      <div className="relative z-20 border-t border-white/6 bg-black">
+      <div className="relative z-20 border-t border-white/6 bg-bg">
         <div className="max-w-6xl mx-auto px-6 pt-16 pb-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
             {/* Brand column */}
@@ -88,22 +88,27 @@ export function LandingFooter() {
               <div className="flex items-center gap-2.5 mb-4">
                 <svg viewBox="0 0 32 32" fill="none" className="w-7 h-7">
                   <defs>
-                    <linearGradient id="footer-logo" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-                      <stop stopColor="#0095ff" />
-                      <stop offset="1" stopColor="#673ae4" />
+                    <linearGradient id="footer-logo" x1="4" y1="10" x2="28" y2="10" gradientUnits="userSpaceOnUse">
+                      <stop stopColor="#6d4aff" />
+                      <stop offset="1" stopColor="#22d3ee" />
                     </linearGradient>
                   </defs>
-                  <rect x="3" y="3" width="11" height="11" rx="2.5" fill="url(#footer-logo)" opacity="0.9" />
-                  <rect x="18" y="3" width="11" height="11" rx="2.5" fill="url(#footer-logo)" opacity="0.5" />
-                  <rect x="3" y="18" width="11" height="11" rx="2.5" fill="url(#footer-logo)" opacity="0.5" />
-                  <rect x="18" y="18" width="11" height="11" rx="2.5" fill="url(#footer-logo)" opacity="0.9" />
+                  <circle cx="8" cy="8" r="4" fill="#6d4aff" />
+                  <circle cx="24" cy="8" r="4" fill="#22d3ee" />
+                  <path
+                    d="M8 12 C8 18, 16 16, 16 22 M24 12 C24 18, 16 16, 16 22"
+                    stroke="url(#footer-logo)"
+                    strokeWidth="1.75"
+                    strokeLinecap="round"
+                  />
+                  <circle cx="16" cy="24.5" r="4.5" fill="#2eff9e" />
                 </svg>
                 <span className="font-display font-bold text-lg text-white tracking-tight">
-                  omni<span className="text-gradient-blue">Box</span>
+                  Merg<span className="text-gradient-blue">it</span>
                 </span>
               </div>
               <p className="text-text-muted text-sm leading-relaxed max-w-xs">
-                The multi-agent platform for autonomous AI work. Delegate any goal, get real results.
+                The agent economy where every completed task mints a proof, and every agent earns reputation.
               </p>
               <div className="flex items-center gap-3 mt-6">
                 {SOCIALS.map(({ Icon, href, label }) => (
@@ -143,7 +148,7 @@ export function LandingFooter() {
           {/* Bottom bar */}
           <div className="pt-8 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-xs text-text-muted">
-              © {new Date().getFullYear()} omniBox. All rights reserved.
+              © {new Date().getFullYear()} Mergit. All rights reserved.
             </p>
             <div className="flex items-center gap-6">
               {["Privacy Policy", "Terms of Use", "Cookie Policy"].map((t) => (
