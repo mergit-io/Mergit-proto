@@ -679,3 +679,75 @@ def test_the_planner_note_never_takes_planning_down_with_it(monkeypatch):
         id = "goal-under-test"
 
     assert asyncio.run(orchestrator.connected_apps_note(_Goal())) == ""
+
+
+# ── Answering where the reporter is looking ──────────────────────────────────────
+
+def test_a_new_message_is_refused_when_this_run_read_a_thread(monkeypatch):
+    """Run 5a3e9462 was asked to reply in the #eng-bugs thread. It read the thread, got
+    `ts: 1789286027.409169` back, then posted a new top-level message and reported the
+    task complete. The reporter watching the thread saw nothing.
+
+    Nothing was missing at the point of the call — the timestamp was in hand — so the
+    schema's "use slack_reply_in_thread instead" was advice, and advice is not a mechanism.
+    """
+    async def _thread(_goal_id, _channel):
+        return "1789286027.409169"
+    monkeypatch.setattr(slack, "thread_read_in_goal", _thread)
+    calls = _install(monkeypatch, slack, {"chat.postMessage": _Resp({"ok": True, "ts": "9.9"})})
+
+    out = asyncio.run(slack.slack_post_message(
+        {"channel": "C0ENGBUGS", "text": "fixed it: <https://example.com/pull/76>",
+         "_goal_id": "goal-1"}))
+
+    assert out["ok"] is False
+    assert "1789286027.409169" in out["error"]
+    assert "slack_reply_in_thread" in out["error"]
+    assert not any("chat.postMessage" in c["url"] for c in calls), \
+        "a refused message must not reach Slack"
+
+
+def test_a_new_message_is_allowed_when_the_run_read_no_thread(monkeypatch):
+    """"Summarise this file in #eng-bugs" is an ordinary shape and must keep working."""
+    async def _no_thread(_goal_id, _channel):
+        return ""
+    monkeypatch.setattr(slack, "thread_read_in_goal", _no_thread)
+    _install(monkeypatch, slack, {
+        "chat.postMessage": _Resp({"ok": True, "ts": "9.9"}),
+        "chat.getPermalink": _Resp({"ok": True, "permalink": "https://x.slack.com/p9"}),
+    })
+
+    out = asyncio.run(slack.slack_post_message(
+        {"channel": "C0ENGBUGS", "text": "summary of calc.py", "_goal_id": "goal-1"}))
+    assert out["ok"] is True
+
+
+def test_a_deliberate_new_conversation_is_still_possible(monkeypatch):
+    """The escape hatch. A guard with no way out gets worked around instead of obeyed."""
+    async def _thread(_goal_id, _channel):
+        return "1789286027.409169"
+    monkeypatch.setattr(slack, "thread_read_in_goal", _thread)
+    _install(monkeypatch, slack, {
+        "chat.postMessage": _Resp({"ok": True, "ts": "9.9"}),
+        "chat.getPermalink": _Resp({"ok": True, "permalink": "https://x.slack.com/p9"}),
+    })
+
+    out = asyncio.run(slack.slack_post_message(
+        {"channel": "C0ENGBUGS", "text": "separate announcement", "_goal_id": "goal-1",
+         "new_thread": True}))
+    assert out["ok"] is True
+
+
+def test_replying_in_the_thread_is_never_blocked(monkeypatch):
+    """The guard is on the new-message tool only — the correct call must stay unobstructed."""
+    async def _boom(_goal_id, _channel):
+        raise AssertionError("slack_reply_in_thread must not consult the thread guard")
+    monkeypatch.setattr(slack, "thread_read_in_goal", _boom)
+    _install(monkeypatch, slack, {
+        "chat.postMessage": _Resp({"ok": True, "ts": "9.9"}),
+        "chat.getPermalink": _Resp({"ok": True, "permalink": "https://x.slack.com/p9"}),
+    })
+
+    out = asyncio.run(slack.slack_reply_in_thread(
+        {"channel": "C0ENGBUGS", "thread_ts": "1.0", "text": "done", "_goal_id": "goal-1"}))
+    assert out["ok"] is True
