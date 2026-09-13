@@ -384,6 +384,35 @@ html.reveal-ready [data-reveal].is-in {
 }
 .react-flow__controls-button:hover { background: rgb(var(--c-raise)); }
 
+/* ── Smooth scrolling ─────────────────────────────────────────────────────────
+   Lenis' required rules, transcribed rather than imported from
+   `lenis/dist/lenis.css`, because that file also ships
+
+     .lenis.lenis-smooth iframe { pointer-events: none }
+
+   which exists so that a wheel event over an iframe cannot stall the page. We
+   solve that a better way — the scene frame never takes pointer events at all and
+   the cursor is forwarded into it (see SylvaScene) — and importing the rule would
+   have cost us nothing here and everything on a page that was all iframe. */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+/* Lenis animates the real scroll position, so the smooth-scroll declaration in
+   `html` would be a second animation fighting the first. On `.lenis` rather than
+   upstream's `.lenis.lenis-smooth`: that second class is only present *while* a
+   smooth scroll is in flight, which leaves native smooth behaviour switched on
+   for every scroll that starts from rest. */
+html.lenis {
+  scroll-behavior: auto !important;
+}
+.lenis.lenis-stopped {
+  overflow: clip;
+}
+.lenis [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
 /* ── The landing's living world ────────────────────────────────────────────────
    The landing page is the one surface that does not read as the console. It is
    drawn over ThreeUI's Sylva scene (see components/landing/SylvaScene.tsx), and
@@ -591,4 +620,26 @@ html[data-landing="moss"] ::-webkit-scrollbar-thumb:hover {
 @keyframes moss-track {
   0% { transform: translateX(-100%); }
   60%, 100% { transform: translateX(300%); }
+}
+
+/* ── The pinned run ───────────────────────────────────────────────────────────
+   The stage the story is told on. `100svh` rather than `100vh` because on mobile
+   browsers the toolbar makes `vh` taller than the window, and a pinned section
+   one toolbar too tall is a section with a scrollbar inside a scroll animation. */
+.run-stage {
+  display: flex;
+  align-items: center;
+  min-height: 100svh;
+  padding: 6rem 0;
+}
+
+/* The artifact beside each beat: the same glass as the hero, one step quieter,
+   because here it is the supporting evidence rather than the subject. */
+.story-panel {
+  min-height: 300px;
+  padding: 1.75rem;
+  border-radius: 28px;
+  background: rgba(22, 28, 18, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(12px);
 }
