@@ -3,13 +3,20 @@ import { Navigate } from "react-router-dom";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { auth } from "../lib/firebase";
 
+const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true";
+
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null | undefined>(undefined);
 
   useEffect(() => {
+    if (DEMO_MODE) return;
     const unsub = onAuthStateChanged(auth, (u) => setUser(u));
     return unsub;
   }, []);
+
+  if (DEMO_MODE) {
+    return <>{children}</>;
+  }
 
   // Still waiting for Firebase to resolve auth state
   if (user === undefined) {
