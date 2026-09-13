@@ -904,3 +904,53 @@ what `demo_seed.py` now does. Added `ACCESS_PASSWORD` (sync:false), `SEED_DEMO=t
 idle sleep and the ~70s cold start behind it; a free 10-minute cron against `/api/health` — which sits
 outside the access gate precisely so unauthenticated pings work — keeps it warm inside the 750h/month
 allowance. Oracle and AWS come back into scope when there is a reason to scale, not before.
+
+## 2026-08-13 — API contract tests, and what testing the live deployment turned up
+
+Every router except `api/economy.py` had no test file. Wrote contract tests for the rest and, while
+exercising the deployed instance at `mergit.onrender.com`, found nine defects — all fixed here, each
+with a test that fails on the old code first.
+
+**The two that mattered.** `llm.py` walked `_FALLBACKS` without checking whether the fallback
+provider had a key. `groq/llama-3.3-70b-versatile` falls back to Claude Haiku, `ANTHROPIC_API_KEY`
+is unset on that deployment, and the resulting `AuthenticationError` is neither a rate limit nor a
+missing model — so it escaped the retry logic and propagated, discarding the Groq error that caused
+the fallback in the first place. Every goal submitted while Groq was throttling failed with
+"Missing Anthropic API Key" on a deliberately Groq-only instance. Reproduced three times; the fix
+skips providers with no credentials and raises the *first* error rather than the last, because the
+first one is the one that explains the run.
+
+Underneath that: `model_health` was never wired to anything. Nothing called `mark_unhealthy`, so
+`GET /api/config/model-health` answered `all_healthy: true` throughout — while nothing worked. Its
+docstring promised that "subsequent acompletion() calls skip unhealthy models"; `llm.py` did not
+import the module. Now a hard rate limit registers a cooldown, cooling models are skipped, and if
+every candidate is cooling down the least cold is tried anyway — a cooldown must slow the worker,
+never stop it.
+
+**The rest.** `GET /api/goals/{id}/stream` on an already-finished goal never closed: 75 seconds and
+nine keepalives with no terminating event, one leaked connection per visit to a past goal. It only
+broke on a live `goal_done` it happened to witness. It now subscribes *first*, then re-reads the
+goal — which also closes the race where a goal finishing between the 404 lookup and the subscription
+emitted its event to nobody — and re-checks stored state on each keepalive so a lost event is
+bounded by `PING_TIMEOUT` instead of forever. `SPAStaticFiles` is mounted at `/` and swallowed 404s
+for every path including `/api/…`, so `/api/nope` returned 200 and 479 bytes of SPA index; callers
+expecting JSON got a decode error instead of a status code. `limit` reached `LIMIT ?` unvalidated
+and SQLite reads a negative limit as unbounded, so `?limit=-1` dumped whole tables from
+unauthenticated endpoints. `POST /api/goals` accepted a 20,000-character body and stored it whole.
+`PUT /api/config/models` accepted any string as a model id, which saves cleanly and then fails every
+goal with a provider error naming a model nobody chose. Both new limits are settings
+(`max_goal_chars`, `max_page_size`), not constants.
+
+**And the one that hid the others.** `scripts/test-local.sh` — the script the README points at —
+ran `py_compile` and a frontend build, printed "Local checks passed", and never invoked pytest.
+`pytest` was not in `requirements.txt` either, so a clean checkout could not run the suite at all.
+
+**270 tests passing**, up from 186. `test_live_deployment.py` runs the same contract against a
+running instance (`MERGIT_BASE_URL=…`), skipping entirely when unset; `MERGIT_LIVE_GOAL=1`
+additionally drives one real goal to completion and verifies its proofs. Nothing in it issues a PUT
+— on an ungated deployment a test suite must not be the thing that overwrites live provider keys.
+Against production it reports 18 passed / 9 failed, and the nine are exactly the fixes above.
+
+Confirmed working on the live instance, unchanged: a real goal ran researcher → writer in 49s,
+`{{t1.output}}` interpolated, both tasks minted proofs that verify against the chain
+(`computed_hash == onchain_hash`, real tx hashes, blocks 12 and 14), and reputation moved.

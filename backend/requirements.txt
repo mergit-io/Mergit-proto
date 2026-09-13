@@ -16,3 +16,7 @@ sse-starlette
 web3>=7.0
 py-solc-x
 eth-tester[py-evm]
+
+# Tests. Listed here because scripts/test-local.sh installs from this file and then runs
+# pytest; without it a clean checkout cannot run the suite at all.
+pytest

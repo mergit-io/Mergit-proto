@@ -78,6 +78,10 @@ def get_all() -> dict[str, str]:
     return dict(_load())
 
 
+def is_known_model(model_id: str) -> bool:
+    return any(m["id"] == model_id for m in AVAILABLE_MODELS)
+
+
 def update(updates: dict[str, str]) -> dict[str, str]:
     current = _load()
     for role, model_id in updates.items():
@@ -85,7 +89,16 @@ def update(updates: dict[str, str]) -> dict[str, str]:
             continue  # silently skip stale/unknown roles
         if not model_id or not isinstance(model_id, str):
             raise ValueError(f"Model ID must be a non-empty string for role {role!r}")
-        current[role] = model_id.strip()
+        model_id = model_id.strip()
+        # Rejected here rather than at call time: an unknown id saves cleanly and then
+        # fails every goal with a provider error naming a model the operator never
+        # chose. The endpoint that reaches this is unauthenticated.
+        if not is_known_model(model_id):
+            raise ValueError(
+                f"Unknown model {model_id!r} for role {role!r}. "
+                f"Choose one of: {', '.join(m['id'] for m in AVAILABLE_MODELS)}"
+            )
+        current[role] = model_id
     # Drop any stale keys that are no longer valid roles
     current = {r: m for r, m in current.items() if r in DEFAULTS}
     _save(current)

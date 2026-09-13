@@ -5,18 +5,19 @@ Before this the whole mechanism ran invisibly: no endpoint, no page, no history.
 import asyncio
 import json
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from sse_starlette.sse import EventSourceResponse
 
 import db
 import events
 import self_heal
+from config import settings
 
 router = APIRouter(prefix="/api/heal", tags=["self-heal"])
 
 
 @router.get("/attempts")
-async def list_attempts(limit: int = 100):
+async def list_attempts(limit: int = Query(100, ge=1, le=settings.max_page_size)):
     """Every detected bug, newest first, with its issue, fix goal and outcome."""
     return await db.list_heal_attempts(limit=limit)
 
