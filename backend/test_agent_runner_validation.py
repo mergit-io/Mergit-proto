@@ -73,6 +73,29 @@ def test_success_is_the_only_field_read_for_its_truth_value():
     assert _self_reported_failure({"ok": False, "text": "hi"}, ["text"]) is None
 
 
+def test_a_bare_string_result_does_not_crash_the_task():
+    """Live failure on the deployed build, goal 6fd71758.
+
+    The researcher called submit_result with a bare string instead of an object. The
+    task died with "'str' object has no attribute 'get'" and took the whole goal down —
+    a crash, not a re-prompt, so the agent never got the chance to correct itself.
+
+    The same shape was already latent before the contradiction check existed: the missing
+    key scan `k not in result` silently degrades to a SUBSTRING test on a string, and the
+    rejection message then calls `result.keys()`.
+    """
+    required = AGENT_REGISTRY["researcher"]["output_schema"]["required"]
+    problem = _self_reported_failure("summary key_points sources", required)
+    assert problem is not None
+    assert "JSON object" in problem and "str" in problem
+
+
+@pytest.mark.parametrize("bad", [None, [], 42, "text", ("a", "b")])
+def test_no_result_shape_can_raise_out_of_the_check(bad):
+    """Whatever a model puts in `result`, this must return a verdict rather than throw."""
+    assert _self_reported_failure(bad, ["summary"]) is not None
+
+
 @pytest.mark.parametrize("agent", ["researcher", "writer", "coder", "integrator"])
 def test_every_agent_still_accepts_a_well_formed_result(agent):
     """The guard must not make any agent unable to finish. Build the minimal valid result
