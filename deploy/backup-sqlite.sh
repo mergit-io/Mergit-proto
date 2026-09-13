@@ -8,7 +8,22 @@ BACKUP_PATH="/tmp/mergit-${STAMP}.db"
 
 mkdir -p "$BACKUP_DIR"
 
-docker compose --env-file "$ENV_FILE" exec -T mergit python - "$BACKUP_PATH" <<'PY'
+# Whichever engine runs the stack. Override with COMPOSE="podman-compose" if the
+# autodetect picks the wrong one.
+if [ -z "${COMPOSE:-}" ]; then
+  if command -v docker >/dev/null 2>&1; then
+    COMPOSE="docker compose"
+  elif command -v podman-compose >/dev/null 2>&1; then
+    COMPOSE="podman-compose"
+  elif command -v podman >/dev/null 2>&1; then
+    COMPOSE="podman compose"
+  else
+    echo "no container engine found — set COMPOSE=..." >&2
+    exit 1
+  fi
+fi
+
+$COMPOSE --env-file "$ENV_FILE" exec -T mergit python - "$BACKUP_PATH" <<'PY'
 import sqlite3
 import sys
 from config import settings
@@ -21,7 +36,7 @@ target.close()
 source.close()
 PY
 
-docker compose --env-file "$ENV_FILE" cp "mergit:${BACKUP_PATH}" "$BACKUP_DIR/mergit-${STAMP}.db"
-docker compose --env-file "$ENV_FILE" exec -T mergit rm -f "$BACKUP_PATH"
+$COMPOSE --env-file "$ENV_FILE" cp "mergit:${BACKUP_PATH}" "$BACKUP_DIR/mergit-${STAMP}.db"
+$COMPOSE --env-file "$ENV_FILE" exec -T mergit rm -f "$BACKUP_PATH"
 
 echo "$BACKUP_DIR/mergit-${STAMP}.db"

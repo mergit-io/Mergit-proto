@@ -36,6 +36,35 @@ def test_leaderboard_endpoint(client):
     assert r.status_code == 200
 
 
-def test_chain_endpoint(client):
-    r = client.get("/api/economy/chain")
-    assert r.json()["chainId"] == 10143
+def test_chain_endpoint_reports_the_live_chain(client):
+    """The endpoint must describe the chain we are on, not a chain we wish we were on.
+
+    It previously read deployments/10143.json off disk and asserted 10143 back, which
+    passed happily while the app ran on chainId 31337 with entirely different addresses.
+    """
+    from chain.client import ChainClient, reset_client, set_client
+    from chain.deployer import deploy_all
+    from chain.provider import LocalEvmProvider
+
+    provider = LocalEvmProvider()
+    live = ChainClient(provider, deploy_all(provider))
+    set_client(live)
+    try:
+        body = client.get("/api/economy/chain").json()
+        assert body["chainId"] == live.chain_id
+        assert body["contracts"] == live.addresses
+    finally:
+        reset_client()
+
+
+def test_chain_endpoint_with_the_chain_off_claims_nothing(client, monkeypatch):
+    from chain.client import reset_client, set_client
+
+    monkeypatch.setattr("config.settings.chain_enabled", False)
+    set_client(None)
+    try:
+        body = client.get("/api/economy/chain").json()
+        assert body["chainId"] is None
+        assert body["contracts"] == {}
+    finally:
+        reset_client()

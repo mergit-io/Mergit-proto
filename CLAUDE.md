@@ -75,6 +75,11 @@ network**) and `RpcProvider` (JSON-RPC + local signing, nonce management, EIP-15
 raising. Target is chosen by `CHAIN_TARGET` (`local` = 31337 default, `monad-testnet` = 10143) with no
 code change. On `local` the contracts redeploy on every boot (`main.py::_init_chain`); deploying to a
 real network is an explicit operator action (`scripts/deploy_contracts.py --network monad-testnet`).
+`READY` requires **bytecode at every address** (`eth_getCode`), not merely a
+`deployments/{chainId}.json` that lists them — binding a contract is local ABI work that
+succeeds against any address, so without that check a stale or invented record would make the
+UI announce a network nothing is deployed on. Failing to *write* the deployment record is a
+warning, never fatal: the contracts are deployed either way.
 
 **Proof outbox** (`chain_worker.py`): `economy.record_proof` mints the local proof instantly and
 enqueues to `proof_outbox`; `chain_submit_loop` drains it, submits, and advances
@@ -143,7 +148,7 @@ All routes under `/api/`. Key endpoints:
 | GET | `/api/economy/leaderboard` | Ranked reputation (composite + badge) |
 | GET | `/api/economy/proofs` | Proof-of-work ledger (newest first) |
 | GET | `/api/economy/agents/{role}` | Passport + reputation breakdown + proofs |
-| GET | `/api/economy/chain` | Mock Monad testnet info (chainId 10143) |
+| GET | `/api/economy/chain` | The chain the app is actually on (id, name, explorer, addresses) |
 | GET | `/api/economy/stream` | Economy SSE stream (`proof_recorded`/`reputation_update`/`proof_*`) |
 | GET | `/api/economy/verify/{task_id}` | Verify a stored output against its on-chain proof |
 | GET | `/api/economy/chain/status` | Active chain, deployment addresses, outbox depth |

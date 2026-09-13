@@ -5,7 +5,7 @@ Everything here runs on an in-process chain: no RPC URL, no private key, no netw
 import pytest
 
 from chain import networks
-from chain.client import ChainClient, ChainStatus
+from chain.client import CONTRACT_NAMES, ChainClient, ChainStatus
 from chain.deployer import deploy_all
 from chain.provider import LocalEvmProvider
 
@@ -36,6 +36,39 @@ def test_client_without_deployment_is_not_ready():
     # Must degrade, not explode — the app has to keep running.
     assert client.record_proof("t1", "coder", RESULT_HASH) is None
     assert client.get_proof("t1") is None
+
+
+def test_deploy_survives_an_unwritable_deployment_record(tmp_path, monkeypatch):
+    """A read-only deployments dir must not take the chain down.
+
+    The container hit this for real: all four contracts deployed, the record write failed
+    with EACCES under the unprivileged user, and the entire chain layer reported itself
+    disabled — behind a health check that stayed green.
+    """
+    from chain import registry
+
+    monkeypatch.setattr(registry, "DEPLOYMENTS_DIR", tmp_path / "read-only")
+    monkeypatch.setattr(registry, "save",
+                        lambda *a, **k: (_ for _ in ()).throw(PermissionError("EACCES")))
+
+    provider = LocalEvmProvider()
+    addresses = deploy_all(provider, persist=True)
+    assert ChainClient(provider, addresses).status == ChainStatus.READY
+
+
+def test_addresses_with_no_code_are_not_ready():
+    """A deployment file pointing at nothing must not pass as a live chain.
+
+    Binding a contract object is pure local ABI work — it succeeds against any address,
+    deployed or not. Without an on-chain code check, a stale or invented
+    deployments/{chainId}.json would make the client report READY and the UI announce
+    "Live on Monad Testnet" while every call silently returned nothing.
+    """
+    fake = {name: "0x" + f"{i + 1:040x}" for i, name in enumerate(CONTRACT_NAMES)}
+    client = ChainClient(LocalEvmProvider(), fake)
+    assert client.status == ChainStatus.NOT_DEPLOYED
+    assert not client.is_ready
+    assert client.record_proof("t1", "coder", RESULT_HASH) is None
 
 
 # ── Hash conversion ─────────────────────────────────────────────────────────────

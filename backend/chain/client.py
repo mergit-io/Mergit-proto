@@ -49,9 +49,20 @@ class ChainClient:
         try:
             artifacts = compiler.compile_all()
             for name in CONTRACT_NAMES:
+                address = Web3.to_checksum_address(self.addresses[name])
+                # Binding a contract is pure local ABI work and succeeds against any
+                # address. Only bytecode on the chain proves the deployment is real —
+                # without this, a stale or invented deployments/{chainId}.json would
+                # report READY and the UI would announce a network we are not on.
+                if not provider.w3.eth.get_code(address):
+                    logger.warning("No contract code at %s for %s on chain %s — treating "
+                                   "this chain as not deployed", address, name,
+                                   provider.chain_id)
+                    self.status = ChainStatus.NOT_DEPLOYED
+                    self._contracts.clear()
+                    return
                 self._contracts[name] = provider.w3.eth.contract(
-                    address=Web3.to_checksum_address(self.addresses[name]),
-                    abi=artifacts[name]["abi"],
+                    address=address, abi=artifacts[name]["abi"],
                 )
             self.status = ChainStatus.READY
         except Exception as e:

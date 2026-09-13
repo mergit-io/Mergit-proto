@@ -38,10 +38,13 @@ COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
 # _init_chain degrades rather than crashes, the chain would silently switch itself off
 # while the health check stayed green. Baking solc + the artifacts in makes startup
 # offline, fast and deterministic.
-RUN mkdir -p /opt/solcx \
+# `deployments/` must be writable too: on the local chain the app redeploys on every boot
+# and writes the address record there. Root-owned, that write fails with EACCES and the
+# chain layer switches itself off while the health check stays green.
+RUN mkdir -p /opt/solcx /app/backend/deployments \
     && cd /app/backend \
     && python -c "from chain import compiler; compiler.compile_all(); print('contracts compiled')" \
-    && chown -R mergit:mergit /opt/solcx /app/backend/contracts
+    && chown -R mergit:mergit /opt/solcx /app/backend/contracts /app/backend/deployments
 
 RUN mkdir -p /data/workspace /data/config /app/backend/logs \
     && chown -R mergit:mergit /data /app/backend/logs
