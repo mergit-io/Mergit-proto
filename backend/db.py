@@ -81,6 +81,39 @@ CREATE TABLE IF NOT EXISTS tool_calls (
     completed_at    INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_tool_calls_task_id ON tool_calls(task_id);
+
+CREATE TABLE IF NOT EXISTS agent_passports (
+    role            TEXT PRIMARY KEY,
+    did             TEXT NOT NULL,
+    token_id        INTEGER NOT NULL,
+    soulbound       INTEGER NOT NULL DEFAULT 1,
+    capabilities    TEXT NOT NULL DEFAULT '[]',
+    owner_address   TEXT NOT NULL,
+    minted_at       INTEGER NOT NULL,
+    mint_block      INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS agent_reputation (
+    role            TEXT PRIMARY KEY,
+    composite       INTEGER NOT NULL DEFAULT 0,
+    success_rate    REAL NOT NULL DEFAULT 0,
+    speed           REAL NOT NULL DEFAULT 0,
+    volume          REAL NOT NULL DEFAULT 0,
+    badge           TEXT NOT NULL DEFAULT 'Bronze',
+    updated_at      INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS proofs (
+    task_id         TEXT PRIMARY KEY,
+    goal_id         TEXT NOT NULL,
+    agent_role      TEXT NOT NULL,
+    result_hash     TEXT NOT NULL,
+    tx_hash         TEXT NOT NULL,
+    block_number    INTEGER NOT NULL,
+    recorded_at     INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_proofs_block ON proofs(block_number DESC);
+CREATE INDEX IF NOT EXISTS idx_proofs_role ON proofs(agent_role);
 """
 
 
@@ -515,3 +548,162 @@ async def settle_tool_call(ikey: str, result_json: str | None, status: str, erro
             (result_json, status, error, now, ikey),
         )
         await conn.commit()
+
+
+# ── Economy: passports, reputation, proofs ──────────────────────────────────────
+
+async def upsert_passport(role, did, token_id, soulbound, capabilities, owner_address, minted_at, mint_block):
+    async with get_conn() as conn:
+        await conn.execute(
+            """INSERT INTO agent_passports
+               (role, did, token_id, soulbound, capabilities, owner_address, minted_at, mint_block)
+               VALUES (?,?,?,?,?,?,?,?)
+               ON CONFLICT(role) DO UPDATE SET
+                 did=excluded.did, token_id=excluded.token_id, soulbound=excluded.soulbound,
+                 capabilities=excluded.capabilities, owner_address=excluded.owner_address,
+                 minted_at=excluded.minted_at, mint_block=excluded.mint_block""",
+            (role, did, token_id, 1 if soulbound else 0, json.dumps(capabilities),
+             owner_address, minted_at, mint_block),
+        )
+        await conn.commit()
+
+
+def _passport_row(row):
+    return {
+        "role": row["role"], "did": row["did"], "token_id": row["token_id"],
+        "soulbound": bool(row["soulbound"]), "capabilities": json.loads(row["capabilities"]),
+        "owner_address": row["owner_address"], "minted_at": row["minted_at"],
+        "mint_block": row["mint_block"],
+    }
+
+
+async def get_passport(role):
+    async with get_conn() as conn:
+        cur = await conn.execute("SELECT * FROM agent_passports WHERE role=?", (role,))
+        row = await cur.fetchone()
+        return _passport_row(row) if row else None
+
+
+async def list_passports():
+    async with get_conn() as conn:
+        cur = await conn.execute("SELECT * FROM agent_passports ORDER BY token_id")
+        return [_passport_row(r) for r in await cur.fetchall()]
+
+
+async def upsert_reputation(role, composite, success_rate, speed, volume, badge, updated_at):
+    async with get_conn() as conn:
+        await conn.execute(
+            """INSERT INTO agent_reputation
+               (role, composite, success_rate, speed, volume, badge, updated_at)
+               VALUES (?,?,?,?,?,?,?)
+               ON CONFLICT(role) DO UPDATE SET
+                 composite=excluded.composite, success_rate=excluded.success_rate,
+                 speed=excluded.speed, volume=excluded.volume, badge=excluded.badge,
+                 updated_at=excluded.updated_at""",
+            (role, composite, success_rate, speed, volume, badge, updated_at),
+        )
+        await conn.commit()
+
+
+def _rep_row(row):
+    return {
+        "role": row["role"], "composite": row["composite"], "success_rate": row["success_rate"],
+        "speed": row["speed"], "volume": row["volume"], "badge": row["badge"],
+        "updated_at": row["updated_at"],
+    }
+
+
+async def get_reputation(role):
+    async with get_conn() as conn:
+        cur = await conn.execute("SELECT * FROM agent_reputation WHERE role=?", (role,))
+        row = await cur.fetchone()
+        return _rep_row(row) if row else None
+
+
+async def list_reputation():
+    async with get_conn() as conn:
+        cur = await conn.execute("SELECT * FROM agent_reputation ORDER BY composite DESC")
+        return [_rep_row(r) for r in await cur.fetchall()]
+
+
+def _proof_row(row):
+    return {
+        "task_id": row["task_id"], "goal_id": row["goal_id"], "agent_role": row["agent_role"],
+        "result_hash": row["result_hash"], "tx_hash": row["tx_hash"],
+        "block_number": row["block_number"], "recorded_at": row["recorded_at"],
+    }
+
+
+async def insert_proof(task_id, goal_id, agent_role, result_hash, tx_hash, block_number, recorded_at):
+    async with get_conn() as conn:
+        try:
+            await conn.execute(
+                """INSERT INTO proofs
+                   (task_id, goal_id, agent_role, result_hash, tx_hash, block_number, recorded_at)
+                   VALUES (?,?,?,?,?,?,?)""",
+                (task_id, goal_id, agent_role, result_hash, tx_hash, block_number, recorded_at),
+            )
+            await conn.commit()
+            return True
+        except Exception:
+            return False
+
+
+async def get_proof(task_id):
+    async with get_conn() as conn:
+        cur = await conn.execute("SELECT * FROM proofs WHERE task_id=?", (task_id,))
+        row = await cur.fetchone()
+        return _proof_row(row) if row else None
+
+
+async def list_proofs(limit=50, before_block=None):
+    async with get_conn() as conn:
+        if before_block is not None:
+            cur = await conn.execute(
+                "SELECT * FROM proofs WHERE block_number < ? ORDER BY block_number DESC LIMIT ?",
+                (before_block, limit))
+        else:
+            cur = await conn.execute(
+                "SELECT * FROM proofs ORDER BY block_number DESC LIMIT ?", (limit,))
+        return [_proof_row(r) for r in await cur.fetchall()]
+
+
+async def list_proofs_for_role(role, limit=20):
+    async with get_conn() as conn:
+        cur = await conn.execute(
+            "SELECT * FROM proofs WHERE agent_role=? ORDER BY block_number DESC LIMIT ?",
+            (role, limit))
+        return [_proof_row(r) for r in await cur.fetchall()]
+
+
+async def max_proof_block():
+    async with get_conn() as conn:
+        cur = await conn.execute("SELECT COALESCE(MAX(block_number), 0) AS m FROM proofs")
+        row = await cur.fetchone()
+        return row["m"]
+
+
+async def list_completed_tasks_by_role():
+    async with get_conn() as conn:
+        cur = await conn.execute(
+            "SELECT id, goal_id, agent_name, status, output, created_at, updated_at FROM tasks")
+        rows = await cur.fetchall()
+    agg: dict[str, dict] = {}
+    for r in rows:
+        role = r["agent_name"]
+        a = agg.setdefault(role, {"done": 0, "failed": 0, "_durations": [], "completed_task_rows": []})
+        if r["status"] == "DONE":
+            a["done"] += 1
+            dur = max(1, (r["updated_at"] or r["created_at"]) - r["created_at"])
+            a["_durations"].append(dur)
+            a["completed_task_rows"].append({
+                "id": r["id"], "goal_id": r["goal_id"],
+                "output": json.loads(r["output"]) if r["output"] else {},
+                "created_at": r["created_at"], "updated_at": r["updated_at"],
+            })
+        elif r["status"] == "FAILED":
+            a["failed"] += 1
+    for role, a in agg.items():
+        durs = a.pop("_durations")
+        a["avg_duration_sec"] = (sum(durs) / len(durs)) if durs else 0.0
+    return agg
