@@ -151,6 +151,32 @@ services:
       - key: SLACK_SIGNING_SECRET
         sync: false
 
+      # ── Linear, Notion and the Slack bot token ──────────────────────────────
+      # The shared, deployment-wide tokens the three non-GitHub services run on. These
+      # are what make the deployed site behave like a laptop: without them every Slack,
+      # Linear and Notion call parks asking for a credential that never arrives.
+      #
+      # SLACK_BOT_TOKEN is used only when SLACK_CLIENT_ID/SECRET above are empty. With
+      # the OAuth app configured, Slack calls run as the user who connected instead, and
+      # this is ignored — deliberately, so one visitor's goal can never post into
+      # another's workspace.
+      #
+      # Linear and Notion have no connect flow (no routes in api/connections.py), so they
+      # always run on these tokens. Do NOT set LINEAR_CLIENT_ID or NOTION_CLIENT_ID here:
+      # `tools/service_client._CONNECT_FLOWS` ignores them for that reason, and the
+      # variables exist only because the settings object predates the decision.
+      - key: SLACK_BOT_TOKEN
+        sync: false
+      - key: LINEAR_API_KEY
+        sync: false
+      - key: NOTION_API_KEY
+        sync: false
+      # The page every incident note is created under. Notion 404s with
+      # `object_not_found` until that page is shared with the integration — a permission
+      # error it reports as a missing object.
+      - key: NOTION_PARENT_PAGE_ID
+        sync: false
+
       # ── Durable storage on the free tier ────────────────────────────────────
       # Litestream streams /data/mergit.db to object storage and restores it on boot,
       # which is what makes the free plan's ephemeral disk survivable. Backblaze B2 is
