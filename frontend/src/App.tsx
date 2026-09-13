@@ -13,6 +13,7 @@ import { SelfHeal } from "./pages/SelfHeal";
 import { Connections } from "./pages/Connections";
 import { Approvals } from "./pages/Approvals";
 import { AuthProvider } from "./lib/auth";
+import { ThemeProvider } from "./lib/theme";
 import "./index.css";
 
 export default function App() {
@@ -20,6 +21,7 @@ export default function App() {
     /* AuthProvider wraps the router so /login can read auth state too: it needs to
        know whether sign-in is even configured, and to bounce an already-signed-in
        user straight to /app. */
+    <ThemeProvider>
     <AuthProvider>
       <BrowserRouter>
       <Routes>
@@ -108,5 +110,6 @@ export default function App() {
       </Routes>
       </BrowserRouter>
     </AuthProvider>
+    </ThemeProvider>
   );
 }

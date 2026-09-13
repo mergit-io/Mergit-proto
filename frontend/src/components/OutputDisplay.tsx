@@ -1,6 +1,7 @@
-import { motion } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
+import { Micro } from "./ui";
 
 interface Props {
   output: Record<string, unknown>;
@@ -16,35 +17,36 @@ function MermaidDiagram({ code }: { code: string }) {
       const mermaid = m.default;
       mermaid.initialize({ startOnLoad: false, theme: "dark", securityLevel: "loose" });
       const id = `mermaid-${Math.random().toString(36).slice(2)}`;
-      mermaid.render(id, code).then(({ svg }) => {
-        if (!cancelled && ref.current) {
-          ref.current.innerHTML = svg;
-        }
-      }).catch((e) => {
-        if (!cancelled) setError(String(e));
-      });
+      mermaid
+        .render(id, code)
+        .then(({ svg }) => {
+          if (!cancelled && ref.current) {
+            ref.current.innerHTML = svg;
+          }
+        })
+        .catch((e) => {
+          if (!cancelled) setError(String(e));
+        });
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [code]);
 
   if (error) {
-    return (
-      <pre className="text-xs text-gray-400 bg-black/30 rounded-lg p-3 overflow-x-auto">
-        {code}
-      </pre>
-    );
+    return <pre className="font-mono text-xs text-dim bg-raise border border-line p-3 overflow-x-auto">{code}</pre>;
   }
 
   return (
     <div
       ref={ref}
-      className="my-4 rounded-xl bg-black/20 p-4 overflow-x-auto flex justify-center [&>svg]:max-w-full"
+      className="my-4 border border-line bg-raise p-4 overflow-x-auto flex justify-center [&>svg]:max-w-full"
     />
   );
 }
 
 // Custom code block renderer — intercepts ```mermaid blocks
-function CodeBlock({ className, children }: { className?: string; children?: React.ReactNode }) {
+function CodeBlock({ className, children }: { className?: string; children?: ReactNode }) {
   const lang = (className ?? "").replace("language-", "");
   const code = String(children ?? "").trim();
 
@@ -53,10 +55,16 @@ function CodeBlock({ className, children }: { className?: string; children?: Rea
   }
 
   return (
-    <pre className="text-xs text-gray-300 bg-black/30 rounded-lg p-3 overflow-x-auto my-3">
+    <pre className="font-mono text-xs text-text bg-raise border border-line p-3 overflow-x-auto my-3">
       <code>{code}</code>
     </pre>
   );
+}
+
+function Heading({ level, children }: { level: 1 | 2 | 3; children?: ReactNode }) {
+  const size = level === 1 ? "text-lg" : level === 2 ? "text-base" : "text-sm";
+  const Tag = `h${level}` as "h1" | "h2" | "h3";
+  return <Tag className={`font-display font-bold ${size} text-text mt-4 mb-2 first:mt-0`}>{children}</Tag>;
 }
 
 export function OutputDisplay({ output }: Props) {
@@ -64,35 +72,43 @@ export function OutputDisplay({ output }: Props) {
   const title = (output.title as string) || "";
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="rounded-xl border border-success/30 bg-success/5 p-5 space-y-3"
-    >
-      <div className="flex items-center gap-2">
-        <span className="text-green-400">✓</span>
-        <h3 className="text-sm font-semibold text-green-400">Completed</h3>
+    <div className="border-l-2 border-mint border-y border-r border-line bg-slab p-5 space-y-3">
+      <div className="flex items-center gap-2 text-mint">
+        <span aria-hidden="true">✓</span>
+        <Micro>Completed</Micro>
       </div>
 
-      {title && <p className="text-base font-semibold text-gray-100">{title}</p>}
+      {title && <p className="font-display font-bold text-base text-text">{title}</p>}
 
       {text ? (
-        <div className="prose prose-invert prose-sm max-w-none text-gray-300 leading-relaxed">
+        <div className="text-sm text-text leading-relaxed">
           <ReactMarkdown
             components={{
-              code: ({ className, children }) => (
-                <CodeBlock className={className}>{children}</CodeBlock>
+              h1: ({ children }) => <Heading level={1}>{children}</Heading>,
+              h2: ({ children }) => <Heading level={2}>{children}</Heading>,
+              h3: ({ children }) => <Heading level={3}>{children}</Heading>,
+              a: ({ href, children }) => (
+                <a href={href} target="_blank" rel="noreferrer" className="text-violet hover:underline">
+                  {children}
+                </a>
               ),
+              p: ({ children }) => <p className="mb-3 last:mb-0">{children}</p>,
+              ul: ({ children }) => <ul className="list-disc pl-5 space-y-1 mb-3">{children}</ul>,
+              ol: ({ children }) => <ol className="list-decimal pl-5 space-y-1 mb-3">{children}</ol>,
+              blockquote: ({ children }) => (
+                <blockquote className="border-l-2 border-line pl-3 text-dim">{children}</blockquote>
+              ),
+              code: ({ className, children }) => <CodeBlock className={className}>{children}</CodeBlock>,
             }}
           >
             {text}
           </ReactMarkdown>
         </div>
       ) : (
-        <pre className="text-xs text-gray-300 bg-black/30 rounded-lg p-3 overflow-x-auto">
+        <pre className="font-mono text-xs text-text bg-raise border border-line p-3 overflow-x-auto">
           {JSON.stringify(output, null, 2)}
         </pre>
       )}
-    </motion.div>
+    </div>
   );
 }

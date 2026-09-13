@@ -1,26 +1,19 @@
-interface Props {
-  agent: string;
-}
-
-const colors: Record<string, string> = {
-  researcher: "bg-violet-500/15 text-violet-300 border-violet-500/30",
-  writer:     "bg-sky-500/15 text-sky-300 border-sky-500/30",
-  coder:      "bg-orange-500/15 text-orange-300 border-orange-500/30",
-  integrator: "bg-pink-500/15 text-pink-300 border-pink-500/30",
+/* Agents are told apart by a two-letter monogram, not an emoji — the console is
+   set in mono and a colour picture in the middle of a data row breaks the line. */
+const MARK: Record<string, string> = {
+  orchestrator: "OR",
+  researcher: "RS",
+  writer: "WR",
+  coder: "CD",
+  integrator: "IN",
 };
 
-const icons: Record<string, string> = {
-  researcher: "🔍",
-  writer:     "✍️",
-  coder:      "💻",
-  integrator: "🔗",
-};
-
-export function AgentBadge({ agent }: Props) {
-  const cls = colors[agent] ?? "bg-gray-500/15 text-gray-300 border-gray-500/30";
+export function AgentBadge({ agent }: { agent: string }) {
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium ${cls}`}>
-      <span>{icons[agent] ?? "🤖"}</span>
+    <span className="inline-flex items-center gap-2 font-mono text-micro uppercase">
+      <span className="w-5 h-5 border border-line flex items-center justify-center text-[9px] text-dim shrink-0">
+        {MARK[agent] ?? agent.slice(0, 2).toUpperCase()}
+      </span>
       {agent}
     </span>
   );

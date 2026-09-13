@@ -1,89 +1,101 @@
-import { LayoutDashboard, ExternalLink, Cpu, GitBranch, Zap, Workflow, Trophy, HeartPulse, Plug, ShieldAlert } from "lucide-react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
+import { useTheme } from "../lib/theme";
+import { useChainBadge } from "../hooks/useChainBadge";
 import { WalletConnect } from "./WalletConnect";
+import { Micro } from "./ui";
+
+const LINKS = [
+  { to: "/app", label: "Dashboard", end: true },
+  { to: "/app/models", label: "Models" },
+  { to: "/app/webhooks", label: "Automate" },
+  { to: "/app/actions", label: "Actions" },
+  { to: "/app/connections", label: "Connections" },
+  { to: "/app/approvals", label: "Approvals" },
+  { to: "/app/heal", label: "Self-Heal" },
+  { to: "/app/economy", label: "Economy" },
+];
+
+/** The wordmark: a violet square standing in for a minted proof, then the name. */
+export function Wordmark({ to = "/" }: { to?: string }) {
+  return (
+    <Link to={to} className="flex items-center gap-2.5 shrink-0 group" aria-label="Mergit home">
+      <span className="w-3.5 h-3.5 bg-violet group-hover:bg-violet-hi transition-colors" />
+      <span className="font-display font-bold text-[15px] tracking-tight uppercase">Mergit</span>
+    </Link>
+  );
+}
+
+export function ThemeToggle() {
+  const { theme, toggle } = useTheme();
+  return (
+    <button
+      onClick={toggle}
+      className="h-9 px-3 border border-line text-dim hover:text-text hover:border-faint font-mono text-micro uppercase transition-colors"
+      aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+      title={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+    >
+      {theme === "dark" ? "Light" : "Dark"}
+    </button>
+  );
+}
 
 export function AppNav() {
-  const nav = useNavigate();
-  const { pathname } = useLocation();
-
-  const navBtn = (to: string, label: string, Icon: React.ComponentType<{ className?: string }>) => {
-    const active = pathname === to;
-    return (
-      <button
-        onClick={() => nav(to)}
-        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-          active
-            ? "bg-white/8 text-white"
-            : "text-text-muted hover:text-white hover:bg-white/4"
-        }`}
-      >
-        <Icon className="w-3.5 h-3.5" />
-        {label}
-      </button>
-    );
-  };
+  const chain = useChainBadge();
 
   return (
-    <header className="sticky top-0 z-40 border-b border-white/6 bg-black/80 backdrop-blur-md">
-      <div className="max-w-4xl mx-auto px-6 h-14 flex items-center justify-between">
-        {/* Logo */}
-        <button
-          onClick={() => nav("/")}
-          className="flex items-center gap-2 group"
-        >
-          <svg viewBox="0 0 32 32" fill="none" className="w-6 h-6">
-            <defs>
-              <linearGradient id="app-nav-logo-line" x1="4" y1="10" x2="28" y2="10" gradientUnits="userSpaceOnUse">
-                <stop stopColor="#6d4aff" />
-                <stop offset="1" stopColor="#22d3ee" />
-              </linearGradient>
-            </defs>
-            <circle cx="8" cy="8" r="4" fill="#6d4aff" />
-            <circle cx="24" cy="8" r="4" fill="#22d3ee" />
-            <path
-              d="M8 12 C8 18, 16 16, 16 22 M24 12 C24 18, 16 16, 16 22"
-              stroke="url(#app-nav-logo-line)"
-              strokeWidth="1.75"
-              strokeLinecap="round"
-            />
-            <circle cx="16" cy="24.5" r="4.5" fill="#2eff9e" />
-          </svg>
-          <span className="font-display font-bold text-base text-white tracking-tight">
-            Merg<span className="text-gradient-blue">it</span>
-          </span>
-        </button>
+    <header className="sticky top-0 z-40 border-b border-line bg-ink/92 backdrop-blur-md">
+      <div className="max-w-[1400px] mx-auto px-5 h-14 flex items-center gap-5">
+        <Wordmark to="/app" />
 
-        {/* Nav links */}
-        <nav className="flex items-center gap-1">
-          {navBtn("/app", "Dashboard", LayoutDashboard)}
-          {navBtn("/app/models", "Models", Cpu)}
-          {navBtn("/app/webhooks", "Automate", Zap)}
-          {navBtn("/app/heal", "Self-Heal", HeartPulse)}
-          {navBtn("/app/actions", "Actions", Workflow)}
-          {navBtn("/app/connections", "Connections", Plug)}
-        {navBtn("/app/approvals", "Approvals", ShieldAlert)}
-        {navBtn("/app/economy", "Economy", Trophy)}
-          <a
-            href="/api/docs"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-text-muted hover:text-white hover:bg-white/4 transition-all"
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-            API Docs
-          </a>
-          <a
-            href="https://github.com/mergit-io/Mergit-proto"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-text-muted hover:text-white hover:bg-white/4 transition-all"
-          >
-            <GitBranch className="w-3.5 h-3.5" />
-            GitHub
-          </a>
-          <WalletConnect />
+        <nav className="flex items-center overflow-x-auto flex-1 min-w-0" aria-label="Console">
+          {LINKS.map((l) => (
+            <NavLink
+              key={l.to}
+              to={l.to}
+              end={l.end}
+              className={({ isActive }) =>
+                `px-3 h-14 flex items-center font-mono text-micro uppercase whitespace-nowrap border-b-2 -mb-px transition-colors ${
+                  isActive
+                    ? "border-violet text-text"
+                    : "border-transparent text-dim hover:text-text"
+                }`
+              }
+            >
+              {l.label}
+            </NavLink>
+          ))}
         </nav>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <span
+            className="hidden lg:flex items-center gap-2 h-9 px-3 border border-line"
+            title={chain.label}
+          >
+            <span className={`w-1.5 h-1.5 ${chain.live ? "bg-mint animate-blip" : "bg-faint"}`} />
+            <Micro>{chain.label}</Micro>
+          </span>
+          <ThemeToggle />
+          <WalletConnect />
+        </div>
       </div>
     </header>
+  );
+}
+
+/** Standard page frame: the bar, then a gutter-bounded column of panels. */
+export function Shell({ children, wide = false }: { children: React.ReactNode; wide?: boolean }) {
+  const { pathname } = useLocation();
+  return (
+    <div className="min-h-screen flex flex-col">
+      <AppNav />
+      {/* Keyed on the route so moving between pages replays the settle, which
+          makes navigation feel like a step rather than a repaint. */}
+      <main
+        key={pathname}
+        className={`enter flex-1 w-full mx-auto px-5 py-10 ${wide ? "max-w-[1400px]" : "max-w-6xl"}`}
+      >
+        {children}
+      </main>
+    </div>
   );
 }

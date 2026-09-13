@@ -14,13 +14,6 @@ interface Props {
   tasks: TaskDetail[];
 }
 
-const STATUS_EDGE_COLOR: Record<string, string> = {
-  DONE: "#22c55e",
-  RUNNING: "#3b82f6",
-  FAILED: "#ef4444",
-  WAITING_WEBHOOK: "#f59e0b",
-};
-
 function buildGraph(tasks: TaskDetail[]): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = tasks.map((t, i) => ({
     id: t.id,
@@ -29,10 +22,8 @@ function buildGraph(tasks: TaskDetail[]): { nodes: Node[]; edges: Edge[] } {
     sourcePosition: Position.Bottom,
     targetPosition: Position.Top,
     data: { label: <TaskNode task={t} /> },
+    className: `bg-slab border ${t.status === "RUNNING" ? "border-violet" : "border-line"}`,
     style: {
-      background: "#111111",
-      border: `1px solid ${STATUS_EDGE_COLOR[t.status] ?? "#1f1f1f"}`,
-      borderRadius: 12,
       padding: 0,
       width: 220,
     },
@@ -46,7 +37,6 @@ function buildGraph(tasks: TaskDetail[]): { nodes: Node[]; edges: Edge[] } {
         source: depId,
         target: t.id,
         animated: t.status === "RUNNING",
-        style: { stroke: STATUS_EDGE_COLOR[t.status] ?? "#3a3a3a" },
       });
     });
   });
@@ -59,9 +49,9 @@ function TaskNode({ task }: { task: TaskDetail }) {
     <div className="px-3 py-2.5 space-y-1.5">
       <div className="flex items-center justify-between gap-2">
         <AgentBadge agent={task.agent_name} />
-        <StatusBadge status={task.status} size="sm" />
+        <StatusBadge status={task.status} />
       </div>
-      <p className="text-xs text-gray-300 leading-relaxed line-clamp-2">{task.description}</p>
+      <p className="font-mono text-xs text-dim leading-relaxed line-clamp-2">{task.description}</p>
     </div>
   );
 }
@@ -76,7 +66,8 @@ export function TaskDAG({ tasks }: Props) {
         nodes={nodes}
         edges={edges}
         fitView
-        fitViewOptions={{ padding: 0.2 }}
+        // Without a ceiling, a one-node graph is scaled up until the card fills the canvas.
+        fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
         nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable={false}
@@ -84,8 +75,8 @@ export function TaskDAG({ tasks }: Props) {
         panOnDrag
         proOptions={{ hideAttribution: true }}
       >
-        <Background color="#1f1f1f" gap={20} size={1} />
-        <Controls showInteractive={false} className="!bg-surface !border-border" />
+        <Background color="rgb(var(--c-line-soft))" gap={24} size={1} />
+        <Controls showInteractive={false} />
       </ReactFlow>
     </div>
   );
