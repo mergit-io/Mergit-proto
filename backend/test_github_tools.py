@@ -1543,3 +1543,46 @@ def test_the_word_todo_in_a_comment_is_still_fine(monkeypatch):
                                 "files": [{"path": "hash.rs", "content": content}]}))
 
     assert result["ok"] is True
+
+
+def test_pr_refuses_a_body_claiming_a_test_run_that_never_happened(monkeypatch):
+    """The deployed demo shipped `mergit-e2e-sandbox#67` saying "Ran the following
+    commands … All outputs are as expected" on a deployment where `code_exec` is
+    unregistered. The diff was right and every tool returned ok, so neither body guard
+    could see it — the claim's subject is not the diff."""
+    repo = FakeRepo()
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    async def _nothing_ran(_goal_id):
+        return False
+    monkeypatch.setattr(gpr.execution_claims, "executed_in_goal", _nothing_ran)
+
+    result = run(gpr.github_pr({
+        "repo": "o/r", "title": "fix largest()", "head_branch": "fix/x",
+        "_goal_id": "goal-1",
+        "body": "## Verification\nRan the following commands:\n\n```\nlargest([-5])\n```\n"
+                "All outputs are as expected.\n",
+        "files": [{"path": "a.py", "content": "x"}]}))
+
+    assert result["ok"] is False
+    assert "never did" in result["error"]
+    assert repo.created_refs == [], "must not push a branch for a PR it will refuse"
+
+
+def test_pr_accepts_a_body_that_says_it_could_not_run_the_code(monkeypatch):
+    """The honest answer under DEMO_SAFE_MODE must remain the cheap one."""
+    repo = FakeRepo()
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    async def _nothing_ran(_goal_id):
+        return False
+    monkeypatch.setattr(gpr.execution_claims, "executed_in_goal", _nothing_ran)
+
+    result = run(gpr.github_pr({
+        "repo": "o/r", "title": "fix largest()", "head_branch": "fix/x",
+        "_goal_id": "goal-1",
+        "body": "The fix was not executed — code execution is disabled on this deployment. "
+                "It is reasoned from the source.",
+        "files": [{"path": "a.py", "content": "x"}]}))
+
+    assert result["ok"] is True, result.get("error")
