@@ -20,6 +20,9 @@ backend/workspace/
 frontend/node_modules/
 frontend/dist/
 
+# Solidity build output (recompiled on demand from contracts/src by chain/compiler.py)
+backend/contracts/out/
+
 # OS
 .DS_Store
 
