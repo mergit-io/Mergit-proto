@@ -1,8 +1,9 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 import model_config
 import model_health
+from auth.gate import require_admin
 
 router = APIRouter(prefix="/api/config", tags=["config"])
 
@@ -21,7 +22,11 @@ async def get_model_config():
 
 
 @router.put("/models")
-async def update_model_config(body: ModelConfigUpdate):
+async def update_model_config(body: ModelConfigUpdate, request: Request):
+    # `model_config.json` is a single file for the whole deployment, so this write picks
+    # the model every other user's agents will run on. Reading it is harmless and the
+    # Models page needs it; overwriting it is an operator action.
+    require_admin(request)
     try:
         updated = model_config.update(body.models)
     except ValueError as e:
