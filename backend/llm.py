@@ -82,6 +82,21 @@ _FALLBACKS: dict[str, list[str]] = {
     # is not a dead end either.
     "openrouter/meta-llama/llama-3.3-70b-instruct": [],
     "openrouter/anthropic/claude-haiku-4.5": [],
+    # GPT-class is the default tier, so these need a chain of their own. Groq comes first
+    # because it is a different provider behind a different key: an OpenRouter outage or a
+    # spent balance takes every openrouter/* id with it, and falling back to another one
+    # would be falling back to the same failure.
+    "openrouter/openai/gpt-4.1": [
+        "openrouter/openai/gpt-4.1-mini",
+        "groq/llama-3.3-70b-versatile",
+    ],
+    "openrouter/openai/gpt-4.1-mini": [
+        "groq/llama-3.3-70b-versatile",
+    ],
+    "openrouter/openai/gpt-4.1-nano": [
+        "openrouter/openai/gpt-4.1-mini",
+        "groq/llama-3.3-70b-versatile",
+    ],
 }
 
 # Every chain above ends here. The first-party tiers share a failure mode: one key,
