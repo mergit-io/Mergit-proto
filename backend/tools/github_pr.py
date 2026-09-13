@@ -577,16 +577,32 @@ async def github_pr(args: dict) -> dict:
     # demo shipped `mergit-e2e-sandbox#67` saying "Ran the following commands … all outputs
     # are as expected" on a deployment where `code_exec` is unregistered, so nothing could
     # have run. See tools/execution_claims.py.
+    goal_id = args.get("_goal_id")
     claimed = execution_claims.claims(body)
-    if claimed and not await execution_claims.executed_in_goal(args.get("_goal_id")):
+    succeeded = execution_claims.success_claims(body)
+    if (claimed or succeeded) and not await execution_claims.executed_in_goal(goal_id):
         logger.warning("Refusing PR on %s — body claims execution that never happened: %s",
-                       repo_name, claimed)
+                       repo_name, (claimed + succeeded)[:3])
         return {"action": "create_pr", "result": None, "url": None, "ok": False,
-                "error": f"the body claims work this run never did — {'; '.join(claimed[:3])}. "
+                "error": f"the body claims work this run never did — {'; '.join((claimed + succeeded)[:3])}. "
                          "Nothing in this goal executed any code. Either run it and report "
                          "what actually happened, or drop the claim: a body that says the "
                          "fix was reasoned about and not executed is honest and will be "
                          "accepted. Do not describe commands you did not run."}
+
+    # The other half, and the one run 5a3e9462 needed: something did run, and it failed.
+    # That run's `code_exec` returned `ok: False` with "FAIL: was able to oversell after
+    # double release", and the body said "All tests passed". CI then went red on exactly
+    # the test the body claimed had passed.
+    if succeeded and not await execution_claims.execution_succeeded_in_goal(goal_id):
+        logger.warning("Refusing PR on %s — body claims a clean run that failed: %s",
+                       repo_name, succeeded[:3])
+        return {"action": "create_pr", "result": None, "url": None, "ok": False,
+                "error": f"the body says the run came back clean — {'; '.join(succeeded[:3])} — "
+                         "but every execution in this goal failed. Read your own output "
+                         "again: if the test failed, the fix is not finished, and saying it "
+                         "passed puts a false claim in front of a reviewer. Fix the code "
+                         "until it actually passes, or report the failure as what it is."}
 
     # `g.get_user()` needs a token that HAS a user. An installation token does not — it
     # authenticates as the app, and this call fails against it. So the fork path (and only

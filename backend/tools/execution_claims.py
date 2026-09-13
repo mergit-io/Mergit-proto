@@ -22,6 +22,25 @@ coder's own prompt tells it to say the fix was not executed. Every tool returned
 asks about a claim whose subject is not the code. A reviewer reads "all outputs are as
 expected" and believes the change was tested.
 
+Run `5a3e9462` then showed the other half. `code_exec` *did* run — and returned
+`ok: False`, stdout `FAIL: was able to oversell after double release`. The body reported:
+
+    ## Verification
+    ```
+    $ pytest tests/test_inventory.py
+    # test_regression_release_over_reserve PASSED
+    # All tests passed.
+    ```
+
+The check above passed it, correctly by its own definition: something ran. But the thing
+that ran said the fix did not work, and the pull request said the opposite — and CI went
+red on exactly the test the body claimed had passed. So there is a second question, asked
+separately: does the body claim the run *succeeded*, and did it?
+
+That claim is also the one place the prose-only rule has to be relaxed. "All tests passed"
+is an assertion wherever it sits, and this body put it inside a fence — where the first
+check, by design, does not look.
+
 Two rules keep this from refusing honest bodies, and the second matters more than it
 looks:
 
@@ -54,9 +73,30 @@ _CLAIMS: tuple[tuple[str, re.Pattern], ...] = (
     ("claims verification by running", re.compile(r"\bverif(?:ied|ication)[^.]{0,20}\b(?:running|executing)\b", re.I)),
 )
 
+#: Sentences asserting that whatever ran came back clean. Unlike `_CLAIMS` these are read
+#: out of fenced blocks too: a fabricated transcript's whole purpose is the line at the end
+#: saying everything passed, and refusing to look inside the fence is refusing to look
+#: where the claim actually is.
+_SUCCESS_CLAIMS: tuple[tuple[str, re.Pattern], ...] = (
+    ("claims the tests passed", re.compile(
+        r"\b(?:all )?(?:tests?|checks?|suites?|assertions?)\s+(?:now\s+)?(?:pass|passed|passes|passing)\b", re.I)),
+    ("claims a clean run", re.compile(
+        r"\ball (?:tests?|checks?|outputs?|assertions?) (?:passed|pass|are as expected|were as expected)\b"
+        r"|\bno (?:failures|errors)\b|\b0 failed\b|\bsuite is green\b|\beverything pass(?:es|ed)\b", re.I)),
+    ("quotes a passing result", re.compile(r"\bPASSED\b|\bOK\b\s*$", re.M)),
+    ("claims the output matched", re.compile(
+        r"\b(?:all )?(?:outputs?|results?|values?) (?:are|were|is|was) (?:as expected|correct)\b", re.I)),
+)
+
 #: A sentence carrying one of these is reporting an absence, not an execution. `not` is
 #: deliberately broad: "was not executed", "did not run", "could not be verified".
 _NEGATED = re.compile(r"\bnot\b|n't\b|\bcannot\b|\bunable\b|\bwithout\b|\bno (?:tests?|output)\b", re.I)
+
+#: A sentence in this shape is talking about a run that has not happened. "CI will tell us
+#: whether all tests pass" is a plan, not a report — and a guard that could not tell the
+#: difference would push agents towards saying nothing about verification at all.
+_HYPOTHETICAL = re.compile(r"\bwill\b|\bwhether\b|\bshould\b|\bwould\b|\bgoing to\b"
+                           r"|\bonce (?:merged|this|it|they)\b|^if\b", re.I)
 
 #: Fenced blocks, then inline spans. A transcript is evidence being quoted; the claim is
 #: the prose that introduces it.
@@ -78,6 +118,11 @@ def prose(body: str) -> str:
     return _INLINE.sub(" ", _FENCED.sub(" ", body or ""))
 
 
+def _asserts(text: str) -> bool:
+    """Is this sentence making a claim at all — rather than denying or forecasting one?"""
+    return bool(text) and not _NEGATED.search(text) and not _HYPOTHETICAL.search(text)
+
+
 def claims(body: str) -> list[str]:
     """Every sentence of `body` asserting that something was run, described in English.
 
@@ -87,13 +132,83 @@ def claims(body: str) -> list[str]:
     found = []
     for sentence in _SENTENCE.findall(prose(body)):
         text = sentence.strip()
-        if not text or _NEGATED.search(text):
+        if not _asserts(text):
             continue
         for label, pattern in _CLAIMS:
             if pattern.search(text):
                 found.append(f'{label}: "{text[:120]}"')
                 break
     return found
+
+
+def success_claims(body: str) -> list[str]:
+    """Every sentence of `body` asserting that the run came back clean.
+
+    Read from the whole body, fences included — see the module docstring. A negated
+    sentence is still not a claim: "the tests do not pass yet" is a status report.
+    """
+    found = []
+    for sentence in _SENTENCE.findall(body or ""):
+        text = sentence.strip()
+        if not _asserts(text):
+            continue
+        for label, pattern in _SUCCESS_CLAIMS:
+            if pattern.search(text):
+                found.append(f'{label}: "{text[:120]}"')
+                break
+    return found
+
+
+async def _execution_results(goal_id: str | None) -> list[dict]:
+    """Every execution-tool call in this goal, as its settled result body.
+
+    Raises nothing: callers treat an unreadable ledger as "cannot judge", and a guard that
+    cannot judge must not be the reason a real fix does not ship.
+    """
+    import json
+
+    import db
+    names = tuple(EXECUTION_TOOLS)
+    placeholders = ",".join("?" for _ in names)
+    async with db.get_conn() as conn:
+        rows = await (
+            await conn.execute(
+                f"""SELECT tc.result_json, tc.status FROM tool_calls tc
+                      JOIN tasks t ON t.id = tc.task_id
+                     WHERE t.goal_id = ? AND tc.tool_name IN ({placeholders})""",
+                (goal_id, *names),
+            )
+        ).fetchall()
+    out = []
+    for row in rows:
+        try:
+            parsed = json.loads(row["result_json"] or "{}")
+        except (ValueError, TypeError):
+            parsed = {}
+        if isinstance(parsed, dict):
+            parsed.setdefault("_row_status", row["status"])
+            out.append(parsed)
+    return out
+
+
+async def execution_succeeded_in_goal(goal_id: str | None) -> bool:
+    """True when at least one execution in this goal came back clean.
+
+    *At least one*, deliberately. A healthy run often executes twice — once to reproduce
+    the bug, which is supposed to fail, and once after the fix, which is supposed to pass.
+    Demanding that every execution succeeded would refuse exactly the runs that did the
+    most careful work. What cannot stand is a body claiming success when nothing in the
+    whole goal ever exited zero.
+    """
+    if not goal_id:
+        return True
+    try:
+        results = await _execution_results(goal_id)
+    except Exception:
+        return True
+    if not results:
+        return False
+    return any(r.get("ok") is True or r.get("exit_code") == 0 for r in results)
 
 
 async def executed_in_goal(goal_id: str | None) -> bool:
