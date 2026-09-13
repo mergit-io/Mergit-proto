@@ -48,7 +48,7 @@ def _set_session_cookie(resp: RedirectResponse, payload: dict) -> None:
         value=_sign(payload),
         max_age=SESSION_MAX_AGE,
         httponly=True,
-        secure=False,
+        secure=settings.cookie_secure,
         samesite="lax",
         path="/",
     )

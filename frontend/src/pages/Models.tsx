@@ -20,7 +20,7 @@ const ROLE_META: Record<Role, { label: string; desc: string; Icon: React.Compone
   orchestrator: { label: "Orchestrator", desc: "Plans the task DAG from your goal",         Icon: Settings2    },
   researcher:   { label: "Researcher",   desc: "Searches the web and gathers facts",         Icon: FlaskConical },
   writer:       { label: "Writer",       desc: "Synthesises research into documents",         Icon: PenLine      },
-  notifier:     { label: "Notifier",     desc: "Sends Slack / HTTP notifications",            Icon: Bell         },
+  notifier:     { label: "Notifier",     desc: "Sends HTTP notifications to endpoints",       Icon: Bell         },
   coder:        { label: "Coder",        desc: "Writes and executes Python code",             Icon: Code2        },
   integrator:   { label: "Integrator",   desc: "Calls APIs and handles webhooks",             Icon: Plug         },
 };
@@ -57,12 +57,9 @@ type Tab = "visual" | "json";
 const PROVIDER_META: Record<string, { label: string; color: string; bg: string; border: string }> = {
   groq:      { label: "Groq",      color: "text-emerald-400", bg: "bg-emerald-400/8",  border: "border-emerald-400/20" },
   anthropic: { label: "Anthropic", color: "text-violet-400",  bg: "bg-violet-400/8",   border: "border-violet-400/20"  },
-  openai:    { label: "OpenAI",    color: "text-blue-400",    bg: "bg-blue-400/8",      border: "border-blue-400/20"    },
-  google:    { label: "Google",    color: "text-sky-400",     bg: "bg-sky-400/8",       border: "border-sky-400/20"     },
-  mistral:   { label: "Mistral",   color: "text-amber-400",   bg: "bg-amber-400/8",     border: "border-amber-400/20"   },
   tavily:    { label: "Tavily",    color: "text-cyan-400",    bg: "bg-cyan-400/8",      border: "border-cyan-400/20"    },
   github:    { label: "GitHub",    color: "text-white",       bg: "bg-white/8",         border: "border-white/20"       },
-  slack:     { label: "Slack",     color: "text-purple-400",  bg: "bg-purple-400/8",    border: "border-purple-400/20"  },
+  omium:     { label: "Omium",     color: "text-violet-400",  bg: "bg-violet-400/8",    border: "border-violet-400/20"  },
 };
 
 function ApiKeysSection() {

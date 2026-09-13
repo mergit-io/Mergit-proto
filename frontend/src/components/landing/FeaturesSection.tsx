@@ -25,7 +25,7 @@ function TerminalMockup() {
         <div><span className="text-purple">›</span> <span className="text-text-dim">Orchestrator planning</span> <span className="text-text-muted">3 tasks</span></div>
         <div><span className="text-success">✓</span> <span className="text-text-dim">researcher:</span> <span className="text-white">web_search(query)</span></div>
         <div><span className="text-success">✓</span> <span className="text-text-dim">writer:</span> <span className="text-white">synthesize → report.md</span></div>
-        <div><span className="text-success">✓</span> <span className="text-text-dim">notifier:</span> <span className="text-white">slack_notify #research</span></div>
+        <div><span className="text-success">✓</span> <span className="text-text-dim">integrator:</span> <span className="text-white">github_pr → PR #42 opened</span></div>
         <div className="flex items-center gap-2 pt-1"><span className="text-accent-2">●</span> <span className="text-accent-2 font-semibold">Goal completed in 28s</span></div>
       </div>
     </div>
@@ -161,11 +161,11 @@ export function FeaturesSection() {
               </div>
               <h3 className="font-display font-semibold text-white text-lg">Tool-Native Execution</h3>
               <p className="text-text-dim text-sm leading-relaxed">
-                Web search, GitHub PRs, Slack messages, code execution—real side-effects
+                Web search, GitHub PRs, code execution—real side-effects
                 with full idempotency. Kill the process, restart, tool calls are not re-fired.
               </p>
               <div className="mt-auto flex flex-wrap gap-2">
-                {["web_search", "github_pr", "slack_notify", "code_exec", "http_request", "file_ops"].map((t) => (
+                {["web_search", "github_pr", "code_exec", "http_request", "file_ops", "github_create_repo"].map((t) => (
                   <span key={t} className="text-xs font-mono px-2.5 py-1 rounded-lg bg-white/4 border border-white/6 text-text-dim">
                     {t}
                   </span>

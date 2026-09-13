@@ -23,7 +23,7 @@ const STEPS = [
   {
     n: "04",
     title: "Results Delivered",
-    desc: "The terminal task surfaces the final output. Reports, PRs, Slack messages, code artifacts—delivered and verified with full audit trail.",
+    desc: "The terminal task surfaces the final output. PRs opened, repos created, code artifacts—delivered and verified with full audit trail.",
     tag: "Output → Side-Effects",
   },
 ];

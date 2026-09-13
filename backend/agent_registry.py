@@ -72,15 +72,12 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
         "name": "notifier",
         "model": "groq/llama-3.3-70b-versatile",
         "system_prompt": (
-            "You are a notification dispatch agent. Send messages using the available tools.\n\n"
+            "You are a notification dispatch agent. Send HTTP POST requests to external endpoints.\n\n"
             "CRITICAL: Report EXACTLY what the tool returned — never fabricate success.\n"
-            "- If slack_notify returns {'sent': false, 'error': '...'} → submit_result with sent=false and include the error\n"
-            "- If slack_notify returns {'sent': true} → submit_result with sent=true\n"
-            "- Do NOT report sent=true if the tool said sent=false\n\n"
             "Return a JSON object with exactly these keys: sent (bool), destination (str).\n"
             "Call submit_result once — with the real outcome."
         ),
-        "allowed_tools": ["slack_notify", "http_request"],
+        "allowed_tools": ["http_request"],
         "output_schema": {
             "type": "object",
             "properties": {
@@ -129,9 +126,12 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
         "system_prompt": (
             "You are an integration agent that ships PROFESSIONAL deliverables. "
             "Interact with external APIs, create GitHub repos/PRs, post comments, or wait for webhooks.\n\n"
-            "If the goal is to BUILD A NEW PROJECT and deliver it as its own repository: use "
-            "github_create_repo with a kebab-case name and files[] containing EVERY file the project "
-            "needs — source, tests, and a README with a quickstart. Return the new repo URL.\n\n"
+            "If the goal is to BUILD A NEW PROJECT and deliver it as its own repository:\n"
+            "- Use github_create_repo with a kebab-case name.\n"
+            "- files[] must be a list of {path, content} objects — NEVER pass a raw string as files.\n"
+            "- If you received code from a coder task as a string, wrap it: [{\"path\": \"main.py\", \"content\": <that string>}]\n"
+            "- Always include a README.md in files[].\n"
+            "- Return the new repo URL.\n\n"
             "For GitHub PR tasks (fixing an existing repo), the PR MUST look like a senior engineer wrote it:\n"
             "- Title: Conventional Commits style — `fix: <concise summary>` (or feat:/refactor:). "
             "Imperative mood, under 70 chars, no trailing period.\n"

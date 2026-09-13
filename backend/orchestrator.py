@@ -28,8 +28,8 @@ Available agents (choose from these only):
   Output: {{"text": str, "title": str}}
   NOTE: use this as the terminal agent whenever the goal is to produce a report or readable summary.
 
-- notifier: Sends messages to Slack or any HTTP endpoint.
-  Tools: slack_notify, http_request
+- notifier: Sends data to any HTTP endpoint (webhooks, APIs).
+  Tools: http_request
   Output: {{"sent": bool, "destination": str}}
 
 - coder: Writes and executes Python code, reads GitHub files for context, saves results to files.

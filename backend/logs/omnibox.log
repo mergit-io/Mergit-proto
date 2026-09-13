@@ -423,3 +423,53 @@ LiteLLM completion() model= claude-haiku-4-5-20251001; provider = anthropic
 2026-05-16 05:31:53 INFO     worker                   Task 2bca3a6a_t3 DONE (goal=2bca3a6a-acab-4f03-b9bd-9a7a16f825b6)
 2026-05-16 05:31:53 INFO     worker                   Goal 2bca3a6a-acab-4f03-b9bd-9a7a16f825b6 COMPLETED
 2026-05-16 05:31:53 INFO     worker                   Goal 2bca3a6a-acab-4f03-b9bd-9a7a16f825b6 COMPLETED
+2026-05-16 06:22:48 INFO     main                     Shutting down omniBox…
+2026-05-16 06:22:48 INFO     main                     Shutting down omniBox…
+2026-05-16 06:22:48 INFO     main                     omniBox stopped
+2026-05-16 06:22:48 INFO     main                     omniBox stopped
+2026-05-16 06:22:52 INFO     __main__                 Serving frontend from /home/viscous/Viscous/omniBox/frontend/dist
+2026-05-16 06:22:52 INFO     main                     Serving frontend from /home/viscous/Viscous/omniBox/frontend/dist
+2026-05-16 06:22:52 INFO     main                     Serving frontend from /home/viscous/Viscous/omniBox/frontend/dist
+2026-05-16 06:22:52 INFO     main                     Starting omniBox (host=0.0.0.0 port=8000 debug=False)
+2026-05-16 06:22:52 INFO     main                     Starting omniBox (host=0.0.0.0 port=8000 debug=False)
+2026-05-16 06:22:52 INFO     main                     DB initialised at ./omnibox.db
+2026-05-16 06:22:52 INFO     main                     DB initialised at ./omnibox.db
+2026-05-16 06:22:52 INFO     omium                    Omium initialized: project=omniBox, auto_trace=False, frameworks=[]
+2026-05-16 06:22:52 INFO     omium                    Omium initialized: project=omniBox, auto_trace=False, frameworks=[]
+2026-05-16 06:22:52 INFO     tracing                  Omium tracing initialised (project=omniBox)
+2026-05-16 06:22:52 INFO     tracing                  Omium tracing initialised (project=omniBox)
+2026-05-16 06:22:52 INFO     worker                   Worker started (id=ffe6e36c-c837-4e86-94ef-130da1299089)
+2026-05-16 06:22:52 INFO     worker                   Worker started (id=ffe6e36c-c837-4e86-94ef-130da1299089)
+2026-05-16 06:22:52 INFO     main                     omniBox ready ✓
+2026-05-16 06:22:52 INFO     main                     omniBox ready ✓
+2026-05-16 06:23:03 INFO     omium                    Auto-registered workflow 'omniBox' in Omium dashboard
+2026-05-16 06:23:03 INFO     omium                    Auto-registered workflow 'omniBox' in Omium dashboard
+2026-05-16 06:23:09 WARNING  main                     [7c0a571e] ← 400 PUT /api/config/keys (1ms)
+2026-05-16 06:23:09 WARNING  main                     [7c0a571e] ← 400 PUT /api/config/keys (1ms)
+2026-05-16 06:23:16 WARNING  main                     [555a0ffd] ← 405 POST /api/config/reload-env (1ms)
+2026-05-16 06:23:16 WARNING  main                     [555a0ffd] ← 405 POST /api/config/reload-env (1ms)
+2026-05-16 06:28:29 INFO     main                     Shutting down omniBox…
+2026-05-16 06:28:29 INFO     main                     Shutting down omniBox…
+2026-05-16 06:28:29 INFO     main                     omniBox stopped
+2026-05-16 06:28:29 INFO     main                     omniBox stopped
+2026-05-16 06:28:33 INFO     __main__                 Serving frontend from /home/viscous/Viscous/omniBox/frontend/dist
+2026-05-16 06:28:33 INFO     main                     Serving frontend from /home/viscous/Viscous/omniBox/frontend/dist
+2026-05-16 06:28:33 INFO     main                     Serving frontend from /home/viscous/Viscous/omniBox/frontend/dist
+2026-05-16 06:28:33 INFO     main                     Starting omniBox (host=0.0.0.0 port=8000 debug=False)
+2026-05-16 06:28:33 INFO     main                     Starting omniBox (host=0.0.0.0 port=8000 debug=False)
+2026-05-16 06:28:33 INFO     main                     DB initialised at ./omnibox.db
+2026-05-16 06:28:33 INFO     main                     DB initialised at ./omnibox.db
+2026-05-16 06:28:33 INFO     omium                    Omium initialized: project=omniBox, auto_trace=False, frameworks=[]
+2026-05-16 06:28:33 INFO     omium                    Omium initialized: project=omniBox, auto_trace=False, frameworks=[]
+2026-05-16 06:28:33 INFO     tracing                  Omium tracing initialised (project=omniBox)
+2026-05-16 06:28:33 INFO     tracing                  Omium tracing initialised (project=omniBox)
+2026-05-16 06:28:33 INFO     worker                   Worker started (id=a1710f3d-3fd6-47fc-8f6f-806bef242d47)
+2026-05-16 06:28:33 INFO     worker                   Worker started (id=a1710f3d-3fd6-47fc-8f6f-806bef242d47)
+2026-05-16 06:28:33 INFO     main                     omniBox ready ✓
+2026-05-16 06:28:33 INFO     main                     omniBox ready ✓
+2026-05-16 06:28:45 INFO     omium                    Auto-registered workflow 'omniBox' in Omium dashboard
+2026-05-16 06:28:45 INFO     omium                    Auto-registered workflow 'omniBox' in Omium dashboard
+2026-05-16 06:33:45 INFO     main                     Shutting down omniBox…
+2026-05-16 06:33:45 INFO     main                     Shutting down omniBox…
+2026-05-16 06:33:45 INFO     main                     omniBox stopped
+2026-05-16 06:33:45 INFO     main                     omniBox stopped
