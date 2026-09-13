@@ -1012,3 +1012,25 @@ async def heal_stats() -> dict:
         "by_outcome": by_outcome,
         "fixed": by_outcome.get("fixed", 0),
     }
+
+
+async def requeue_proofs_for_chain(chain_id: int) -> int:
+    """Return confirmed proofs for an ephemeral chain to 'pending' so they can be re-submitted.
+
+    The in-process EVM is wiped on every restart while these rows survive, so without this
+    a previously confirmed proof would silently stop verifying. Attempts reset to 0 — a
+    chain reset is not the proof's fault and must not eat its retry budget. Dead-lettered
+    entries are left alone.
+    """
+    async with get_conn() as conn:
+        cur = await conn.execute(
+            """UPDATE proof_outbox
+               SET status='pending', attempts=0, next_attempt_at=0,
+                   tx_hash=NULL, block_number=NULL, last_error=NULL, updated_at=?
+               WHERE status='confirmed' AND chain_id=?
+               RETURNING task_id""",
+            (_now(), chain_id),
+        )
+        rows = await cur.fetchall()
+        await conn.commit()
+        return len(rows)
