@@ -53,19 +53,30 @@ export function Login() {
   };
 
   return (
-    <main className="min-h-screen bg-black text-white relative overflow-hidden">
+    <main className="min-h-screen bg-bg text-white relative overflow-hidden">
       <AppBackground />
 
       <div className="relative z-10 max-w-7xl mx-auto px-6 py-8 min-h-screen">
         <header className="glass-card rounded-3xl px-8 py-4 flex items-center justify-between">
           <a href="/" className="flex items-center gap-3">
-            <div className="grid grid-cols-2 gap-1 w-8 h-8">
-              <div className="rounded bg-[#2d8cff]" />
-              <div className="rounded bg-[#3f6cff]" />
-              <div className="rounded bg-[#346dff]" />
-              <div className="rounded bg-[#5f4dff]" />
-            </div>
-            <span className="font-display font-semibold text-3xl leading-none tracking-tight">omni<span className="text-[#2d8cff]">Box</span></span>
+            <svg viewBox="0 0 32 32" fill="none" className="w-8 h-8">
+              <defs>
+                <linearGradient id="login-logo" x1="4" y1="10" x2="28" y2="10" gradientUnits="userSpaceOnUse">
+                  <stop stopColor="#6d4aff" />
+                  <stop offset="1" stopColor="#22d3ee" />
+                </linearGradient>
+              </defs>
+              <circle cx="8" cy="8" r="4" fill="#6d4aff" />
+              <circle cx="24" cy="8" r="4" fill="#22d3ee" />
+              <path
+                d="M8 12 C8 18, 16 16, 16 22 M24 12 C24 18, 16 16, 16 22"
+                stroke="url(#login-logo)"
+                strokeWidth="1.75"
+                strokeLinecap="round"
+              />
+              <circle cx="16" cy="24.5" r="4.5" fill="#2eff9e" />
+            </svg>
+            <span className="font-display font-semibold text-3xl leading-none tracking-tight">Merg<span className="text-gradient-blue">it</span></span>
           </a>
           <button
             type="button"
@@ -81,17 +92,17 @@ export function Login() {
 
         <section className="relative min-h-[calc(100vh-120px)] grid lg:grid-cols-2 gap-10 items-center py-10">
           <div className="w-full text-center lg:text-left">
-            <p className="inline-flex items-center gap-2 px-5 py-2 rounded-full border border-white/10 bg-white/5 text-[#2d8cff] font-semibold tracking-[0.16em] text-xs uppercase mb-6">
-              <span className="w-2 h-2 rounded-full bg-[#2d8cff]" /> Now In Public Beta
+            <p className="inline-flex items-center gap-2 px-5 py-2 rounded-full border border-white/10 bg-white/5 text-accent font-semibold tracking-[0.16em] text-xs uppercase mb-6">
+              <span className="w-2 h-2 rounded-full bg-accent" /> Live on Monad Testnet (simulated)
             </p>
             <h1 className="font-display font-bold leading-[0.95] text-white text-[clamp(2.4rem,5.8vw,4.8rem)]">
-              The Multi-Agent Platform
+              The AI Agent Economy
             </h1>
             <h2 className="font-display font-bold leading-[0.95] text-[clamp(2rem,5.2vw,4.3rem)] text-gradient-blue mt-2">
-              for Autonomous AI
+              Runs on Proof of Work
             </h2>
             <p className="mt-6 text-[clamp(0.95rem,1.25vw,1.15rem)] text-white/60 max-w-xl mx-auto lg:mx-0">
-              Delegate any goal. omniBox decomposes it into a precise task graph, spins up specialized agents, invokes real tools, and delivers results end-to-end.
+              Delegate any goal. Mergit decomposes it into a precise task graph, spins up specialized agents, invokes real tools, and delivers results end-to-end.
             </p>
           </div>
 
@@ -155,7 +166,7 @@ export function Login() {
               <button
                 type="submit"
                 disabled={signingIn || oauthLoading !== null}
-                className="w-full rounded-full h-12 flex items-center justify-center gap-2 disabled:opacity-60 bg-gradient-to-r from-[#2d8cff] to-[#6a4bff] text-white shadow-[0_0_32px_rgba(45,140,255,0.35)]"
+                className="w-full rounded-full h-12 flex items-center justify-center gap-2 disabled:opacity-60 bg-gradient-to-r from-accent to-purple text-white shadow-[0_0_32px_rgba(109,74,255,0.35)]"
               >
                 <Mail className="w-4 h-4" />
                 <span className="font-medium">

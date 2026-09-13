@@ -10,8 +10,8 @@ import { LandingFooter } from "../components/landing/LandingFooter";
 function PageBackground() {
   return (
     <div className="fixed inset-0 pointer-events-none z-0" aria-hidden>
-      {/* Base: pure black */}
-      <div className="absolute inset-0 bg-black" />
+      {/* Base: deep indigo-violet void */}
+      <div className="absolute inset-0 bg-bg" />
 
       {/* Subtle dot grid */}
       <div
@@ -28,7 +28,7 @@ function PageBackground() {
         className="absolute -top-40 left-1/2 -translate-x-1/2 w-[900px] h-[600px] rounded-full opacity-30 animate-glow-pulse"
         style={{
           background:
-            "radial-gradient(ellipse at center, rgba(0,149,255,0.35) 0%, rgba(103,58,228,0.15) 45%, transparent 70%)",
+            "radial-gradient(ellipse at center, rgba(109,74,255,0.35) 0%, rgba(168,85,247,0.15) 45%, transparent 70%)",
           filter: "blur(80px)",
         }}
       />
@@ -38,7 +38,7 @@ function PageBackground() {
         className="absolute top-[120vh] left-[15%] w-[600px] h-[500px] rounded-full opacity-20 animate-glow-pulse"
         style={{
           background:
-            "radial-gradient(ellipse at center, rgba(103,58,228,0.4) 0%, transparent 65%)",
+            "radial-gradient(ellipse at center, rgba(168,85,247,0.4) 0%, transparent 65%)",
           filter: "blur(100px)",
           animationDelay: "1.2s",
         }}
@@ -47,7 +47,7 @@ function PageBackground() {
         className="absolute top-[120vh] right-[10%] w-[500px] h-[500px] rounded-full opacity-15 animate-glow-pulse"
         style={{
           background:
-            "radial-gradient(ellipse at center, rgba(0,149,255,0.35) 0%, transparent 65%)",
+            "radial-gradient(ellipse at center, rgba(109,74,255,0.35) 0%, transparent 65%)",
           filter: "blur(120px)",
           animationDelay: "2.4s",
         }}
@@ -58,7 +58,7 @@ function PageBackground() {
         className="absolute top-[240vh] left-1/2 -translate-x-1/2 w-[700px] h-[500px] rounded-full opacity-20 animate-glow-pulse"
         style={{
           background:
-            "radial-gradient(ellipse at center, rgba(0,149,255,0.28) 0%, rgba(103,58,228,0.18) 50%, transparent 70%)",
+            "radial-gradient(ellipse at center, rgba(109,74,255,0.28) 0%, rgba(168,85,247,0.18) 50%, transparent 70%)",
           filter: "blur(100px)",
           animationDelay: "0.8s",
         }}
@@ -69,7 +69,7 @@ function PageBackground() {
         className="absolute top-[360vh] left-1/2 -translate-x-1/2 w-[800px] h-[600px] rounded-full opacity-25 animate-glow-pulse"
         style={{
           background:
-            "radial-gradient(ellipse at center, rgba(0,149,255,0.3) 0%, rgba(103,58,228,0.2) 45%, transparent 68%)",
+            "radial-gradient(ellipse at center, rgba(109,74,255,0.3) 0%, rgba(168,85,247,0.2) 45%, transparent 68%)",
           filter: "blur(90px)",
           animationDelay: "1.8s",
         }}
@@ -80,7 +80,7 @@ function PageBackground() {
 
 export function Landing() {
   return (
-    <div className="relative min-h-screen" style={{ background: "#000" }}>
+    <div className="relative min-h-screen" style={{ background: "#07060f" }}>
       <PageBackground />
 
       {/* All content layers above the fixed background */}

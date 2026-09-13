@@ -1,4 +1,4 @@
-# omniBox — 3-Minute Demo Video Script
+# Mergit — 3-Minute Demo Video Script
 **Hackathon: Anvil MMXXVI — Multi-Agent Autonomy Track**
 
 ---
@@ -19,7 +19,7 @@
 
 **Narration (speak naturally):**
 > "Every dev team has the same problem — someone files a GitHub issue, and it sits there for days while engineers context-switch to read the code, write a fix, open a PR, and leave a comment. What if that entire workflow ran itself?
-> This is omniBox — a multi-agent autonomy system that takes any natural-language goal and executes it end-to-end with no human in the loop."
+> This is Mergit — a multi-agent autonomy system that takes any natural-language goal and executes it end-to-end with no human in the loop."
 
 ---
 
@@ -28,7 +28,7 @@
 **Screen:** Slowly scroll the landing page — Features section, HowItWorks
 
 **Narration:**
-> "omniBox is not a chatbot and it's not a scripted pipeline. You describe a goal in plain English. A Claude orchestrator decomposes it into a task DAG — a directed graph of specialist agents. Each agent has its own model, tools, and output schema. They execute in parallel where dependencies allow, and the results chain into each other automatically.
+> "Mergit is not a chatbot and it's not a scripted pipeline. You describe a goal in plain English. A Claude orchestrator decomposes it into a task DAG — a directed graph of specialist agents. Each agent has its own model, tools, and output schema. They execute in parallel where dependencies allow, and the results chain into each other automatically.
 > Four agents: Researcher, Writer, Coder, and Integrator — each powered by Groq's fastest models."
 
 ---
@@ -109,11 +109,11 @@ Analyze the architecture of [owner]/[repo] and generate a Mermaid flow diagram o
 **Screen:** Brief screen-share of code or backend logs (terminal)
 
 **Narration:**
-> "What makes omniBox actually autonomous — not just scripted — is what happens when things go wrong.
+> "What makes Mergit actually autonomous — not just scripted — is what happens when things go wrong.
 >
 > If a task hits its retry limit, a **dynamic replanner** kicks in — the orchestrator is called again with context of what completed and what failed, and it devises an alternative plan. The goal continues.
 >
-> If the system detects a *developer-side bug* — a crash in our own code — it automatically files a GitHub issue on the omniBox repo and spawns a fix goal. The system debugs itself.
+> If the system detects a *developer-side bug* — a crash in our own code — it automatically files a GitHub issue on the Mergit repo and spawns a fix goal. The system debugs itself.
 >
 > And any agent can call **spawn_goal** mid-execution to create sub-goals it discovers are needed — true emergent autonomy."
 
@@ -124,10 +124,10 @@ Analyze the architecture of [owner]/[repo] and generate a Mermaid flow diagram o
 **Screen:** Models page (`/app/models`) — show the 40 model choices briefly, then back to landing
 
 **Narration:**
-> "omniBox supports 40 LLMs across Groq, Anthropic, OpenAI, Google, and Mistral — switchable at runtime with no restarts. It's fully traced with Omium SDK, persisted to SQLite for crash recovery, and the entire UI streams live via Server-Sent Events.
+> "Mergit supports 40 LLMs across Groq, Anthropic, OpenAI, Google, and Mistral — switchable at runtime with no restarts. It's fully traced with Omium SDK, persisted to SQLite for crash recovery, and the entire UI streams live via Server-Sent Events.
 >
-> Source code is at github.com/viscous106/omniBox.
-> omniBox — any goal, fully autonomous."
+> Source code is at github.com/mergit-io/Mergit-proto.
+> Mergit — any goal, fully autonomous. Every proof, on the ledger."
 
 **[Fade to landing page hero]**
 
