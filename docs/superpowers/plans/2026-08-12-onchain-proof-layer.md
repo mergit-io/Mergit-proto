@@ -14,8 +14,10 @@ aiosqlite · React/TS.
 
 ## Global Constraints
 
-- **No git operations by the assistant.** Every milestone ends at a **CHECKPOINT** where the exact
-  `git` commands are printed for the user to run. Never run them.
+- **Git.** Originally: the assistant prints commands, the user runs them. Mid-session the user
+  authorised the assistant to run git writes **for `mergit-proto` only**; M1 was committed by the
+  user from a printed checkpoint, M2 onward were committed directly. This exemption does not
+  extend to any other repository.
 - Backend venv is `backend/.venv/`; always `backend/.venv/bin/python`.
 - TDD for all backend logic: write the failing test, watch it fail, implement, watch it pass.
 - Tests must pass with **no RPC URL, no private key, no network**.
