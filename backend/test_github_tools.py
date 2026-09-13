@@ -94,7 +94,13 @@ class FakePR:
 
 class FakeRepo:
     def __init__(self, full_name="o/r", default_branch="main", push=True, pr=None,
-                 check_runs=(), branches=("main",)):
+                 check_runs=(), branches=("main",), existing_files=()):
+        # Either a bare path (content unknown, empty) or (path, source) when a test
+        # cares what the file already contains.
+        self.file_contents = {f if isinstance(f, str) else f[0]:
+                              "" if isinstance(f, str) else f[1]
+                              for f in existing_files}
+        self.existing_files = set(self.file_contents)
         self.full_name, self.default_branch = full_name, default_branch
         self.name = full_name.split("/")[-1]
         self.owner = FakeUser(full_name.split("/")[0])
@@ -121,6 +127,9 @@ class FakeRepo:
         return type("C", (), {"get_check_runs": lambda self=None: runs})()
 
     def get_contents(self, path, ref=None):
+        if path in self.existing_files:
+            return type("F", (), {"sha": f"blob-{path}",
+                                  "decoded_content": self.file_contents[path].encode()})()
         raise _gh_error(404, "Not Found")
 
     def get_pulls(self, state="open", base=None, head=None):
@@ -470,6 +479,59 @@ def test_pr_returns_the_existing_pr_instead_of_failing_on_a_rerun(monkeypatch):
     assert result["result"] == 99
 
 
+def test_pr_reports_editing_an_existing_file(monkeypatch):
+    repo = FakeRepo(existing_files=("calc.py",))
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "fix/x",
+                                "files": [{"path": "calc.py", "content": "fixed"}]}))
+
+    assert result["ok"] is True
+    assert result["files_modified"] == ["calc.py"]
+    assert result["files_created"] == []
+    assert repo.updated_files == [("calc.py", "fix/x")]
+
+
+def test_pr_reports_a_brand_new_file_so_a_missed_fix_cannot_hide(monkeypatch):
+    """A fix committed to a path that does not exist adds a file beside the bug and
+    leaves it in place — while the PR still opens and reports ok. The tool has to say
+    which paths were additions so that outcome is visible instead of silent."""
+    repo = FakeRepo(existing_files=("calc.py",))
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "fix/x",
+                                "files": [{"path": "calculator.py", "content": "fixed"}]}))
+
+    assert result["ok"] is True, "opening the PR still succeeds — that is the trap"
+    assert result["files_created"] == ["calculator.py"]
+    assert result["files_modified"] == []
+
+
+def test_a_rerun_onto_an_open_pr_still_says_which_files_it_wrote(monkeypatch):
+    """The retry path commits first and only then discovers the PR is already open.
+
+    Reporting nothing here is worse than reporting nothing on a fresh PR: a re-run is
+    exactly when a wrong path slips in unnoticed, because the PR url comes back
+    unchanged and everything reads like a no-op.
+    """
+    repo = FakeRepo(existing_files=("calc.py",))
+    repo.open_pulls = [FakePR(number=18, base="main")]
+    repo.create_pull_error = _gh_error(422, "A pull request already exists")
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "fix/x",
+                                "files": [{"path": "calculator.py", "content": "fixed"}]}))
+
+    assert result["ok"] is True and result["existing"] is True
+    assert result["result"] == 18, "the already-open PR is returned, not a new one"
+    assert repo.created_files == [("calculator.py", "fix/x")], "it did commit"
+    assert result["files_created"] == ["calculator.py"], "and it has to say so"
+    assert result["files_modified"] == []
+
+
 def test_pr_falls_back_to_the_default_branch_when_the_base_is_wrong(monkeypatch):
     # Models guess "main" on repos whose default is "master".
     repo = FakeRepo(default_branch="master", branches=("master",))
@@ -610,3 +672,77 @@ def test_an_integrator_that_only_fetches_data_still_needs_a_writer():
              _task("t2", "integrator", "call the weather API", depends_on=["t1"])],
             "t2",
         ))
+
+
+# ── files[].content replaces the whole file ─────────────────────────────────────
+
+STATS_PY = '''"""Statistics helpers."""
+
+
+def median(numbers):
+    ordered = sorted(numbers)
+    return ordered[len(ordered) // 2]
+
+
+def spread(numbers):
+    return max(numbers) - min(numbers)
+'''
+
+
+def test_a_fix_that_would_delete_the_rest_of_the_file_is_refused(monkeypatch):
+    """Observed on llama-3.3-70b: it fixed spread() and sent back only spread(),
+    which deletes median() and the docstring while the PR still opens green."""
+    repo = FakeRepo(existing_files=[("stats.py", STATS_PY)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    only_the_fix = "def spread(numbers):\n    if not numbers:\n        return 0\n    return max(numbers) - min(numbers)\n"
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "fix/x",
+                                "files": [{"path": "stats.py", "content": only_the_fix}]}))
+
+    assert result["ok"] is False
+    assert "median" in result["error"], f"the agent is not told what it would delete: {result['error']}"
+    assert repo.updated_files == [] and repo.created_refs == [], (
+        "refused after writing — a rejected PR must leave no branch and no commit behind"
+    )
+
+
+def test_a_complete_file_with_the_fix_applied_is_committed(monkeypatch):
+    """The guard must only block truncation, not editing."""
+    repo = FakeRepo(existing_files=[("stats.py", STATS_PY)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    whole_file = STATS_PY.replace("    return max(numbers) - min(numbers)",
+                                  "    if not numbers:\n        return 0\n    return max(numbers) - min(numbers)")
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "fix/x",
+                                "files": [{"path": "stats.py", "content": whole_file}]}))
+
+    assert result["ok"] is True
+    assert result["files_modified"] == ["stats.py"]
+
+
+def test_a_brand_new_file_has_nothing_to_lose(monkeypatch):
+    repo = FakeRepo(existing_files=[("stats.py", STATS_PY)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "fix/x",
+                                "files": [{"path": "brand_new.py", "content": "def hello():\n    pass\n"}]}))
+
+    assert result["ok"] is True
+    assert result["files_created"] == ["brand_new.py"]
+
+
+def test_renaming_is_not_mistaken_for_deleting_when_the_file_is_whole(monkeypatch):
+    """Only definitions that vanish count. A nested helper is not a top-level name,
+    so indenting or adding one must not trip the guard."""
+    repo = FakeRepo(existing_files=[("stats.py", STATS_PY)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    with_nested = STATS_PY + "\n\ndef outer():\n    def inner():\n        pass\n    return inner\n"
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "fix/x",
+                                "files": [{"path": "stats.py", "content": with_nested}]}))
+
+    assert result["ok"] is True, result.get("error")

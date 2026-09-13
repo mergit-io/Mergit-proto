@@ -162,7 +162,7 @@ async def run(
         if not any(m in model for m in ("claude-opus-4", "claude-sonnet-4", "claude-haiku-4-5")):
             _kwargs["temperature"] = 0.1
         try:
-            response = await acompletion(model=model, messages=messages, **_kwargs)
+            response = await acompletion(role=task.agent_name, model=model, messages=messages, **_kwargs)
         except Exception as exc:
             err_str = str(exc)
             # Rate limits are handled by the task worker so this coroutine does
@@ -408,7 +408,7 @@ async def run(
         _fkw: dict = {"tools": [SUBMIT_RESULT_TOOL], "tool_choice": {"type": "function", "function": {"name": "submit_result"}}}
         if not any(m in model for m in ("claude-opus-4", "claude-sonnet-4", "claude-haiku-4-5")):
             _fkw["temperature"] = 0.1
-        final = await acompletion(model=model, messages=messages, **_fkw)
+        final = await acompletion(role=task.agent_name, model=model, messages=messages, **_fkw)
         fmsg = final.choices[0].message
         if fmsg.tool_calls:
             fargs = json.loads(fmsg.tool_calls[0].function.arguments)

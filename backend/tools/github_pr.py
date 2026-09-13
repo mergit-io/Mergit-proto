@@ -1,25 +1,75 @@
 import asyncio
 import logging
+import re
 
 from tools.github_client import TOKEN_MISSING, client as _client, github_token, resolve_repo
 
 logger = logging.getLogger(__name__)
 
+# A definition at column zero. Nested ones are indented and deliberately not matched —
+# this is about what a file exports, not everything it contains.
+_TOP_LEVEL_DEF = re.compile(r"^(?:async\s+)?(?:def|class)\s+([A-Za-z_]\w*)", re.MULTILINE)
 
-def _commit_files(repo, files, head_branch, base_sha):
-    """Ensure head_branch exists (from base_sha) and commit files onto it."""
+
+def _defined_names(source: str) -> set[str]:
+    return set(_TOP_LEVEL_DEF.findall(source))
+
+
+def _dropped_definitions(repo, files, ref) -> list[str]:
+    """Paths whose replacement content silently deletes definitions they already have.
+
+    files[].content replaces the WHOLE file. An agent that returns only the function it
+    changed therefore fixes one thing and deletes everything else in that file, and the
+    PR still opens green. Observed on llama-3.3-70b: it fixed spread() and dropped
+    median() and the module docstring in the same commit.
+
+    Checked against the base ref before anything is committed, so a refusal leaves no
+    branch and no partial commit behind.
+    """
+    from github import GithubException
+    problems = []
+    for f in files:
+        try:
+            existing = repo.get_contents(f["path"], ref=ref)
+        except GithubException:
+            continue  # a path that does not exist yet cannot lose anything
+        if isinstance(existing, list):
+            continue  # a directory, not a file
+        try:
+            before = existing.decoded_content.decode("utf-8", "replace")
+        except Exception:  # binary, or an API shape without content — nothing to compare
+            continue
+        lost = _defined_names(before) - _defined_names(f["content"])
+        if lost:
+            problems.append(f"{f['path']} would lose: {', '.join(sorted(lost))}")
+    return problems
+
+
+def _commit_files(repo, files, head_branch, base_sha) -> dict[str, list[str]]:
+    """Ensure head_branch exists (from base_sha) and commit files onto it.
+
+    Reports which paths were added versus edited. A fix meant for an existing file that
+    lands as an addition is the failure mode where the PR opens green, the issue gets a
+    comment, and the bug is still there — untouched, beside a brand-new file. The caller
+    surfaces this so the agent and the reviewer can both see it.
+    """
     from github import GithubException
     try:
         repo.get_branch(head_branch)
     except GithubException:
         repo.create_git_ref(f"refs/heads/{head_branch}", base_sha)
+    created: list[str] = []
+    modified: list[str] = []
     for f in files:
         path, content = f["path"], f["content"]
         try:
             existing = repo.get_contents(path, ref=head_branch)
             repo.update_file(path, f"Fix {path}", content, existing.sha, branch=head_branch)
+            modified.append(path)
         except GithubException:
             repo.create_file(path, f"Add {path}", content, branch=head_branch)
+            created.append(path)
+    return {"files_created": created, "files_modified": modified}
 
 
 def _find_open_pr(upstream, head_label: str, base_branch: str):
@@ -80,24 +130,42 @@ async def github_pr(args: dict) -> dict:
     base_branch = _resolve_base(upstream, args.get("base_branch"))
     base_sha = upstream.get_branch(base_branch).commit.sha
 
+    # Refuse before committing anything, so a truncated fix leaves no branch behind.
+    # The message names what would be lost because the agent has to send the whole file
+    # to fix it, and "invalid content" would not tell it that.
+    dropped = _dropped_definitions(upstream, files, base_branch)
+    if dropped:
+        logger.warning("Refusing PR on %s — replacement content drops definitions: %s",
+                       repo_name, dropped)
+        return {"action": "create_pr", "result": None, "url": None, "ok": False,
+                "error": "files[].content replaces the ENTIRE file, and this content "
+                         f"would delete code that is already there — {'; '.join(dropped)}. "
+                         "Read the file, apply your change to it, and send the complete "
+                         "file back. Do not send only the part you changed."}
+
     me = g.get_user()
     login = me.login
 
     # ── Path 1: we have push access → branch + PR directly on the upstream ──
     if getattr(upstream.permissions, "push", False):
+        # Seeded before the commit so the already-open-PR branch below can still report
+        # what it wrote. The commit happens first; only create_pull fails on a re-run.
+        touched: dict[str, list[str]] = {"files_created": [], "files_modified": []}
         try:
-            _commit_files(upstream, files, head_branch, base_sha)
+            touched = _commit_files(upstream, files, head_branch, base_sha)
             pr = upstream.create_pull(title=title, body=body, head=head_branch, base=base_branch)
-            logger.info("PR created directly on %s: %s", repo_name, pr.html_url)
+            logger.info("PR created directly on %s: %s (added %s, edited %s)", repo_name,
+                        pr.html_url, touched["files_created"], touched["files_modified"])
             return {"action": "create_pr", "result": pr.number, "url": pr.html_url,
-                    "mode": "direct", "ok": True}
+                    "mode": "direct", "ok": True, **touched}
         except GithubException as e:
             # Re-running a task that already opened its PR must not read as a failure.
             existing = _find_open_pr(upstream, f"{upstream.owner.login}:{head_branch}", base_branch)
             if existing is not None:
-                logger.info("PR already open on %s: %s", repo_name, existing.html_url)
+                logger.info("PR already open on %s: %s (added %s, edited %s)", repo_name,
+                            existing.html_url, touched["files_created"], touched["files_modified"])
                 return {"action": "create_pr", "result": existing.number, "url": existing.html_url,
-                        "mode": "direct", "existing": True, "ok": True}
+                        "mode": "direct", "existing": True, "ok": True, **touched}
             logger.warning("Direct PR on %s failed (%s) — falling back to fork", repo_name, e)
 
     # ── Path 2: no push access (or direct failed) → autonomous fork-and-PR ──
@@ -120,19 +188,20 @@ async def github_pr(args: dict) -> dict:
             return {"action": "create_pr", "result": None, "url": None,
                     "error": f"fork {fork_full} did not become ready in time", "ok": False}
 
+    touched = {"files_created": [], "files_modified": []}
     try:
         # Branch from the UPSTREAM base commit, not from the fork's own default branch.
         # A fork created weeks ago sits at whatever the upstream looked like then, so
         # branching off it produces a PR whose diff reverts every commit landed since.
         # Forks share an object store with the upstream, so the upstream sha is valid here.
         try:
-            _commit_files(fork, files, head_branch, base_sha)
+            touched = _commit_files(fork, files, head_branch, base_sha)
         except GithubException:
             logger.warning("Could not branch %s from upstream sha %s — falling back to the "
                            "fork's own %s (the PR may show unrelated changes)",
                            head_branch, base_sha[:8], fork.default_branch)
-            _commit_files(fork, files, head_branch,
-                          fork.get_branch(fork.default_branch).commit.sha)
+            touched = _commit_files(fork, files, head_branch,
+                                    fork.get_branch(fork.default_branch).commit.sha)
 
         # Cross-repo PR: head must be "forkowner:branch", opened on the upstream.
         head_label = f"{login}:{head_branch}"
@@ -142,12 +211,14 @@ async def github_pr(args: dict) -> dict:
             existing = _find_open_pr(upstream, head_label, base_branch)
             if existing is None:
                 raise
-            logger.info("PR already open via fork %s: %s", fork_full, existing.html_url)
+            logger.info("PR already open via fork %s: %s (added %s, edited %s)", fork_full,
+                        existing.html_url, touched["files_created"], touched["files_modified"])
             return {"action": "create_pr", "result": existing.number, "url": existing.html_url,
-                    "mode": "fork", "fork": fork_full, "existing": True, "ok": True}
-        logger.info("PR created via fork %s → %s: %s", fork_full, repo_name, pr.html_url)
+                    "mode": "fork", "fork": fork_full, "existing": True, "ok": True, **touched}
+        logger.info("PR created via fork %s → %s: %s (added %s, edited %s)", fork_full,
+                    repo_name, pr.html_url, touched["files_created"], touched["files_modified"])
         return {"action": "create_pr", "result": pr.number, "url": pr.html_url,
-                "mode": "fork", "fork": fork_full, "ok": True}
+                "mode": "fork", "fork": fork_full, "ok": True, **touched}
     except GithubException as e:
         return {"action": "create_pr", "result": None, "url": None,
                 "error": f"fork PR failed: {e}", "ok": False}

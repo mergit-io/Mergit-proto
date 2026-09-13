@@ -89,16 +89,24 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
             "You are a code generation and execution agent. You write REAL, WORKING Python code.\n\n"
             "CRITICAL OUTPUT RULE: submit_result MUST contain exactly these keys:\n"
             "  - code (str): the FULL source code of the main file as a plain string — NOT a dict, NOT a spec, NOT pseudocode. Actual runnable Python.\n"
+            "  - path (str): the repo-relative file this code belongs in, e.g. 'calc.py' or 'src/auth/token.py'.\n"
             "  - output (str): the actual terminal output from running the code via code_exec.\n"
             "  - success (bool): true if code ran without errors.\n\n"
+            "PATH RULE — you are the only agent that sees both the bug and the fix, so the "
+            "filename dies here if you drop it:\n"
+            "- Fixing existing code? `path` MUST be the exact path of the file you were given "
+            "or read with github_read_file. Copy it character for character.\n"
+            "- NEVER invent a tidier filename. Fixing `calc.py` by writing `calculator.py` "
+            "does not fix anything — it adds a second file and leaves the bug in place.\n"
+            "- Only choose a new path when the task genuinely calls for a file that does not exist yet.\n\n"
             "Workflow:\n"
             "1. Write the actual Python code (not a design doc — real .py file content as a string).\n"
             "2. Run it with code_exec. Capture real output.\n"
-            "3. Call submit_result with the three required keys.\n\n"
+            "3. Call submit_result with all four required keys.\n\n"
             "WRONG (will be rejected):\n"
             "  submit_result({architecture: ..., layers: ..., deliverables: ...})  ← REJECTED\n"
             "CORRECT:\n"
-            "  submit_result({code: 'import sqlite3\\n\\ndef main():\\n    ...', output: 'Tests passed', success: true})\n\n"
+            "  submit_result({code: 'import sqlite3\\n\\ndef main():\\n    ...', path: 'calc.py', output: 'Tests passed', success: true})\n\n"
             "If the task asks for multiple files, put the MAIN file in `code` and describe others in `output`.\n"
             "Do NOT keep exploring — once you have working code, submit immediately."
         ),
@@ -107,10 +115,11 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
             "type": "object",
             "properties": {
                 "code": {"type": "string"},
+                "path": {"type": "string"},
                 "output": {"type": "string"},
                 "success": {"type": "boolean"},
             },
-            "required": ["code", "output", "success"],
+            "required": ["code", "path", "output", "success"],
         },
         "max_iterations": 10,
     },
@@ -140,6 +149,15 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
             "- Keep the diff MINIMAL and focused — only the lines needed for the fix, no unrelated churn.\n"
             "- Use github_pr with files[] (path+content) — it auto-detects the base branch and will "
             "autonomously fork the repo if you lack push access, then open a cross-repo PR.\n"
+            "- PATH RULE — every path in files[] must be a file that ALREADY EXISTS, unless the task "
+            "explicitly asks for a new one. github_pr commits whatever path you hand it: a wrong path "
+            "silently creates a second file and leaves the bug untouched, and the PR still reports success.\n"
+            "    1. If your inputs contain a path (e.g. `path`, `file_path`, a coder result), use it "
+            "VERBATIM. Do not tidy it, rename it, or move it.\n"
+            "    2. If they do not, find it — github_list_dir to see what the repo contains, then "
+            "github_read_file to confirm you have the right file. Recurse into subdirectories.\n"
+            "    3. NEVER guess a filename from what the code looks like. Fixing `calc.py` by committing "
+            "`calculator.py` ships nothing.\n"
             "- Use github_read_file to confirm the surrounding code before writing the fix.\n"
             "- After the PR is created, ALWAYS github_post_comment on the original issue with the PR link "
             "and a one-line summary of the fix.\n\n"
@@ -162,7 +180,8 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
             "action (str — what was done), result (any — the outcome), url (str — the PR URL, or null). "
             "Call submit_result only after the PR is actually created (result.ok == true)."
         ),
-        "allowed_tools": ["github_pr", "github_post_comment", "github_read_file", "github_create_repo",
+        "allowed_tools": ["github_pr", "github_post_comment", "github_read_file", "github_list_dir",
+                          "github_create_repo",
                           "github_list_workflows", "github_get_branch_protection", "github_set_branch_protection",
                           "github_get_pr", "github_get_pr_files", "github_list_prs", "github_merge_pr",
                           "github_review_pr", "github_request_review", "github_update_pr",
