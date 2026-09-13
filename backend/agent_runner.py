@@ -220,6 +220,41 @@ def _unrunnable_execution_claim(result: dict, task_text: str) -> str | None:
             f"here can run {wanted} — code_exec is a Python interpreter.")
 
 
+#: Punctuation that only appears in source. A line of English has none of it.
+_CODE_PUNCTUATION = re.compile(r"[{}()\[\];=<>]|::|->|:\s*$", re.M)
+
+#: A filename, possibly with directories. No spaces, because a sentence has spaces.
+_LOOKS_LIKE_A_PATH = re.compile(r"^[\w.\-]+(?:/[\w.\-]+)*$")
+
+
+def _not_actually_code(result: dict) -> str | None:
+    """Describe a `code` field holding prose, or a `path` field holding a sentence.
+
+    Live failure, goal 2c7b400b → PR #38:
+
+        {"code": "No Rust code was provided to execute",
+         "path": "No file path available", "success": True}
+
+    An excuse where the source belongs. Everything else passed it — `success` is a real
+    boolean, no required field is empty, `output` honestly says nothing was executed, and
+    the language guard abstains because the text shows no marker of any language, which is
+    exactly the silence that lets legitimate stubs through. Two tasks later a second coder
+    built `import os / print("Hello World")` on top of it, and that became PR #38.
+
+    The test stays syntactic — "is this a program, is that a filename" — rather than "is
+    this relevant to the goal", which is a judgement this cannot make. Punctuation is
+    enough evidence of a program: `total = sum(values)` counts, while a sentence has none.
+    """
+    code = result.get("code")
+    if isinstance(code, str) and code.strip():
+        if not _CODE_PUNCTUATION.search(code) and not language.detect_language(code):
+            return f"the code field contains prose, not source: {code.strip()[:70]!r}."
+    path = result.get("path")
+    if isinstance(path, str) and path.strip() and not _LOOKS_LIKE_A_PATH.match(path.strip()):
+        return f"the path field is not a file path: {path.strip()[:70]!r}."
+    return None
+
+
 #: A claim to have PRODUCED something on GitHub: a pull request, or a posted comment.
 #: Deliberately not every GitHub URL — a researcher assembling a blob or repository link
 #: is doing its job, while "here is the PR I opened" is an assertion about the world.
@@ -309,6 +344,15 @@ def _submission_problem(result: Any, schema_required: list[str],
                 "report the URL it returns. If the tool failed or you never called it, say "
                 "that instead — do not describe an outcome that did not happen."
             )
+
+    not_code = _not_actually_code(result)
+    if not_code:
+        return (
+            f"submit_result rejected — {not_code} Those fields carry the work itself: the "
+            "next agent commits `code` at `path` exactly as you send them. If you could "
+            "not write the code, say that in `output` and set success=false — do not put "
+            "the explanation where the source belongs."
+        )
 
     unrunnable = _unrunnable_execution_claim(result, task_text)
     if unrunnable:
