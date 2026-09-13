@@ -103,19 +103,19 @@ the services back. Nothing consults a goal's output, its task rows or its tool r
 those are the claims under test, and a harness that graded claims against themselves would
 agree with every lie.
 
-Latest suite, three runs per scenario:
+Latest suite, two runs per scenario:
 
 | scenario | runs | ok | silent | said so | median |
 |---|---|---|---|---|---|
-| ship_the_fix | 3 | 2 | 0 | 1 | 106.2s |
-| already_correct | 3 | 3 | 0 | 0 | 25.1s |
-| report_only | 3 | 3 | 0 | 0 | 46.0s |
+| ship_the_fix | 2 | 2 | 0 | 0 | 113.5s |
+| already_correct | 2 | 2 | 0 | 0 | 52.1s |
+| report_only | 2 | 2 | 0 | 0 | 55.1s |
 | degraded | skipped — only means something while Notion is unreachable | | | | |
 
-**success 89% · silent-failure 0% · reported shortfall 11%**
+**success 100% · silent-failure 0%**
 
-Two runs earlier it was 83% / 17%. The 17% was `already_correct` manufacturing work, and it
-is now 3 for 3.
+It read 83% / 17% two rounds earlier. Both failures behind that number were real and are
+fixed: `already_correct` manufactured work, and a plan reference that never resolved.
 
 Three of the four scenarios are not the happy path, because a suite made only of happy
 paths measures whether the demo works rather than whether the system does.
@@ -127,25 +127,29 @@ admitting it — the dangerous kind, because it is the run nobody goes and check
 the COMPLETED status, not the honesty. Run `dcaac2eb` was the second kind, and scoring it
 as the first would have slandered an agent that told the truth.
 
-Every finding so far came from this suite rather than from watching a demo:
+Every defect fixed since the suite existed was found by the suite, not by watching a demo:
 
-- **`already_correct` manufactured work** — 2 of 2, then 1 of 2. Told "if it is already
-  correct, say so", the pipeline opened PR #52 adding module-level asserts and a `print` to
-  a library file, and PR #53 whose own Root Cause section read "No code-level issue was
-  found". `tools/scope_creep.py` refuses both; the scenario has passed every run since.
+- **`already_correct` manufactured work.** Told "if it is already correct, say so", the
+  pipeline opened PR #52 adding module-level asserts and a `print` to a library file, and
+  PR #53 whose own Root Cause section read "No code-level issue was found".
+  `tools/scope_creep.py` refuses both.
 - **`notion_create_page` took its own schema literally.** The description said "Defaults to
   NOTION_PARENT_PAGE_ID" and a model passed that string as the value, shadowing the real
-  default. Fixed; `ship_the_fix` went 0/1 → 2/2.
-- **The planner still hands unresolved templates downstream.** Run `8738177b` reached
-  `notion_create_page` with `{{8738177b_t2.output.summary}}` still in the body. The
-  placeholder guard refused to publish it and the run said so — which is the whole of the
-  remaining 11%. The guard works; the interpolation bug behind it does not have a fix yet.
+  default.
+- **Plan references never resolved.** `resolve_inputs` walked only the top level of a
+  plan's inputs, so `{"data": {"root_cause": "{{t2.output.summary}}"}}` reached the writer
+  as literal text and became finished prose. Two of the three template walkers in the
+  codebase already recursed; the one whose result reaches a tool did not.
+- **Plan references resolved to the wrong thing.** A missing field falls back to the whole
+  upstream output, so `{{t2.output.summary}}` on a coder handed a writer the entire
+  contents of calc.py as an incident note's "root cause". Plans are now checked against
+  each agent's declared output schema before they run.
 
-Run `8738177b` is also the clearest evidence the guards do their job. Three fired in one
-run: `github_pr` refused a first attempt that added an empty-input guard nobody asked for,
-the retry shipped `+1 -1` instead of `+4 -2` and said "This PR does not add any new guard
-for empty lists", and the placeholder guard then stopped a Notion page full of unresolved
-templates.
+Run `8738177b` remains the clearest evidence the guards earn their place. Three fired in
+one run: `github_pr` refused a first attempt carrying an empty-input guard nobody asked
+for, the retry shipped `+1 -1` instead of `+4 -2` and said "This PR does not add any new
+guard for empty lists", and the placeholder guard then stopped a Notion page full of
+unresolved templates.
 
 ## Still to build
 
@@ -154,6 +158,7 @@ templates.
 2. **Fault injection** — kill the worker mid-run, revoke a token, force a 500. All three
    recovery paths already exist (lease reclaim, `WAITING_CREDENTIAL`, replanner); the
    harness has to prove they fire.
-3. **Plan interpolation** — `{{t2.output.summary}}` reaching a tool unresolved is the
-   last known cause of a failed objective. The guard catches it; the planner still emits it.
+3. **Fault injection** — kill the worker mid-run, revoke a token, force a 500. The three
+   recovery paths exist (lease reclaim, `WAITING_CREDENTIAL`, replanner); nothing proves
+   they fire.
 4. `/app/evals` — one table, and the reliability brief writes itself from it.
