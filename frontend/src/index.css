@@ -86,6 +86,18 @@ html, body, #root {
   -webkit-backdrop-filter: blur(24px);
 }
 
+/* ── App card (glass surface used across /app pages) ─── */
+.card {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 0.75rem;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* ── Text secondary ──────────────────────────────────── */
+.text-text-secondary { color: #9ca3af; }
+
 /* ── Cursor-tracking glow card ───────────────────────── */
 .glow-card {
   position: relative;

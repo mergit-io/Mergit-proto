@@ -1,4 +1,5 @@
 import { Eye, EyeOff, Globe, Mail } from "lucide-react";
+import { AppBackground } from "../components/AppBackground";
 import { useState } from "react";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
@@ -53,10 +54,9 @@ export function Login() {
 
   return (
     <main className="min-h-screen bg-black text-white relative overflow-hidden">
-      <div className="absolute inset-0 pointer-events-none opacity-25" style={{ backgroundImage: "radial-gradient(rgba(59,173,255,0.24) 1px, transparent 1px)", backgroundSize: "56px 56px" }} />
-      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_25%,rgba(48,81,255,0.24),transparent_55%)]" />
+      <AppBackground />
 
-      <div className="relative max-w-7xl mx-auto px-6 py-8 min-h-screen">
+      <div className="relative z-10 max-w-7xl mx-auto px-6 py-8 min-h-screen">
         <header className="glass-card rounded-3xl px-8 py-4 flex items-center justify-between">
           <a href="/" className="flex items-center gap-3">
             <div className="grid grid-cols-2 gap-1 w-8 h-8">

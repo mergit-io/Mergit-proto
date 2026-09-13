@@ -386,17 +386,20 @@ export function Models() {
 
         {/* Page header */}
         <motion.div
-          initial={{ opacity: 0, y: -10 }}
+          initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
+          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+          className="mb-10"
         >
-          <div className="flex items-center gap-3 mb-1">
-            <div className="w-8 h-8 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center">
-              <Cpu className="w-4 h-4 text-accent" />
-            </div>
-            <h1 className="text-xl font-bold text-white font-display tracking-tight">Model Configuration</h1>
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-accent/25 bg-accent/8 mb-4">
+            <Cpu className="w-3.5 h-3.5 text-accent" />
+            <span className="text-xs font-medium text-accent">Model Configuration</span>
           </div>
-          <p className="text-sm text-text-muted ml-11">
+          <h1 className="font-display font-bold text-white mb-3" style={{ fontSize: "clamp(1.8rem, 4vw, 2.6rem)" }}>
+            Choose your{" "}
+            <span className="text-gradient-blue">AI models</span>
+          </h1>
+          <p className="text-text-dim text-sm max-w-xl leading-relaxed">
             Assign any LLM to each agent role. Changes take effect on the next goal execution.
           </p>
         </motion.div>
