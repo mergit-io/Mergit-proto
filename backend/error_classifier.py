@@ -10,7 +10,7 @@ import re
 # Patterns that indicate the error came from our own code
 _OUR_FILES = re.compile(
     r"(agent_runner|orchestrator|worker|interpolation|tool_call|github_ops|github_pr|"
-    r"code_exec|file_ops|web_search|http_request|db\.py|events\.py|tracing\.py)",
+    r"code_exec|file_ops|web_search|http_request|db\.py|events\.py)",
     re.IGNORECASE,
 )
 

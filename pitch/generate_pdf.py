@@ -237,7 +237,7 @@ story.append(Paragraph("Value Proposition", sH2))
 story.append(Paragraph(
     "Mergit is <b>provider-agnostic</b> (40 models across Groq, Anthropic, OpenAI, Google, Mistral), "
     "<b>restart-resumable</b> (SQLite WAL + lease reclaim), <b>self-healing</b> (auto-files issues and "
-    "spawns fix goals on developer errors), and <b>fully observable</b> (Omium SDK tracing, live SSE dashboard). "
+    "spawns fix goals on developer errors), and <b>fully verifiable</b> (on-chain proof-of-work, live SSE dashboard). "
     "No proprietary lock-in. Deploy anywhere.",
     sBody
 ))
@@ -354,7 +354,7 @@ wf_data = [
      Paragraph("<b>Detail</b>", S("TH", fontName=DISPLAY, fontSize=9, textColor=TEXT_MAIN))],
     [Paragraph("1", S("N", fontName=DISPLAY, fontSize=11, textColor=BLUE, alignment=TA_CENTER)),
      Paragraph("Goal Submission", S("WS", fontName=DISPLAY, fontSize=9, textColor=TEXT_MAIN)),
-     Paragraph("POST /api/goals — inserts row with status=NEW, generates trace_id for Omium", sBody)],
+     Paragraph("POST /api/goals — inserts row with status=NEW, generates trace_id", sBody)],
     [Paragraph("2", S("N", fontName=DISPLAY, fontSize=11, textColor=BLUE, alignment=TA_CENTER)),
      Paragraph("Orchestration", S("WS", fontName=DISPLAY, fontSize=9, textColor=TEXT_MAIN)),
      Paragraph("goal_planner_loop claims NEW goal → calls Claude → emits PlanSchema DAG → inserts task rows (deps=[] → READY, others → PENDING)", sBody)],
@@ -422,7 +422,7 @@ stack_data = [
     ["LLMs",     "Groq (LLaMA 4 Maverick / LLaMA 3.3 70B) · Anthropic Claude · 40 models total"],
     ["Tools",    "Tavily search · PyGithub · httpx · asyncio subprocess (code_exec) · SSE (events.py)"],
     ["Frontend", "React 18 · TypeScript · Vite · Tailwind CSS · Framer Motion · React Flow · Mermaid.js"],
-    ["Tracing",  "Omium SDK — goal_trace_context → orchestrator span → task spans → tool spans"],
+    ["Proofs",   "ProofOfWork.sol — sha256(output) recorded on chain, idempotent per task"],
     ["Auth",     "Firebase Auth (email + Google + GitHub OAuth)"],
 ]
 for row in stack_data:

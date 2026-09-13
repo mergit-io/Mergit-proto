@@ -1,10 +1,8 @@
 import asyncio
 import sys
 
-from tracing import trace
 
 
-@trace("code_exec")
 async def code_exec(args: dict) -> dict:
     code = args["code"]
     timeout = args.get("timeout", 30)

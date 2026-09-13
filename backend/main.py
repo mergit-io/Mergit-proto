@@ -16,7 +16,6 @@ from api import actions, auth, config, context as ctx_api, github_webhook, goals
 from api import economy as economy_api
 from api import heal as heal_api
 from config import cors_origin_list, settings
-from tracing import init_tracing
 
 # ── Logging setup ────────────────────────────────────────────────────────────────
 _log_fmt = "%(asctime)s %(levelname)-8s %(name)-24s %(message)s"
@@ -104,7 +103,6 @@ async def lifespan(app: FastAPI):
     Path(settings.workspace_dir).mkdir(parents=True, exist_ok=True)
     logger.info("DB initialised at %s", settings.db_path)
     _init_chain()
-    init_tracing(settings.omium_api_key, settings.omium_project)
     await worker.start()
     logger.info("Mergit ready ✓")
     yield

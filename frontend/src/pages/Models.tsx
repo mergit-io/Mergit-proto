@@ -53,7 +53,6 @@ const PROVIDER_META: Record<string, { label: string; color: string; bg: string; 
   anthropic: { label: "Anthropic", color: "text-violet-400",  bg: "bg-violet-400/8",   border: "border-violet-400/20"  },
   tavily:    { label: "Tavily",    color: "text-cyan-400",    bg: "bg-cyan-400/8",      border: "border-cyan-400/20"    },
   github:    { label: "GitHub",    color: "text-white",       bg: "bg-white/8",         border: "border-white/20"       },
-  omium:     { label: "Omium",     color: "text-violet-400",  bg: "bg-violet-400/8",    border: "border-violet-400/20"  },
 };
 
 function ApiKeysSection() {

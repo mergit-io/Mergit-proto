@@ -39,12 +39,6 @@ services:
         sync: false
       - key: GITHUB_DEFAULT_REPO
         sync: false
-      - key: OMIUM_API_KEY
-        sync: false
-      - key: OMIUM_PROJECT
-        value: mergit
-      - key: OMIUM_SKIP_WORKFLOW_REGISTER
-        value: "true"
       - key: OAUTH_GOOGLE_CLIENT_ID
         sync: false
       - key: OAUTH_GOOGLE_CLIENT_SECRET

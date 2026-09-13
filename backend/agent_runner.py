@@ -16,7 +16,6 @@ from state import TaskRow
 from tools import TOOL_REGISTRY
 from tools.credential_request import WAITING_CREDENTIAL_SENTINEL
 from tools.wait_webhook import WAITING_WEBHOOK_SENTINEL
-from tracing import set_execution_context, trace, tool_span
 
 logger = logging.getLogger(__name__)
 
@@ -111,12 +110,10 @@ def _tool_allowed(tool_name: str, allowed_tools: list[str]) -> bool:
     return tool_name == "submit_result" or tool_name in allowed_tools
 
 
-@trace("agent_run")
 async def run(
     task: TaskRow,
     resolved_inputs: dict,
     emit: Callable[[str, dict], None] | None = None,
-    tracer: Any | None = None,
 ) -> dict[str, Any]:
     """
     Execute an agent task. Returns the structured output dict.
@@ -124,7 +121,6 @@ async def run(
     Raises WaitingWebhookSignal when the agent calls wait_webhook.
     """
     config = get_agent_config(task.agent_name)
-    set_execution_context(execution_id=task.trace_id, agent_id=f"{task.agent_name}/{task.id}")
 
     tools = _build_tool_defs(config["allowed_tools"])
     model = config["model"]
@@ -190,33 +186,25 @@ async def run(
                 if emit:
                     emit("tool_call", {"task_id": task.id, "tool": tool_name, "args": args})
 
-                existing = await db.get_tool_call_by_idempotency(ikey)
-                is_cached = bool(existing and existing.status == "SUCCESS" and existing.result_json)
-                with tool_span(tracer, task.id, tool_name, args, cached=is_cached) as tspan:
-                    result = await _execute_tool_idempotent(task, tool_name, args_str, args, ikey)
-                    if isinstance(result, dict) and result.get(WAITING_WEBHOOK_SENTINEL):
-                        wait_token = result["wait_token"]
-                        await db.set_task_waiting_webhook(task.id, wait_token)
-                        if tspan:
-                            tspan.set_attribute("wait_token", wait_token)
-                            tspan.add_event("task_suspended_for_webhook")
-                        if emit:
-                            emit("task_waiting", {"task_id": task.id, "wait_token": wait_token, "webhook_url": result.get("webhook_url", "")})
-                        raise WaitingWebhookSignal(wait_token)
-                    if isinstance(result, dict) and result.get(WAITING_CREDENTIAL_SENTINEL):
-                        cred_var = result["credential"]
-                        provider = result.get("provider", "")
-                        await db.set_task_waiting_credential(task.id, cred_var)
-                        if emit:
-                            emit("credential_request", {
-                                "task_id": task.id,
-                                "credential": cred_var,
-                                "provider": provider,
-                                "message": result.get("message", f"{cred_var} is required"),
-                            })
-                        raise WaitingCredentialSignal(cred_var, provider)
-                    if tspan and "error" not in result:
-                        tspan.set_output(result)
+                result = await _execute_tool_idempotent(task, tool_name, args_str, args, ikey)
+                if isinstance(result, dict) and result.get(WAITING_WEBHOOK_SENTINEL):
+                    wait_token = result["wait_token"]
+                    await db.set_task_waiting_webhook(task.id, wait_token)
+                    if emit:
+                        emit("task_waiting", {"task_id": task.id, "wait_token": wait_token, "webhook_url": result.get("webhook_url", "")})
+                    raise WaitingWebhookSignal(wait_token)
+                if isinstance(result, dict) and result.get(WAITING_CREDENTIAL_SENTINEL):
+                    cred_var = result["credential"]
+                    provider = result.get("provider", "")
+                    await db.set_task_waiting_credential(task.id, cred_var)
+                    if emit:
+                        emit("credential_request", {
+                            "task_id": task.id,
+                            "credential": cred_var,
+                            "provider": provider,
+                            "message": result.get("message", f"{cred_var} is required"),
+                        })
+                    raise WaitingCredentialSignal(cred_var, provider)
 
                 if emit:
                     emit("tool_result", {"task_id": task.id, "tool": tool_name,
@@ -330,49 +318,37 @@ async def run(
             if emit:
                 emit("tool_call", {"task_id": task.id, "tool": tool_name, "args": args})
 
-            # Check for cached result before opening a span so we can tag it
-            existing = await db.get_tool_call_by_idempotency(ikey)
-            is_cached = bool(existing and existing.status == "SUCCESS" and existing.result_json)
+            result = await _execute_tool_idempotent(task, tool_name, args_str, args, ikey)
 
-            with tool_span(tracer, task.id, tool_name, args, cached=is_cached) as tspan:
-                result = await _execute_tool_idempotent(task, tool_name, args_str, args, ikey)
+            if isinstance(result, dict) and result.get(WAITING_WEBHOOK_SENTINEL):
+                wait_token = result["wait_token"]
+                await db.set_task_waiting_webhook(task.id, wait_token)
+                logger.info("[task=%s] Task suspended — waiting for webhook (token=%s)", task.id, wait_token)
+                if emit:
+                    emit("task_waiting", {"task_id": task.id, "wait_token": wait_token, "webhook_url": result.get("webhook_url", "")})
+                raise WaitingWebhookSignal(wait_token)
 
-                if isinstance(result, dict) and result.get(WAITING_WEBHOOK_SENTINEL):
-                    wait_token = result["wait_token"]
-                    await db.set_task_waiting_webhook(task.id, wait_token)
-                    logger.info("[task=%s] Task suspended — waiting for webhook (token=%s)", task.id, wait_token)
-                    if tspan:
-                        tspan.set_attribute("wait_token", wait_token)
-                        tspan.add_event("task_suspended_for_webhook")
-                    if emit:
-                        emit("task_waiting", {"task_id": task.id, "wait_token": wait_token, "webhook_url": result.get("webhook_url", "")})
-                    raise WaitingWebhookSignal(wait_token)
+            if isinstance(result, dict) and result.get(WAITING_CREDENTIAL_SENTINEL):
+                cred_var = result["credential"]
+                provider = result.get("provider", "")
+                await db.set_task_waiting_credential(task.id, cred_var)
+                logger.info("[task=%s] Task suspended — waiting for credential %s", task.id, cred_var)
+                if emit:
+                    emit("credential_request", {
+                        "task_id": task.id,
+                        "credential": cred_var,
+                        "provider": provider,
+                        "message": result.get("message", f"{cred_var} is required"),
+                    })
+                raise WaitingCredentialSignal(cred_var, provider)
 
-                if isinstance(result, dict) and result.get(WAITING_CREDENTIAL_SENTINEL):
-                    cred_var = result["credential"]
-                    provider = result.get("provider", "")
-                    await db.set_task_waiting_credential(task.id, cred_var)
-                    logger.info("[task=%s] Task suspended — waiting for credential %s", task.id, cred_var)
-                    if emit:
-                        emit("credential_request", {
-                            "task_id": task.id,
-                            "credential": cred_var,
-                            "provider": provider,
-                            "message": result.get("message", f"{cred_var} is required"),
-                        })
-                    raise WaitingCredentialSignal(cred_var, provider)
-
-                if "error" in result:
-                    logger.warning("[task=%s] Tool %s returned error: %s", task.id, tool_name, result["error"])
-                    consecutive_errors += 1
-                    _failing_tools.add(tool_name)
-                    if tspan:
-                        tspan.set_attribute("error", result["error"])
-                else:
-                    consecutive_errors = 0
-                    logger.debug("[task=%s] Tool %s succeeded", task.id, tool_name)
-                    if tspan:
-                        tspan.set_output(result)
+            if "error" in result:
+                logger.warning("[task=%s] Tool %s returned error: %s", task.id, tool_name, result["error"])
+                consecutive_errors += 1
+                _failing_tools.add(tool_name)
+            else:
+                consecutive_errors = 0
+                logger.debug("[task=%s] Tool %s succeeded", task.id, tool_name)
 
             if emit:
                 emit("tool_result", {"task_id": task.id, "tool": tool_name,

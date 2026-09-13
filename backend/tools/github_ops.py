@@ -8,7 +8,6 @@ import base64
 import os
 
 from tools.credential_request import WAITING_CREDENTIAL_SENTINEL
-from tracing import trace
 
 _TOKEN_MISSING = {
     WAITING_CREDENTIAL_SENTINEL: True,
@@ -29,7 +28,6 @@ def _require_token() -> str | None:
 
 # ── Read file ────────────────────────────────────────────────────────────────────
 
-@trace("github_read_file")
 async def github_read_file(args: dict) -> dict:
     if not _require_token():
         return _TOKEN_MISSING
@@ -68,7 +66,6 @@ GITHUB_READ_FILE_SCHEMA = {
 
 # ── List directory ───────────────────────────────────────────────────────────────
 
-@trace("github_list_dir")
 async def github_list_dir(args: dict) -> dict:
     if not _require_token():
         return _TOKEN_MISSING
@@ -108,7 +105,6 @@ GITHUB_LIST_DIR_SCHEMA = {
 
 # ── Get issue ────────────────────────────────────────────────────────────────────
 
-@trace("github_get_issue")
 async def github_get_issue(args: dict) -> dict:
     if not _require_token():
         return _TOKEN_MISSING
@@ -149,7 +145,6 @@ GITHUB_GET_ISSUE_SCHEMA = {
 
 # ── Post comment ─────────────────────────────────────────────────────────────────
 
-@trace("github_post_comment")
 async def github_post_comment(args: dict) -> dict:
     if not _require_token():
         return _TOKEN_MISSING
@@ -180,7 +175,6 @@ GITHUB_POST_COMMENT_SCHEMA = {
 
 # ── Search code ──────────────────────────────────────────────────────────────────
 
-@trace("github_search_code")
 async def github_search_code(args: dict) -> dict:
     if not _require_token():
         return _TOKEN_MISSING
@@ -211,7 +205,6 @@ GITHUB_SEARCH_CODE_SCHEMA = {
 
 # ── Create a brand-new repo and push files ──────────────────────────────────────
 
-@trace("github_create_repo")
 async def github_create_repo(args: dict) -> dict:
     """Create a NEW GitHub repo under the authenticated account and commit files into it.
     Used when a goal asks to build something and ship it as its own repository."""
@@ -287,7 +280,6 @@ GITHUB_CREATE_REPO_SCHEMA = {
 
 # ── List GitHub Actions workflows ────────────────────────────────────────────────
 
-@trace("github_list_workflows")
 async def github_list_workflows(args: dict) -> dict:
     if not _require_token():
         return _TOKEN_MISSING
@@ -324,7 +316,6 @@ GITHUB_LIST_WORKFLOWS_SCHEMA = {
 
 # ── Get branch protection rules ──────────────────────────────────────────────────
 
-@trace("github_get_branch_protection")
 async def github_get_branch_protection(args: dict) -> dict:
     if not _require_token():
         return _TOKEN_MISSING
@@ -374,7 +365,6 @@ GITHUB_GET_BRANCH_PROTECTION_SCHEMA = {
 
 # ── Set branch protection rules ──────────────────────────────────────────────────
 
-@trace("github_set_branch_protection")
 async def github_set_branch_protection(args: dict) -> dict:
     if not _require_token():
         return _TOKEN_MISSING

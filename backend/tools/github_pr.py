@@ -4,7 +4,6 @@ import time
 
 from config import settings
 from tools.credential_request import WAITING_CREDENTIAL_SENTINEL
-from tracing import trace
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +24,6 @@ def _commit_files(repo, files, head_branch, base_sha):
             repo.create_file(path, f"Add {path}", content, branch=head_branch)
 
 
-@trace("github_pr")
 async def github_pr(args: dict) -> dict:
     token = os.environ.get("GITHUB_TOKEN", "") or settings.github_token
     if not token:

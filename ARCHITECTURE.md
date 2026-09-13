@@ -80,13 +80,6 @@ flowchart TD
         HardLimit["Hard quota\ntry next model"]
     end
 
-    subgraph Tracing ["Tracing — Omium SDK"]
-        GoalTrace["goal_trace_context\nexecution_id = trace_id"]
-        OrchestratorSpan["orchestrator span"]
-        TaskSpan["task spans"]
-        ToolSpan["tool spans"]
-    end
-
     User -->|"submit goal / webhook"| API
     Dashboard -->|"POST /api/goals"| GoalsAPI
     GoalDetail --> SSEHook --> StreamAPI
@@ -340,7 +333,6 @@ Mergit/
 │   ├── replanner.py             # Dynamic replan on task failure
 │   ├── self_heal.py             # Auto-file issue + spawn fix goal
 │   ├── events.py                # asyncio.Queue per goal for SSE
-│   ├── tracing.py               # Omium SDK wrappers, no-op fallback
 │   ├── context.py               # Per-goal context store
 │   ├── tools/
 │   │   ├── __init__.py          # TOOL_REGISTRY
