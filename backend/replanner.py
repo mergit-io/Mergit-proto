@@ -76,6 +76,7 @@ async def attempt_replan(goal_id: str, failed_task_id: str, failure_error: str) 
 
     try:
         response = await acompletion(
+            role="replanner",
             model=orchestrator_model,
             messages=messages,
             tools=[PLAN_TOOL],

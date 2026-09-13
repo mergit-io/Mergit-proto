@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import os
 import re
@@ -232,6 +233,30 @@ def _candidate_models(model: str) -> list[str]:
     return [model_health.get_least_cold([model] + fallbacks)]
 
 
+def _key_env_for(model: str) -> str:
+    """Which environment variable paid for this call."""
+    provider = model.split("/", 1)[0] if "/" in model else ""
+    return _PROVIDER_KEY_ENV.get(provider, "(none required)")
+
+
+def _log_served(role: str | None, requested: str, served: str) -> None:
+    """One JSON line per call naming the credential that answered it.
+
+    Which key is doing the work is invisible otherwise: a fallback swaps the provider
+    silently, so a deployment can be quietly spending an OpenRouter balance while the
+    dashboard still shows Groq. Emitted as JSON so it can be grepped or parsed out of
+    the live log rather than read by eye.
+    """
+    logger.info("llm_call %s", json.dumps({
+        "role": role or "unknown",
+        "requested": requested,
+        "served_by": served,
+        "provider": served.split("/", 1)[0] if "/" in served else served,
+        "key": _key_env_for(served),
+        "fell_back": served != requested,
+    }))
+
+
 async def acompletion(
     model: str,
     messages: list[dict],
@@ -239,6 +264,7 @@ async def acompletion(
     tool_choice: dict | str | None = None,
     temperature: float = 0.2,
     max_tokens: int = 4096,
+    role: str | None = None,
 ) -> Any:
     models_to_try = _candidate_models(model)
     last_err: Exception | None = None
@@ -280,6 +306,7 @@ async def acompletion(
                     record(ValueError(f"{attempt_model} returned empty response (no choices)"))
                     logger.warning("Empty choices from %s; trying next model", attempt_model)
                     break
+                _log_served(role, model, attempt_model)
                 return resp
             except Exception as exc:
                 if _is_hard_rate_limit(exc):

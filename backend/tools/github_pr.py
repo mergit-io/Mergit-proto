@@ -1,9 +1,48 @@
 import asyncio
 import logging
+import re
 
 from tools.github_client import TOKEN_MISSING, client as _client, github_token, resolve_repo
 
 logger = logging.getLogger(__name__)
+
+# A definition at column zero. Nested ones are indented and deliberately not matched —
+# this is about what a file exports, not everything it contains.
+_TOP_LEVEL_DEF = re.compile(r"^(?:async\s+)?(?:def|class)\s+([A-Za-z_]\w*)", re.MULTILINE)
+
+
+def _defined_names(source: str) -> set[str]:
+    return set(_TOP_LEVEL_DEF.findall(source))
+
+
+def _dropped_definitions(repo, files, ref) -> list[str]:
+    """Paths whose replacement content silently deletes definitions they already have.
+
+    files[].content replaces the WHOLE file. An agent that returns only the function it
+    changed therefore fixes one thing and deletes everything else in that file, and the
+    PR still opens green. Observed on llama-3.3-70b: it fixed spread() and dropped
+    median() and the module docstring in the same commit.
+
+    Checked against the base ref before anything is committed, so a refusal leaves no
+    branch and no partial commit behind.
+    """
+    from github import GithubException
+    problems = []
+    for f in files:
+        try:
+            existing = repo.get_contents(f["path"], ref=ref)
+        except GithubException:
+            continue  # a path that does not exist yet cannot lose anything
+        if isinstance(existing, list):
+            continue  # a directory, not a file
+        try:
+            before = existing.decoded_content.decode("utf-8", "replace")
+        except Exception:  # binary, or an API shape without content — nothing to compare
+            continue
+        lost = _defined_names(before) - _defined_names(f["content"])
+        if lost:
+            problems.append(f"{f['path']} would lose: {', '.join(sorted(lost))}")
+    return problems
 
 
 def _commit_files(repo, files, head_branch, base_sha) -> dict[str, list[str]]:
@@ -90,6 +129,19 @@ async def github_pr(args: dict) -> dict:
 
     base_branch = _resolve_base(upstream, args.get("base_branch"))
     base_sha = upstream.get_branch(base_branch).commit.sha
+
+    # Refuse before committing anything, so a truncated fix leaves no branch behind.
+    # The message names what would be lost because the agent has to send the whole file
+    # to fix it, and "invalid content" would not tell it that.
+    dropped = _dropped_definitions(upstream, files, base_branch)
+    if dropped:
+        logger.warning("Refusing PR on %s — replacement content drops definitions: %s",
+                       repo_name, dropped)
+        return {"action": "create_pr", "result": None, "url": None, "ok": False,
+                "error": "files[].content replaces the ENTIRE file, and this content "
+                         f"would delete code that is already there — {'; '.join(dropped)}. "
+                         "Read the file, apply your change to it, and send the complete "
+                         "file back. Do not send only the part you changed."}
 
     me = g.get_user()
     login = me.login

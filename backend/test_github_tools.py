@@ -95,7 +95,12 @@ class FakePR:
 class FakeRepo:
     def __init__(self, full_name="o/r", default_branch="main", push=True, pr=None,
                  check_runs=(), branches=("main",), existing_files=()):
-        self.existing_files = set(existing_files)
+        # Either a bare path (content unknown, empty) or (path, source) when a test
+        # cares what the file already contains.
+        self.file_contents = {f if isinstance(f, str) else f[0]:
+                              "" if isinstance(f, str) else f[1]
+                              for f in existing_files}
+        self.existing_files = set(self.file_contents)
         self.full_name, self.default_branch = full_name, default_branch
         self.name = full_name.split("/")[-1]
         self.owner = FakeUser(full_name.split("/")[0])
@@ -123,7 +128,8 @@ class FakeRepo:
 
     def get_contents(self, path, ref=None):
         if path in self.existing_files:
-            return type("F", (), {"sha": f"blob-{path}"})()
+            return type("F", (), {"sha": f"blob-{path}",
+                                  "decoded_content": self.file_contents[path].encode()})()
         raise _gh_error(404, "Not Found")
 
     def get_pulls(self, state="open", base=None, head=None):
@@ -666,3 +672,77 @@ def test_an_integrator_that_only_fetches_data_still_needs_a_writer():
              _task("t2", "integrator", "call the weather API", depends_on=["t1"])],
             "t2",
         ))
+
+
+# ── files[].content replaces the whole file ─────────────────────────────────────
+
+STATS_PY = '''"""Statistics helpers."""
+
+
+def median(numbers):
+    ordered = sorted(numbers)
+    return ordered[len(ordered) // 2]
+
+
+def spread(numbers):
+    return max(numbers) - min(numbers)
+'''
+
+
+def test_a_fix_that_would_delete_the_rest_of_the_file_is_refused(monkeypatch):
+    """Observed on llama-3.3-70b: it fixed spread() and sent back only spread(),
+    which deletes median() and the docstring while the PR still opens green."""
+    repo = FakeRepo(existing_files=[("stats.py", STATS_PY)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    only_the_fix = "def spread(numbers):\n    if not numbers:\n        return 0\n    return max(numbers) - min(numbers)\n"
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "fix/x",
+                                "files": [{"path": "stats.py", "content": only_the_fix}]}))
+
+    assert result["ok"] is False
+    assert "median" in result["error"], f"the agent is not told what it would delete: {result['error']}"
+    assert repo.updated_files == [] and repo.created_refs == [], (
+        "refused after writing — a rejected PR must leave no branch and no commit behind"
+    )
+
+
+def test_a_complete_file_with_the_fix_applied_is_committed(monkeypatch):
+    """The guard must only block truncation, not editing."""
+    repo = FakeRepo(existing_files=[("stats.py", STATS_PY)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    whole_file = STATS_PY.replace("    return max(numbers) - min(numbers)",
+                                  "    if not numbers:\n        return 0\n    return max(numbers) - min(numbers)")
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "fix/x",
+                                "files": [{"path": "stats.py", "content": whole_file}]}))
+
+    assert result["ok"] is True
+    assert result["files_modified"] == ["stats.py"]
+
+
+def test_a_brand_new_file_has_nothing_to_lose(monkeypatch):
+    repo = FakeRepo(existing_files=[("stats.py", STATS_PY)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "fix/x",
+                                "files": [{"path": "brand_new.py", "content": "def hello():\n    pass\n"}]}))
+
+    assert result["ok"] is True
+    assert result["files_created"] == ["brand_new.py"]
+
+
+def test_renaming_is_not_mistaken_for_deleting_when_the_file_is_whole(monkeypatch):
+    """Only definitions that vanish count. A nested helper is not a top-level name,
+    so indenting or adding one must not trip the guard."""
+    repo = FakeRepo(existing_files=[("stats.py", STATS_PY)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    with_nested = STATS_PY + "\n\ndef outer():\n    def inner():\n        pass\n    return inner\n"
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "fix/x",
+                                "files": [{"path": "stats.py", "content": with_nested}]}))
+
+    assert result["ok"] is True, result.get("error")
