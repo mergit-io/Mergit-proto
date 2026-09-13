@@ -166,6 +166,22 @@ export function Hash({ value, chars = 4 }: { value: string | null | undefined; c
   );
 }
 
+/** How far a proof has got towards the chain, said in the reader's terms rather than the
+ *  outbox's. `null` means the proof was minted locally and never queued at all. */
+const SETTLEMENT: Record<string, string> = {
+  pending: "Queued",
+  submitting: "Submitting",
+  confirmed: "Settled",
+  dead_lettered: "Gave up",
+};
+
+export function settlementLabel(status: string | null | undefined): string {
+  if (!status) return "Not submitted";
+  // Falling back to the raw status keeps a value the backend adds later readable here
+  // instead of rendering an empty cell.
+  return SETTLEMENT[status] ?? status;
+}
+
 // ── States ───────────────────────────────────────────────────────────────────
 
 export function Empty({

@@ -77,8 +77,11 @@ async def replay(delay_seconds: float = 0, emit=logger.info) -> int:
         proof = await economy.record_proof(task, output)
         if proof:
             minted += 1
-            emit(f"  minted proof {proof['tx_hash'][:18]}… for {task.agent_name} "
-                 f"— block {proof['block_number']}")
+            # `proof['tx_hash']` and `['block_number']` are locally simulated, so logging
+            # them as "block N" claimed a settlement that had not happened. The result
+            # hash is the real value here — it is what gets committed to the chain.
+            emit(f"  recorded proof {proof['result_hash'][:16]}… for {task.agent_name} "
+                 "— queued for chain")
         else:
             emit(f"  proof for {task.agent_name}: skipped (already minted)")
 

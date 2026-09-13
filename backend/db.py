@@ -833,10 +833,59 @@ async def list_reputation():
 
 
 def _proof_row(row):
+    """The raw local row, simulated chain columns included. Internal callers only.
+
+    `get_proof` uses this for an idempotency check, which cares only that a row exists.
+    Anything user-facing goes through `_ledger_row` instead — see the note there.
+    """
     return {
         "task_id": row["task_id"], "goal_id": row["goal_id"], "agent_role": row["agent_role"],
         "result_hash": row["result_hash"], "tx_hash": row["tx_hash"],
         "block_number": row["block_number"], "recorded_at": row["recorded_at"],
+    }
+
+
+#: Joins each proof to its submission record. `proofs` carries simulated chain columns and
+#: `proof_outbox` carries real ones, so the two sets must be aliased apart.
+_LEDGER_SELECT = """
+    SELECT p.*,
+           o.status       AS submission_status,
+           o.tx_hash      AS chain_tx_hash,
+           o.block_number AS chain_block_number,
+           o.chain_id     AS chain_id
+    FROM proofs p
+    LEFT JOIN proof_outbox o ON o.task_id = p.task_id
+"""
+
+
+def _ledger_row(row):
+    """A proof as the ledger may show it: local position, plus whatever the chain says.
+
+    `proofs.tx_hash` is `sha256(task_id + result_hash)` and `proofs.block_number` is a
+    counter seeded at 18,100,000 (economy.tx_hash / _PROOF_BASE_BLOCK). Both are minted
+    locally the moment a task finishes, so the ledger can populate before the chain
+    settles — but neither has ever existed on any chain. Real settlement is written to
+    `proof_outbox` by `mark_proof_confirmed`, which never touches `proofs`.
+
+    So the chain fields are read from the outbox and stay null until the submission is
+    confirmed. The local counter survives as `sequence`, which is all it ever was: an
+    ordering and pagination key. It used to be served as `block_number`, and the UI duly
+    printed it as a block height and linked `{explorer}/tx/{tx_hash}` on every row.
+    """
+    status = row["submission_status"]
+    confirmed = status == "confirmed"
+    # A proof already recorded on chain confirms with an empty tx hash: the contract
+    # stores the result, not the transaction that delivered it. Empty is not a hash.
+    tx = (row["chain_tx_hash"] or None) if confirmed else None
+    return {
+        "task_id": row["task_id"], "goal_id": row["goal_id"],
+        "agent_role": row["agent_role"], "result_hash": row["result_hash"],
+        "recorded_at": row["recorded_at"],
+        "sequence": row["block_number"],
+        "submission_status": status,
+        "tx_hash": tx,
+        "block_number": row["chain_block_number"] if confirmed else None,
+        "chain_id": row["chain_id"] if confirmed else None,
     }
 
 
@@ -879,42 +928,44 @@ _VISIBLE_GOALS = """
 """
 
 
+#: Paging and ordering run on the local counter, not on the real block. Real blocks are
+#: sparse and land out of order — the outbox retries — so a cursor over them would skip
+#: rows or repeat them.
+_LEDGER_ORDER = "ORDER BY p.block_number DESC LIMIT ?"
+
+
 async def list_proofs(limit=50, before_block=None, user_id=None):
     async with get_conn() as conn:
         if user_id is None:
             # Internal callers (backfill, verification) see everything.
             if before_block is not None:
                 cur = await conn.execute(
-                    "SELECT * FROM proofs WHERE block_number < ? ORDER BY block_number DESC LIMIT ?",
+                    f"{_LEDGER_SELECT} WHERE p.block_number < ? {_LEDGER_ORDER}",
                     (before_block, limit))
             else:
-                cur = await conn.execute(
-                    "SELECT * FROM proofs ORDER BY block_number DESC LIMIT ?", (limit,))
+                cur = await conn.execute(f"{_LEDGER_SELECT} {_LEDGER_ORDER}", (limit,))
         elif before_block is not None:
             cur = await conn.execute(
-                f"SELECT p.* FROM proofs p WHERE {_VISIBLE_GOALS} AND p.block_number < ? "
-                "ORDER BY p.block_number DESC LIMIT ?",
+                f"{_LEDGER_SELECT} WHERE {_VISIBLE_GOALS} AND p.block_number < ? {_LEDGER_ORDER}",
                 (user_id, before_block, limit))
         else:
             cur = await conn.execute(
-                f"SELECT p.* FROM proofs p WHERE {_VISIBLE_GOALS} "
-                "ORDER BY p.block_number DESC LIMIT ?",
+                f"{_LEDGER_SELECT} WHERE {_VISIBLE_GOALS} {_LEDGER_ORDER}",
                 (user_id, limit))
-        return [_proof_row(r) for r in await cur.fetchall()]
+        return [_ledger_row(r) for r in await cur.fetchall()]
 
 
 async def list_proofs_for_role(role, limit=20, user_id=None):
     async with get_conn() as conn:
         if user_id is None:
             cur = await conn.execute(
-                "SELECT * FROM proofs WHERE agent_role=? ORDER BY block_number DESC LIMIT ?",
+                f"{_LEDGER_SELECT} WHERE p.agent_role=? {_LEDGER_ORDER}",
                 (role, limit))
         else:
             cur = await conn.execute(
-                f"SELECT p.* FROM proofs p WHERE p.agent_role=? AND {_VISIBLE_GOALS} "
-                "ORDER BY p.block_number DESC LIMIT ?",
+                f"{_LEDGER_SELECT} WHERE p.agent_role=? AND {_VISIBLE_GOALS} {_LEDGER_ORDER}",
                 (role, user_id, limit))
-        return [_proof_row(r) for r in await cur.fetchall()]
+        return [_ledger_row(r) for r in await cur.fetchall()]
 
 
 async def max_proof_block():

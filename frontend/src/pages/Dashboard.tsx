@@ -17,6 +17,7 @@ import {
   Panel,
   ProofBlock,
   Tabs,
+  settlementLabel,
 } from "../components/ui";
 
 const FILTERS = [
@@ -86,7 +87,15 @@ function ProofField() {
           <ul className="pb-2">
             {proofs.slice(0, RECEIPTS).map((p) => (
               <li key={p.task_id} className="flex items-center justify-between px-5 py-1.5 text-xs">
-                <Hash value={p.tx_hash} />
+                {/* Only a settled proof has a transaction hash. Until then the row says so
+                    rather than showing the locally minted stand-in as if it were one. */}
+                {p.tx_hash ? (
+                  <Hash value={p.tx_hash} />
+                ) : (
+                  <span className="font-mono text-micro uppercase opacity-70">
+                    {settlementLabel(p.submission_status)}
+                  </span>
+                )}
                 <span className="font-mono text-micro uppercase opacity-70">{p.agent_role}</span>
               </li>
             ))}
