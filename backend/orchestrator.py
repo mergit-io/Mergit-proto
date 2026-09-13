@@ -28,10 +28,6 @@ Available agents (choose from these only):
   Output: {{"text": str, "title": str}}
   NOTE: use this as the terminal agent whenever the goal is to produce a report or readable summary.
 
-- notifier: Sends data to any HTTP endpoint (webhooks, APIs).
-  Tools: http_request
-  Output: {{"sent": bool, "destination": str}}
-
 - coder: Writes and executes Python code, reads GitHub files for context, saves results to files.
   Tools: code_exec, file_ops, web_search, github_read_file
   Output: {{"code": str, "output": str, "success": bool}}
@@ -307,7 +303,7 @@ def _validate_plan(p: PlanSchema) -> None:
                 raise ValueError(f"task '{t.id}' depends on unknown task '{dep}'")
         if t.id in t.depends_on:
             raise ValueError(f"task '{t.id}' depends on itself")
-    known_agents = {"researcher", "writer", "notifier", "coder", "integrator"}
+    known_agents = {"researcher", "writer", "coder", "integrator"}
     for t in p.tasks:
         if t.agent not in known_agents:
             raise ValueError(f"unknown agent '{t.agent}' in task '{t.id}'")

@@ -68,26 +68,6 @@ AGENT_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "max_iterations": 4,
     },
-    "notifier": {
-        "name": "notifier",
-        "model": "groq/llama-3.3-70b-versatile",
-        "system_prompt": (
-            "You are a notification dispatch agent. Send HTTP POST requests to external endpoints.\n\n"
-            "CRITICAL: Report EXACTLY what the tool returned — never fabricate success.\n"
-            "Return a JSON object with exactly these keys: sent (bool), destination (str).\n"
-            "Call submit_result once — with the real outcome."
-        ),
-        "allowed_tools": ["http_request"],
-        "output_schema": {
-            "type": "object",
-            "properties": {
-                "sent": {"type": "boolean"},
-                "destination": {"type": "string"},
-            },
-            "required": ["sent", "destination"],
-        },
-        "max_iterations": 3,
-    },
     "coder": {
         "name": "coder",
         "model": "groq/llama-3.3-70b-versatile",
