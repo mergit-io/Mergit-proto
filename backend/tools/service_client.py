@@ -73,12 +73,25 @@ def _missing(provider: str, credential: str, message: str) -> dict[str, Any]:
     }
 
 
+#: Providers with a connect flow a user can actually complete — one `POST
+#: /api/connections/<p>/start` and one callback in `api/connections.py`. Linear and Notion
+#: have settings for client credentials and no routes behind them, and the gap is not
+#: harmless: `oauth_configured` is what decides whether a call falls back to the shared
+#: token or parks the task waiting for a human. Answer yes for a provider with no flow and
+#: the task parks on a connect link that 404s, and the goal waits forever. So the question
+#: this module asks is not "are credentials present" but "can this person finish it", and
+#: adding a provider here without adding its two routes reintroduces exactly that.
+_CONNECT_FLOWS: frozenset[str] = frozenset({"slack"})
+
+
 def oauth_configured(provider: str) -> bool:
     """True when this deployment can ask *this user* to connect `provider` themselves.
 
     The hinge of the fallback rule below. `github_client.app_configured()` plays the same
     part for GitHub.
     """
+    if provider not in _CONNECT_FLOWS:
+        return False
     prefix = provider  # slack_client_id, linear_client_id, notion_client_id
     return bool(getattr(settings, f"{prefix}_client_id", "")
                 and getattr(settings, f"{prefix}_client_secret", ""))

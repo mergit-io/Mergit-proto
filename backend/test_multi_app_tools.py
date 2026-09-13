@@ -130,6 +130,28 @@ def test_missing_credential_parks_rather_than_fails(monkeypatch):
     assert parked["connect_url"] == ""
 
 
+def test_credentials_for_a_provider_with_no_connect_flow_are_ignored(monkeypatch):
+    """Setting LINEAR_CLIENT_ID on a deployment must not strand every Linear call.
+
+    `oauth_configured` decides whether a call falls back to the shared token or parks
+    waiting for a human. Linear and Notion have client-credential settings and no routes
+    behind them, so answering yes there parks the task on a connect link that 404s and the
+    goal waits for a connection nobody can make. The deployment token is the only path
+    those two have, and a stray environment variable must not close it.
+    """
+    for provider in ("linear", "notion"):
+        monkeypatch.setattr(svc.settings, f"{provider}_client_id", "id", raising=False)
+        monkeypatch.setattr(svc.settings, f"{provider}_client_secret", "secret", raising=False)
+        assert svc.oauth_configured(provider) is False
+        # And the call still goes through on the deployment token rather than parking.
+        assert asyncio.run(svc.credential_check(provider, {"_goal_id": None})) is None
+
+    # Slack does have both routes, so its credentials still count.
+    monkeypatch.setattr(svc.settings, "slack_client_id", "id", raising=False)
+    monkeypatch.setattr(svc.settings, "slack_client_secret", "secret", raising=False)
+    assert svc.oauth_configured("slack") is True
+
+
 def test_deployment_token_satisfies_the_check():
     assert asyncio.run(svc.credential_check("slack", {})) is None
     assert asyncio.run(svc.token("slack", {})) == "xoxb-test"
