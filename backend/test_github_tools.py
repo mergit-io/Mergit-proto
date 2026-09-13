@@ -357,6 +357,24 @@ def test_get_pr_files_truncates_a_huge_diff(monkeypatch):
     assert result["patches_truncated"] == ["big.py"]
 
 
+def test_get_pr_files_budget_holds_across_several_huge_diffs(monkeypatch):
+    # The single-file case above passes even when the budget arithmetic is wrong. It takes
+    # a SECOND large file to expose it: charging the truncation marker to the budget drove
+    # it negative, and `patch[:negative]` slices from the end of the string, so the second
+    # file came back all but whole — while still being reported as truncated.
+    pr = FakePR(files=[FakeFile("big1.py", patch="a" * 50_000),
+                       FakeFile("big2.py", patch="b" * 50_000),
+                       FakeFile("big3.py", patch="c" * 50_000)])
+    install(monkeypatch, ops, {"o/r": FakeRepo(pr=pr)})
+
+    result = run(ops.github_get_pr_files({"repo": "o/r", "pr_number": 7}))
+
+    total = sum(len(f["patch"]) for f in result["files"])
+    assert total < ops._MAX_PATCH_CHARS + 200, f"budget blown: {total} chars returned"
+    assert "b" * 100 not in result["files"][1]["patch"]
+    assert result["patches_truncated"] == ["big1.py", "big2.py", "big3.py"]
+
+
 def test_get_pr_reports_checks_and_review_verdicts(monkeypatch):
     pr = FakePR(reviews=[FakeReview("carol", "APPROVED"),
                          FakeReview("dave", "CHANGES_REQUESTED")])

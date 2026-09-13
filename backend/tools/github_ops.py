@@ -690,9 +690,15 @@ async def github_get_pr_files(args: dict) -> dict:
             if include_patch:
                 patch = f.patch or ""          # empty for binary files
                 if len(patch) > budget:
+                    # Charge the budget for the content kept, never for the marker, and never
+                    # let it go negative: `patch[:-19]` slices from the END of the string, so
+                    # one negative budget hands the NEXT file back all but intact and the cap
+                    # stops holding from the first truncation onwards.
                     patch = patch[:budget] + "\n… [diff truncated]"
                     truncated_files.append(f.filename)
-                budget -= len(patch)
+                    budget = 0
+                else:
+                    budget -= len(patch)
                 entry["patch"] = patch
             files.append(entry)
         return {
