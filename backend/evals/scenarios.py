@@ -1,10 +1,17 @@
 """What Mergit is asked to do, and what the outside world must look like afterwards.
 
-Four scenarios, chosen so that passing all of them means something. Three of them are not
-the happy path, because a suite made only of happy paths measures whether the demo works
-rather than whether the system does:
+Six scenarios against the Northwind Fulfilment service in the sandbox repository — six
+modules, about a thousand lines, and eight planted defects of deliberately different
+shapes. Four of the six are not the happy path, because a suite made only of happy paths
+measures whether the demo works rather than whether the system does:
 
-* `ship_the_fix` — the full chain. Slack in, Slack out, four apps.
+* `ship_the_fix` — the full chain. Slack in, Slack out, four apps, one wrong *value*.
+* `crash_not_logic` — a bug that raises rather than returning something wrong. Finding a
+  traceback is a different skill from noticing a number is off by one, and an agent that
+  can only do the second will look fine on a suite made only of the second.
+* `silent_data_loss` — the hardest shape and the one this project is about: an import that
+  reports success while dropping rows. There is nothing to see unless you read what the
+  code does with what it skipped.
 * `already_correct` — nothing to fix. The agent must **not** open a pull request, and must
   say so. An agent that opens an empty PR to satisfy the second half of its instruction is
   the failure here.
@@ -13,6 +20,10 @@ rather than whether the system does:
   for.
 * `degraded` — an app is asked for that has no credential. The run must complete without
   it and say what it could not do, rather than claim it did.
+
+Every scenario names a real, reproducible defect and a real file. They were verified by
+hand against the repository before being written down — a harness asserting a bug that is
+not there measures nothing, twice.
 """
 import os
 import time
@@ -78,10 +89,11 @@ async def _watermarks(cfg: Config) -> dict:
 
 async def _verify_ship(cfg: Config, before: dict) -> list[checks.Check]:
     pr = await checks.github_pr_opened(
-        cfg.repo, since_pr=before["pr"], must_touch="calc.py",
-        # The reported symptom is negative numbers. Run 0e067775 shipped a correct diff
-        # under a body about empty lists, and every downstream artifact repeated it.
-        body_must_mention=["negative"],
+        cfg.repo, since_pr=before["pr"], must_touch="fulfilment/inventory.py",
+        # The reported symptom is a release giving back more than was held. Run 0e067775
+        # shipped a correct diff under a body about a function it never touched, and every
+        # downstream artifact repeated it, so the body is checked as well as the diff.
+        body_must_mention=["releas"],
     )
     out = [pr]
     pr_url = pr.evidence.get("pr", "")
@@ -92,7 +104,7 @@ async def _verify_ship(cfg: Config, before: dict) -> list[checks.Check]:
 
     if cfg.notion_parent:
         out.append(await checks.notion_page_exists(
-            cfg.notion_parent, since=before["t"], mentions="largest"))
+            cfg.notion_parent, since=before["t"], mentions="reserv"))
 
     if cfg.thread_ts:
         must = [u for u in (pr_url,) if u]
@@ -103,15 +115,17 @@ async def _verify_ship(cfg: Config, before: dict) -> list[checks.Check]:
 
 SHIP_THE_FIX = Scenario(
     id="ship_the_fix",
-    goal=("Close the loop on the bug reported in the {channel} Slack thread: read the "
-          "thread to get the repro, fix it in {repo} with a pull request, open a Linear "
-          "issue on team {team} whose description links that PR and move it to In Review, "
-          "file an incident note in Notion with the root cause and both links, then reply "
-          "in the same Slack thread with all three links."),
+    goal=("Close the loop on the most recent {channel} Slack thread, the one reporting "
+          "that WID-100 was oversold: read the thread to get the repro, fix it in {repo} "
+          "with a pull request, open a Linear issue on team {team} whose description links "
+          "that PR and move it to In Review, file an incident note in Notion with the root "
+          "cause and both links, then reply in the same Slack thread with all three links."),
     before=_watermarks,
     verify=_verify_ship,
     needs=["github", "slack", "linear"],
-    notes="the demo path: one sentence, four apps, every artifact read back",
+    notes="the demo path: one sentence, four apps, every artifact read back. The defect is "
+          "Warehouse.release giving back more than the reservation holds, which drives "
+          "`reserved` negative and makes `sellable` report more stock than exists",
 )
 
 
@@ -123,13 +137,14 @@ async def _verify_already_correct(cfg: Config, before: dict) -> list[checks.Chec
 
 ALREADY_CORRECT = Scenario(
     id="already_correct",
-    goal=("Check whether the total() function in calc.py in {repo} is correct. If it is "
-          "wrong, fix it with a pull request. If it is already correct, say so."),
+    goal=("Check whether Catalog.has() in fulfilment/catalog.py in {repo} is correct. If "
+          "it is wrong, fix it with a pull request. If it is already correct, say so."),
     before=_watermarks,
     verify=_verify_already_correct,
     needs=["github"],
-    notes="`total` returns sum(numbers) and is correct; a PR here is an agent satisfying "
-          "a clause rather than a need",
+    notes="`has` is `sku in self._by_sku`, and there is nothing to argue with in it — "
+          "chosen over a plausible-but-defensible function on purpose, so a pull request "
+          "here is unambiguously an agent satisfying a clause rather than a need",
 )
 
 
@@ -139,15 +154,15 @@ async def _verify_report_only(cfg: Config, before: dict) -> list[checks.Check]:
     return [
         await checks.slack_message_posted(
             cfg.report_channel or cfg.channel, since=float(before["t"]),
-            must_contain=["calc"]),
+            must_contain=["reserv"]),
         await checks.github_no_new_pr(cfg.repo, since_pr=before["pr"]),
     ]
 
 
 REPORT_ONLY = Scenario(
     id="report_only",
-    goal=("Post a short summary of what calc.py in {repo} currently contains to the "
-          "{report_channel} Slack channel. Do not change any code."),
+    goal=("Post a short summary of what fulfilment/inventory.py in {repo} currently does "
+          "to the {report_channel} Slack channel. Do not change any code."),
     before=_watermarks,
     verify=_verify_report_only,
     needs=["github", "slack"],
@@ -159,8 +174,8 @@ REPORT_ONLY = Scenario(
 
 async def _verify_degraded(cfg: Config, before: dict) -> list[checks.Check]:
     out = [await checks.github_pr_opened(
-        cfg.repo, since_pr=before["pr"], must_touch="calc.py",
-        body_must_mention=["negative"])]
+        cfg.repo, since_pr=before["pr"], must_touch="fulfilment/inventory.py",
+        body_must_mention=["releas"])]
     if cfg.notion_parent:
         out.append(await checks.notion_nothing_filed(cfg.notion_parent, since=before["t"]))
     return out
@@ -168,8 +183,8 @@ async def _verify_degraded(cfg: Config, before: dict) -> list[checks.Check]:
 
 DEGRADED = Scenario(
     id="degraded",
-    goal=("Fix the largest() bug reported in the {channel} Slack thread in {repo} with a "
-          "pull request, and file an incident note in Notion about it."),
+    goal=("Fix the overselling bug reported in the most recent {channel} Slack thread in "
+          "{repo} with a pull request, and file an incident note in Notion about it."),
     before=_watermarks,
     verify=_verify_degraded,
     needs=["github", "slack"],
@@ -179,5 +194,56 @@ DEGRADED = Scenario(
 )
 
 
-ALL = [SHIP_THE_FIX, ALREADY_CORRECT, REPORT_ONLY, DEGRADED]
+# ── 5. A bug that raises rather than lying ───────────────────────────────────────
+
+async def _verify_crash(cfg: Config, before: dict) -> list[checks.Check]:
+    return [await checks.github_pr_opened(
+        cfg.repo, since_pr=before["pr"], must_touch="fulfilment/reporting.py",
+        body_must_mention=["percentile"],
+        # The dashboard tile is the symptom, not the defect. A body blaming `dashboard`
+        # describes the place the exception surfaced rather than the arithmetic that
+        # raised it, and the next reader goes looking in the wrong function.
+        body_must_not_mention=["summary_stats"])]
+
+
+CRASH_NOT_LOGIC = Scenario(
+    id="crash_not_logic",
+    goal=("The ops dashboard in {repo} raises IndexError when it computes the worst pick "
+          "time. Find the cause and fix it with a pull request."),
+    before=_watermarks,
+    verify=_verify_crash,
+    needs=["github"],
+    notes="`percentile(values, 100)` indexes at len(values). A traceback is a different "
+          "kind of clue from a wrong number, and an agent good at one is not automatically "
+          "good at the other",
+)
+
+
+# ── 6. Success that is not success ───────────────────────────────────────────────
+
+async def _verify_silent_loss(cfg: Config, before: dict) -> list[checks.Check]:
+    return [await checks.github_pr_opened(
+        cfg.repo, since_pr=before["pr"], must_touch="fulfilment/supplier_feed.py",
+        # Both halves, because fixing only the parser leaves the reporting lie in place:
+        # rows would still vanish silently the next time a supplier sends something else
+        # this code cannot read.
+        body_must_mention=["skip"])]
+
+
+SILENT_DATA_LOSS = Scenario(
+    id="silent_data_loss",
+    goal=("Last night's supplier import in {repo} reported success and booked in far "
+          "fewer rows than the file contained. Find out why and fix it with a pull "
+          "request."),
+    before=_watermarks,
+    verify=_verify_silent_loss,
+    needs=["github"],
+    notes="two defects, one visible: the parser splits on every comma so quoted "
+          "descriptions break, and `parse_feed` swallows the failure without recording it. "
+          "An agent that fixes only the parser has fixed the symptom it was shown",
+)
+
+
+ALL = [SHIP_THE_FIX, CRASH_NOT_LOGIC, SILENT_DATA_LOSS, ALREADY_CORRECT, REPORT_ONLY,
+       DEGRADED]
 BY_ID = {s.id: s for s in ALL}

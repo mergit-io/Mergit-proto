@@ -98,17 +98,25 @@ def test_scenarios_declare_the_apps_they_need():
     from evals import scenarios
 
     assert {s.id for s in scenarios.ALL} == {
-        "ship_the_fix", "already_correct", "report_only", "degraded"}
+        "ship_the_fix", "crash_not_logic", "silent_data_loss", "already_correct",
+        "report_only", "degraded"}
     for scenario in scenarios.ALL:
         assert scenario.needs, f"{scenario.id} declares no apps"
         assert "{repo}" in scenario.goal or "{channel}" in scenario.goal
 
 
-def test_three_of_the_four_scenarios_are_not_the_happy_path():
-    """A suite made only of happy paths measures whether the demo works, not the system."""
+def test_most_of_the_suite_is_not_the_happy_path():
+    """A suite made only of happy paths measures whether the demo works, not the system.
+
+    `ship_the_fix` is the only scenario where doing the obvious thing is the right answer.
+    Every other one is a way of being wrong: a crash rather than a wrong value, a success
+    that lost data, nothing to fix at all, a one-step goal, and a missing credential.
+    """
     from evals import scenarios
 
-    assert len(scenarios.ALL) - 1 == 3
+    happy = {"ship_the_fix"}
+    assert len(scenarios.ALL) - len(happy) >= 4
+    assert happy <= {s.id for s in scenarios.ALL}
 
 
 # ── Failing and saying so is not failing silently ────────────────────────────────
@@ -154,3 +162,63 @@ def test_one_admitted_and_one_not_is_still_silent():
     checks_ = [Check("notion_page_exists", False, "no page"),
                Check("linear_issue_in_state", False, "no ticket")]
     assert classify("COMPLETED", checks_, _ADMITTED) == SILENT_FAILURE
+
+
+# ── A check that could not look is not a check that failed ───────────────────────
+
+def test_an_unreadable_service_does_not_convict_the_agent():
+    """The 2026-09-13 run pointed `report_only` at a channel the bot can post to but is
+    not a member of. The agent posted, said so truthfully, `conversations.history` came
+    back `not_in_channel`, and the suite recorded a silent failure against a run that had
+    told the truth."""
+    from evals import run
+    from evals.checks import unreadable
+
+    blind = [unreadable("slack_message_posted", "not_in_channel")]
+    assert run.classify("COMPLETED", blind) == run.UNVERIFIED
+
+
+def test_one_blind_check_does_not_excuse_the_others():
+    """Only *every* check being blind makes a run ungradable. One readable failure is
+    still a failure, and an agent must not be able to hide behind a single broken read."""
+    from evals import run
+    from evals.checks import Check, unreadable
+
+    mixed = [unreadable("slack_message_posted", "not_in_channel"),
+             Check("github_no_new_pr", False, "opened PR #99 when there was nothing to fix")]
+    assert run.classify("COMPLETED", mixed) == run.SILENT_FAILURE
+
+
+def test_an_ungraded_run_is_left_out_of_every_rate():
+    """Counting it as a failure slanders the agent; counting it as a success hides the
+    broken access. It is reported on its own line instead."""
+    from evals import run
+
+    summary = run.report([
+        run.RunResult("report_only", 1, run.UNVERIFIED, seconds=10.0),
+        run.RunResult("ship_the_fix", 1, run.SUCCESS, seconds=20.0),
+    ])
+    assert summary["success_rate"] == 1.0
+    assert summary["silent_failure_rate"] == 0.0
+    assert len(summary["runs"]) == 1
+    assert len(summary["ungraded"]) == 1
+
+
+def test_nothing_filed_cannot_be_concluded_from_a_failed_read():
+    """`degraded` asserts no Notion page exists. If the parent could not be listed, that
+    is not evidence of absence."""
+    import asyncio
+
+    from evals import checks
+
+    async def _blind(*_a, **_k):
+        return checks.unreadable("notion_page_exists", "parent could not be read")
+
+    original = checks.notion_page_exists
+    checks.notion_page_exists = _blind
+    try:
+        out = asyncio.run(checks.notion_nothing_filed("page", since=0))
+    finally:
+        checks.notion_page_exists = original
+    assert out.unverifiable is True
+    assert out.passed is False
