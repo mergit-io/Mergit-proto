@@ -14,10 +14,11 @@ router = APIRouter(prefix="/api/config", tags=["config"])
 _ENV_FILE = Path(settings.runtime_config_dir) / ".env"
 
 PROVIDER_KEYS: dict[str, str] = {
-    "groq":      "GROQ_API_KEY",
-    "anthropic": "ANTHROPIC_API_KEY",
-    "tavily":    "TAVILY_API_KEY",
-    "github":    "GITHUB_TOKEN",
+    "groq":       "GROQ_API_KEY",
+    "anthropic":  "ANTHROPIC_API_KEY",
+    "openrouter": "OPENROUTER_API_KEY",
+    "tavily":     "TAVILY_API_KEY",
+    "github":     "GITHUB_TOKEN",
 }
 
 

@@ -46,6 +46,8 @@ class Recorder:
 
 GROQ = "groq/llama-3.3-70b-versatile"
 CLAUDE = "anthropic/claude-haiku-4-5-20251001"
+OR_LLAMA = "openrouter/meta-llama/llama-3.3-70b-instruct"
+OR_HAIKU = "openrouter/anthropic/claude-haiku-4.5"
 
 # Verbatim shapes of the two errors, as litellm raises them.
 GROQ_DAILY = Exception(
@@ -61,8 +63,16 @@ ANTHROPIC_NO_KEY = Exception(
 
 @pytest.fixture(autouse=True)
 def _clean(monkeypatch):
+    """A Groq-only deployment, pinned.
+
+    Every provider key a fallback chain can reach is cleared here, not just the ones
+    a given test cares about. Leaving one to chance means the suite reads whatever the
+    developer happens to have exported: OPENROUTER_API_KEY in a local .env silently
+    turned six of these tests into a different test.
+    """
     model_health._cooldowns.clear()
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     monkeypatch.setenv("GROQ_API_KEY", "gsk_test")
     yield
     model_health._cooldowns.clear()
@@ -247,3 +257,67 @@ def test_a_soft_rate_limit_does_not_sideline_the_model(monkeypatch):
     assert model_health.get_status() == {}, (
         "a transient per-minute throttle put the model into cooldown"
     )
+
+
+# ── OpenRouter: the tier that survives a first-party daily quota ─────────────────
+
+def test_openrouter_is_skipped_when_it_has_no_key(monkeypatch):
+    """Same rule as Anthropic — an id whose provider has no key is never attempted."""
+    rec = Recorder({GROQ: GROQ_DAILY})
+    monkeypatch.setattr(llm, "_acompletion", rec)
+
+    with pytest.raises(Exception):
+        _call()
+
+    assert not [m for m in rec.models if m.startswith("openrouter/")], (
+        f"called OpenRouter with no OPENROUTER_API_KEY set. Attempted: {rec.models}"
+    )
+
+
+def test_a_groq_daily_cap_falls_through_to_openrouter(monkeypatch):
+    """The production failure, reproduced: Groq's TPD is gone and there is no Anthropic
+    key, which used to leave the chain empty and kill the goal at planning."""
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
+    rec = Recorder({GROQ: GROQ_DAILY})
+    monkeypatch.setattr(llm, "_acompletion", rec)
+
+    resp = _call()
+
+    assert resp.choices[0].message.content == "ok"
+    assert rec.models[0] == GROQ, "the primary must still be attempted first"
+    assert OR_LLAMA in rec.models, f"never reached OpenRouter. Attempted: {rec.models}"
+
+
+def test_openrouter_comes_after_the_first_party_fallbacks(monkeypatch):
+    """It is the last resort, not the first: a paid router should not be reached while a
+    configured first-party fallback is still available."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
+
+    candidates = llm._candidate_models(GROQ)
+
+    assert candidates[0] == GROQ
+    assert CLAUDE in candidates and OR_LLAMA in candidates
+    assert candidates.index(CLAUDE) < candidates.index(OR_LLAMA), (
+        f"OpenRouter was ordered before the first-party fallback: {candidates}"
+    )
+
+
+def test_the_openrouter_tier_is_not_a_dead_end(monkeypatch):
+    """An openrouter/* primary needs somewhere to go too, or picking one in the
+    dashboard silently costs you the whole fallback chain."""
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
+
+    assert OR_HAIKU in llm._candidate_models(OR_LLAMA)
+    assert OR_LLAMA in llm._candidate_models(OR_HAIKU)
+
+
+def test_every_fallback_id_is_a_model_the_dashboard_can_select():
+    """PUT /api/config/models validates against AVAILABLE_MODELS, so a chain pointing at
+    an id missing from the catalog is a model an operator cannot pin after a failure."""
+    import model_config
+
+    catalog = {m["id"] for m in model_config.AVAILABLE_MODELS}
+    referenced = {m for chain in llm._FALLBACKS.values() for m in chain} | set(llm._FALLBACKS)
+
+    assert referenced <= catalog, f"fallback ids missing from the catalog: {sorted(referenced - catalog)}"
