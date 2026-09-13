@@ -117,6 +117,76 @@ export interface AgentDetail {
   proofs: Proof[];
 }
 
+// ── On-chain proof layer ───────────────────────────────────────────────────────
+
+export type ChainStatus = "ready" | "not_deployed" | "disabled" | "error";
+
+export interface ChainStatusInfo {
+  key: string;
+  name: string;
+  chainId: number;
+  explorer: string | null;
+  currency: string;
+  isLocal: boolean;
+  status: ChainStatus;
+  contracts: Record<string, string>;
+  sender: string | null;
+  error: string | null;
+  /** Submission queue depth by status: pending / submitting / confirmed / … */
+  outbox: Record<string, number>;
+}
+
+/** Full audit trail for one task — every value needed to redo the check by hand. */
+export interface ProofVerification {
+  task_id: string;
+  goal_id: string;
+  agent_role: string;
+  task_status: string;
+  canonical_output: string;
+  computed_hash: string;
+  hash_algorithm: string;
+  task_key_algorithm: string;
+  onchain_hash: string | null;
+  tx_hash: string | null;
+  block_number: number | null;
+  chain_id: number | null;
+  explorer_url: string | null;
+  /** true = matches chain, false = tampered, null = nothing on chain to compare against */
+  verified: boolean | null;
+  reason: string | null;
+  submission_status?: string;
+}
+
+// ── Self-heal ──────────────────────────────────────────────────────────────────
+
+export interface HealAttempt {
+  id: string;
+  fingerprint: string;
+  goal_id: string;
+  task_id: string | null;
+  agent_name: string;
+  error: string;
+  error_summary: string;
+  classification: string;
+  status: string;
+  issue_number: number | null;
+  issue_url: string | null;
+  issue_body: string | null;
+  fix_goal_id: string | null;
+  outcome: string | null;
+  recurrence_count: number;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface HealStats {
+  total: number;
+  recurrences: number;
+  by_status: Record<string, number>;
+  by_outcome: Record<string, number>;
+  fixed: number;
+}
+
 export interface ChainInfo {
   chainId: number;
   network: string;
@@ -181,4 +251,13 @@ export const api = {
   getAgentDetail: (role: string) => request<AgentDetail>(`/economy/agents/${role}`),
 
   getChain: () => request<ChainInfo>("/economy/chain"),
+
+  getChainStatus: () => request<ChainStatusInfo>("/economy/chain/status"),
+
+  verifyProof: (taskId: string) =>
+    request<ProofVerification>(`/economy/verify/${encodeURIComponent(taskId)}`),
+
+  getHealAttempts: (limit = 100) => request<HealAttempt[]>(`/heal/attempts?limit=${limit}`),
+
+  getHealStats: () => request<HealStats>("/heal/stats"),
 };

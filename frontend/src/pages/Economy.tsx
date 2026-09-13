@@ -23,6 +23,7 @@ const ECONOMY_KEYS = [
   "/api/economy/passports",
   "/api/economy/proofs",
   "/api/economy/chain",
+  "/api/economy/chain/status",
 ];
 
 export function Economy() {
@@ -32,6 +33,7 @@ export function Economy() {
   const { data: passports } = useSWR(ECONOMY_KEYS[1], () => api.getPassports(), { refreshInterval: 5000 });
   const { data: proofs } = useSWR(ECONOMY_KEYS[2], () => api.getProofs(50), { refreshInterval: 5000 });
   const { data: chain } = useSWR(ECONOMY_KEYS[3], () => api.getChain(), { refreshInterval: 5000 });
+  const { data: chainStatus } = useSWR(ECONOMY_KEYS[4], () => api.getChainStatus(), { refreshInterval: 5000 });
 
   const { count: economyEventCount } = useEconomySSE();
 
@@ -112,7 +114,7 @@ export function Economy() {
             </div>
           )}
 
-          {tab === "ledger" && <ProofLedger proofs={proofs ?? []} />}
+          {tab === "ledger" && <ProofLedger proofs={proofs ?? []} chain={chainStatus} />}
         </main>
       </div>
     </div>
