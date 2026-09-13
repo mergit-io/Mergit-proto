@@ -19,6 +19,81 @@
   <img alt="Mergit landing page — a goal decomposed into four agent steps, awaiting settlement" src="docs/assets/landing.png" width="100%">
 </p>
 
+## Two-minute demo
+
+**▶ [Watch the demo](https://drive.google.com/file/d/1FcPDda9OeMlVN7rdHWCfaLT2A58aY_VU/view?usp=sharing)** · **[Live app](https://mergit.onrender.com/app)** · **[System and reliability brief](BRIEF.md)**
+
+One sentence in Slack becomes a fix in GitHub, a ticket in Linear, an incident note in
+Notion, and an answer in the thread that asked — with every claim checked against the
+service that would know.
+
+## The four apps it connects
+
+| App | What Mergit does there | Tools |
+|---|---|---|
+| **Slack** | Reads the thread a bug is reported in, and replies inside it | 5 |
+| **GitHub** | Reads the repository, commits a fix on a branch, opens and updates pull requests, comments on issues | 21 |
+| **Linear** | Files the issue, moves it through states, comments the outcome | 6 |
+| **Notion** | Writes the incident note the fix is explained in | 4 |
+
+Plus `code_exec`, web search, HTTP and file tools — **42 registered tools** across
+**five specialist agents**. Every one of them hits the real API: Slack's `ok: false` on an
+HTTP 200 is treated as the failure it is, Linear's `errors[]` likewise.
+
+Credentials resolve through one path per service — the goal owner's stored connection, then
+an explicit caller, then a deployment token — and are AES-GCM sealed per user. A test
+asserts that the credential broker is the only importer of the unseal function, so **no
+tool argument a model can populate ever contains a credential**.
+
+## How reliability was tested
+
+Two things, and the second is the one that matters.
+
+**859 unit tests** cover the orchestrator, the executor, every tool, the credential vault
+and each honesty guard.
+
+**`backend/evals/` runs real goals against a live server and grades them by reading the
+services back.** Nothing consults a goal's output, its task rows or its tool results —
+those are the claims under test, and a harness that graded claims against themselves would
+agree with every lie.
+
+Six scenarios against a ~1,000-line service with eight hand-verified defects. Five of the
+six are deliberately not the happy path:
+
+| scenario | what it measures | runs | ok | silent |
+|---|---|---|---|---|
+| `ship_the_fix` | the full four-app chain, on a wrong value | 2 | 2 | 0 |
+| `crash_not_logic` | a bug that raises rather than lying | 2 | 2 | 0 |
+| `silent_data_loss` | an import that reports success while dropping rows | 2 | 2 | 0 |
+| `already_correct` | nothing to fix; a pull request here is the failure | 2 | 2 | 0 |
+| `report_only` | a one-step goal must not become a four-step plan | 2 | 2 | 0 |
+| `degraded` | an app with no credential; skipped while that app is reachable | — | — | — |
+
+**10/10 · 0% silent failure.**
+
+Two numbers are reported, because one hides the difference that matters:
+
+- **Silent failure** — reported COMPLETED, the services say otherwise, and nothing in the
+  run's own output admits it. The dangerous kind: the run nobody goes and checks.
+- **Reported shortfall** — missed an objective and *named the one it missed*. There the
+  defect is the COMPLETED status, not the honesty.
+
+```bash
+cd backend && .venv/bin/python -m evals.run --runs 2
+```
+
+### Agents cannot report work they did not do
+
+Every guard below exists because a live run got past the previous ones:
+
+- A result that admits failure, or carries a failed tool envelope, is rejected.
+- An invented URL is rejected — addresses are compared against what tools actually returned.
+- A claim with no artifact is rejected: "I opened a pull request" with nothing to click does not pass.
+- A pull request may not describe code it did not change, or make changes its description does not account for.
+- **A pull request may not say it ran something this run never ran.** The deployed demo shipped one saying "Ran the following commands … all outputs are as expected" on a deployment where code execution is unregistered.
+- **It may not say the run came back clean when it did not.** The next run got past that a different way: execution returned `ok: false`, and the body still said "All tests passed" — inside a fenced block, where the first check deliberately does not look.
+- **A run that read a Slack thread must answer in it**, rather than posting a new message somewhere the reporter is not looking.
+
 ## What it does
 
 You write **one sentence**. Everything below follows from it — there is no workflow to define,
@@ -27,8 +102,8 @@ no step list to keep current, and no template to fill in.
 | | |
 |---|---|
 | **Plans the work itself** | A planning model turns your sentence into a task graph: every node assigned to an agent, with inputs and dependencies resolved. You never write the steps. |
-| **Six specialist agents** | `orchestrator` plans · `researcher` reads repos and searches · `writer` produces prose and diagrams · `coder` writes and runs Python · `integrator` acts on the outside world · `notifier` reports. |
-| **Real tools, real side effects** | 20 GitHub tools (open PRs, comment on issues, create repos, set branch protection, wait on webhooks), `code_exec` running Python in a subprocess with a 30-second cap, and web search. Not simulated. |
+| **Five specialist agents** | `orchestrator` plans · `researcher` reads repos, threads and issues · `writer` produces prose and diagrams · `coder` writes and runs Python · `integrator` acts on the outside world. |
+| **Real tools, real side effects** | 42 tools across four services — 21 GitHub, 5 Slack, 6 Linear, 4 Notion — plus `code_exec` running Python in a subprocess with a 30-second cap, and web search. Not simulated. |
 | **Proof of work on chain** | Each finished task is serialised canonically, hashed with SHA-256, and recorded to `ProofOfWork` against the agent's passport. Four deployed Solidity contracts: `AgentPassport`, `ProofOfWork`, `ReputationRegistry`, `AuditTrail`. |
 | **Verifiable, not just claimed** | Any proof can be re-checked from the UI: recompute the hash from the stored output, read the chain, compare. Every intermediate value is exposed so a human can redo the check by hand. |
 | **Reputation that moves** | Success rate, speed and volume combine into a composite score per agent role, updated as tasks land. |
