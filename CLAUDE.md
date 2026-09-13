@@ -360,14 +360,30 @@ no API call. Each exists because a green PR shipped that fixed nothing:
 |---|---|---|
 | `_empty_contents` | content that is empty or whitespace | PR #30, `+0 −0` |
 | `_language_mismatches` | source committed under another language's extension | PR #32, Rust in `auth.py` |
-| `_misplaced_new_files` | a NEW file whose filename already exists at the repo root | `calculator.py` beside `calc.py`; `main/mergesort.py` |
+| `_misplaced_new_files` | a NEW file that means one the repo already has | `main/mergesort.py`; PR #34's `merge_sort.py` |
+| `_guts_the_file` | a replacement that throws away most of any text file | PR #34's `README.md`, 4 lines → 1 |
 | `_dropped_definitions` | replacement content that deletes existing definitions | `stats.py`, `+3 −10` |
+| `_changes_nothing` | a diff that changes nothing at all | PR #33, one blank line |
 
 `_language_mismatches` only refuses on an unambiguous verdict: the extension maps to a language the
 file shows **no** marker of, while **exactly one** other language shows **two or more** distinct
 markers. A stub, a constants file, an unknown extension and a docstring quoting another language all
 fall short of that and pass. `.ts` and `.h` are left out of `_EXT_LANG` on purpose — a wrong refusal
 costs more than a missed one.
+
+`_misplaced_new_files` compares filenames with case and word separators removed (`_same_file_name`),
+so `merge_sort.py`, `MergeSort.py` and `mergesort.py` are one name, and it applies at the repo root
+as well as inside subdirectories. Its first version did neither, which is why PR #34 added a second
+copy of the algorithm beside the file that had the bug. `calc`/`calculator` stays out of reach — a
+different word is not a different spelling.
+
+`_guts_the_file` needs BOTH conditions to fire: the replacement keeps under half the existing
+non-blank lines AND is under half its length. Rewriting a document is ordinary work; emptying one is
+not, and length is what separates them. Files under four meaningful lines are never policed.
+
+`_changes_nothing` normalises blank lines and trailing whitespace away, so PR #33's 708-bytes-to-707
+edit reads as the no-op it is. Only an ALL-nothing request is refused: an unchanged file resent
+beside a genuine fix is untidy, not a lie.
 
 ### Result validation (`agent_runner`)
 

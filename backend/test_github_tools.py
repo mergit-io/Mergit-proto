@@ -1079,3 +1079,113 @@ def test_one_real_change_carries_an_unchanged_file_alongside_it(monkeypatch):
                                           {"path": "stats.py", "content": fixed}]}))
 
     assert result["ok"] is True
+
+
+# ── A near-miss filename is still the wrong file ────────────────────────────────
+
+SANDBOX_README = '''# mergit-e2e-sandbox
+
+Throwaway repo. Mergit's GitHub tools are exercised against it end to end:
+open PR, read a diff, review, merge, comment, label, close.
+
+Everything here is disposable.
+'''
+
+
+def test_a_new_file_whose_name_differs_only_by_a_separator_is_refused(monkeypatch):
+    """Live failure, PR #34 on the sandbox.
+
+    Asked to fix `mergesort.py`, the coder returned `path: "merge_sort.py"` and the PR
+    added a second copy of the algorithm, leaving the buggy original untouched. The guard
+    compared filenames by exact equality, so `merge_sort.py` did not match `mergesort.py`,
+    and it skipped root-level files entirely on the theory that a file already at the root
+    could not mean a better location — which is true of the DIRECTORY and says nothing
+    about the NAME.
+    """
+    repo = FakeRepo(existing_files=[("mergesort.py", MERGESORT_PY)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    result = run(gpr.github_pr({"repo": "o/r", "title": "fix: corrected merge sort", "body": "b",
+                                "head_branch": "fix/merge-sort",
+                                "files": [{"path": "merge_sort.py",
+                                           "content": MERGESORT_PY.replace(
+                                               "return left + right", "return sorted(left + right)")}]}))
+
+    assert result["ok"] is False
+    assert "mergesort.py" in result["error"]
+    assert repo.created_refs == [] and repo.created_files == []
+
+
+def test_a_name_that_differs_only_by_case_is_refused(monkeypatch):
+    repo = FakeRepo(existing_files=[("mergesort.py", MERGESORT_PY)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "fix/x",
+                                "files": [{"path": "MergeSort.py", "content": MERGESORT_PY}]}))
+
+    assert result["ok"] is False
+
+
+def test_a_genuinely_unrelated_new_file_is_still_allowed(monkeypatch):
+    """The guard must not stop an agent adding real new work."""
+    repo = FakeRepo(existing_files=[("mergesort.py", MERGESORT_PY)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "feat/utils",
+                                "files": [{"path": "quicksort.py",
+                                           "content": "def quicksort(a):\n    return sorted(a)\n"}]}))
+
+    assert result["ok"] is True
+    assert result["files_created"] == ["quicksort.py"]
+
+
+# ── Losing the contents of a file is not Python-specific ────────────────────────
+
+def test_gutting_a_readme_is_refused(monkeypatch):
+    """The other half of PR #34: six lines describing the sandbox replaced by one
+    sentence about merge sort. `_dropped_definitions` tracks Python def/class names, and a
+    README has none, so nothing registered as lost."""
+    repo = FakeRepo(existing_files=[("README.md", SANDBOX_README)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "fix/x",
+                                "files": [{"path": "README.md",
+                                           "content": "This repository contains a corrected "
+                                                      "implementation of the merge sort algorithm.\n"}]}))
+
+    assert result["ok"] is False
+    assert "README.md" in result["error"]
+    assert repo.created_refs == [] and repo.updated_files == []
+
+
+def test_a_rewrite_of_comparable_length_is_allowed(monkeypatch):
+    """Rewriting a document is legitimate work. Only losing most of it without replacing
+    it is the failure — length is what separates the two."""
+    repo = FakeRepo(existing_files=[("README.md", SANDBOX_README)])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    rewritten = ("# mergit-e2e-sandbox\n\nA disposable repository.\n\n"
+                 "Mergit opens pull requests here, reads diffs, reviews them,\n"
+                 "merges, comments and labels — the whole GitHub surface.\n\n"
+                 "Nothing in it is precious.\n")
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "docs/readme",
+                                "files": [{"path": "README.md", "content": rewritten}]}))
+
+    assert result["ok"] is True
+
+
+def test_a_very_short_file_is_not_policed(monkeypatch):
+    """A two-line file has no meaningful proportion to measure, and normal edits to one
+    would trip any percentage rule."""
+    repo = FakeRepo(existing_files=[("VERSION", "1.0.0\n")])
+    install(monkeypatch, gpr, {"o/r": repo})
+
+    result = run(gpr.github_pr({"repo": "o/r", "title": "t", "body": "b",
+                                "head_branch": "chore/bump",
+                                "files": [{"path": "VERSION", "content": "2.0.0\n"}]}))
+
+    assert result["ok"] is True

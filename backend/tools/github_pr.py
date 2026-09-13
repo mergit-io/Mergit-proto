@@ -185,8 +185,19 @@ def _changes_nothing(repo, files, ref) -> bool:
     return True
 
 
-def _find_by_name(repo, name: str, ref: str) -> str | None:
-    """An existing root-level path whose filename is `name`, if there is one.
+def _same_file_name(name: str) -> str:
+    """A filename reduced to what an agent cannot plausibly have meant differently.
+
+    `merge_sort.py`, `MergeSort.py` and `mergesort.py` all reduce to `mergesort.py`. Case
+    and word separators are the two things a model changes while believing it is naming
+    the same file; anything beyond that is a different name and none of this guard's
+    business.
+    """
+    return name.lower().replace("_", "").replace("-", "").replace(" ", "")
+
+
+def _find_by_name(repo, name: str, ref: str, exclude: str = "") -> str | None:
+    """An existing root-level path that means the same filename as `name`.
 
     Root listing only — one API call. A recursive walk would be more thorough and cost a
     request per directory on every PR; the root is where this mistake lands, because an
@@ -199,25 +210,34 @@ def _find_by_name(repo, name: str, ref: str) -> str | None:
         return None
     if not isinstance(entries, list):
         return None
+    target = _same_file_name(name)
     for e in entries:
-        if getattr(e, "type", "") == "file" and e.path == name:
+        if getattr(e, "type", "") != "file" or e.path == exclude:
+            continue
+        if _same_file_name(e.path) == target:
             return e.path
     return None
 
 
 def _misplaced_new_files(repo, files, ref) -> list[str]:
-    """Paths being CREATED whose filename already exists at the repo root.
+    """Paths being CREATED that mean a file the repository already has.
 
     `_dropped_definitions` only protects files that already exist, so aiming at a path
     that does NOT exist slips past it entirely: the failure becomes a brand-new file
     rather than a truncated one, and the PR still opens green.
 
-    Seen twice. `calculator.py` was created beside the `calc.py` that had the bug. Then a
-    goal whose text contained a `/tree/main` URL made the orchestrator read the BRANCH as
-    a directory, and the PR created `main/mergesort.py` beside the real `mergesort.py`.
+    Seen three times, and the first version of this guard only caught one of them. It
+    compared filenames for equality, which catches `main/mergesort.py` beside the real
+    `mergesort.py` — same name, invented directory — and nothing else. It did not catch
+    `calculator.py` beside the `calc.py` that had the bug, and in PR #34 it did not catch
+    `merge_sort.py` beside `mergesort.py`, twice over: the names are not equal, and the
+    check skipped root-level files outright on the theory that a file already at the root
+    could not mean a better location. That is true of the DIRECTORY and says nothing about
+    the NAME.
 
-    Matching on filename catches both, because an agent that invents a location keeps the
-    filename. Only creations are inspected, so a path the agent got right is untouched.
+    So the comparison now ignores case and word separators, and applies everywhere rather
+    than only inside subdirectories. `calc`/`calculator` remains out of reach — that is a
+    different word, not a different spelling of the same one.
     """
     from github import GithubException
     problems = []
@@ -229,11 +249,50 @@ def _misplaced_new_files(repo, files, ref) -> list[str]:
         except GithubException:
             pass
         name = path.rsplit("/", 1)[-1]
-        if name == path:
-            continue  # already at the root; there is no better location it could mean
-        existing = _find_by_name(repo, name, ref)
+        existing = _find_by_name(repo, name, ref, exclude=path)
         if existing:
             problems.append(f"{path} would be a NEW file, but {existing} already exists")
+    return problems
+
+
+def _guts_the_file(repo, files, ref) -> list[str]:
+    """Existing files whose replacement throws away most of what they contain.
+
+    `_dropped_definitions` asks the same question in Python only, by name. PR #34 asked
+    for a merge sort fix and rewrote `README.md` from six lines describing the sandbox
+    down to one sentence about merge sort. A README has no `def` and no `class`, so
+    nothing registered as lost.
+
+    Two conditions have to hold together, because a document being REWRITTEN is ordinary
+    work and only a document being EMPTIED is the failure: the replacement keeps under
+    half the lines that were there, AND it is under half the length. A rewrite of
+    comparable size passes however different its wording. Files under four meaningful
+    lines are left alone — there is no proportion worth measuring in three lines, and any
+    percentage rule would fire on normal edits to them.
+    """
+    from github import GithubException
+    problems = []
+    for f in files:
+        try:
+            existing = repo.get_contents(f["path"], ref=ref)
+        except GithubException:
+            continue  # a new file cannot lose anything
+        if isinstance(existing, list):
+            continue
+        try:
+            before = existing.decoded_content.decode("utf-8", "replace")
+        except Exception:
+            continue
+        before_lines = [ln.strip() for ln in before.splitlines() if ln.strip()]
+        after_lines = [ln.strip() for ln in (f.get("content") or "").splitlines() if ln.strip()]
+        if len(before_lines) < 4:
+            continue
+        kept = sum(1 for ln in before_lines if ln in set(after_lines))
+        if kept * 2 < len(before_lines) and len(after_lines) * 2 < len(before_lines):
+            problems.append(
+                f"{f['path']} would drop from {len(before_lines)} lines to "
+                f"{len(after_lines)}, keeping {kept} of them"
+            )
     return problems
 
 
@@ -357,6 +416,16 @@ async def github_pr(args: dict) -> dict:
     # Refuse before committing anything, so a truncated fix leaves no branch behind.
     # The message names what would be lost because the agent has to send the whole file
     # to fix it, and "invalid content" would not tell it that.
+    gutted = _guts_the_file(upstream, files, base_branch)
+    if gutted:
+        logger.warning("Refusing PR on %s — replacement empties the file: %s", repo_name, gutted)
+        return {"action": "create_pr", "result": None, "url": None, "ok": False,
+                "error": f"{'; '.join(gutted)}. files[].content replaces the ENTIRE file, and "
+                         "most of what is in this one would simply disappear. If you meant to "
+                         "change part of it, read the file and send it back complete with your "
+                         "change applied. If you did not mean to touch it at all, leave it out "
+                         "of the request."}
+
     dropped = _dropped_definitions(upstream, files, base_branch)
     if dropped:
         logger.warning("Refusing PR on %s — replacement content drops definitions: %s",
