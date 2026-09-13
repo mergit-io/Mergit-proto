@@ -16,11 +16,12 @@ logger = logging.getLogger(__name__)
 AGENT_DESCRIPTIONS = """
 Available agents (choose from these only):
 
-- researcher: Searches the web, reads GitHub repos, gathers facts.
-  Tools: web_search, http_request, github_read_file, github_list_dir, github_get_issue, github_search_code
+- researcher: Searches the web, reads GitHub repos, reads PR diffs, gathers facts.
+  Tools: web_search, http_request, github_read_file, github_list_dir, github_get_issue, github_search_code, github_get_pr, github_get_pr_files, github_list_prs
   Output: {{"summary": str, "key_points": [str], "sources": [str], "code_context": str}}
   NOTE: outputs raw structured data — NOT a human-readable report on its own.
-  Use for: web research, reading GitHub repos/files/issues, understanding codebases.
+  Use for: web research, reading GitHub repos/files/issues, reading the DIFF of a pull request
+  (github_get_pr_files) before anyone reviews or merges it, understanding codebases.
 
 - writer: Synthesizes research or API data into polished, human-readable text (profiles, reports, emails, docs, code reviews).
   Tools: file_ops
@@ -32,14 +33,19 @@ Available agents (choose from these only):
   Output: {{"code": str, "output": str, "success": bool}}
   Use for: writing code fixes, running scripts, generating patches.
 
-- integrator: Creates NEW GitHub repos (ships a freshly-built project), creates GitHub PRs, posts comments, manages GitHub Actions workflows and branch protection rulesets, interacts with external APIs, waits for webhooks.
-  Tools: github_pr, github_post_comment, github_read_file, github_create_repo, github_list_workflows, github_get_branch_protection, github_set_branch_protection, http_request, wait_webhook
+- integrator: Performs every WRITE action on GitHub — opens/updates/reviews/merges PRs, opens/closes/labels issues, creates repos, manages Actions workflows and branch protection — plus other external APIs and webhooks.
+  Tools: github_pr, github_merge_pr, github_review_pr, github_request_review, github_update_pr, github_get_pr, github_get_pr_files, github_list_prs, github_create_issue, github_close_issue, github_add_labels, github_post_comment, github_read_file, github_create_repo, github_list_workflows, github_get_branch_protection, github_set_branch_protection, http_request, wait_webhook
   Output: {{"action": str, "result": any, "url": str|null}}
   NOTE: outputs raw API data — NOT a human-readable report on its own.
-  Use for: shipping a new project as its own repo (github_create_repo), creating PRs, posting comments, adding/updating CI workflows, setting branch protection rules.
+  Use for: shipping a new project as its own repo (github_create_repo), creating PRs, MERGING PRs, submitting PR reviews, opening/closing/labelling issues, posting comments, adding/updating CI workflows, setting branch protection rules.
   For "build X and ship it as a new repo" goals use the pattern: coder writes+tests the app -> integrator calls github_create_repo with all files.
   For "add a CI workflow" goals: researcher reads existing workflows -> coder writes the YAML -> integrator creates PR with the new .github/workflows/file.yml.
   For "set branch protection" goals: integrator calls github_set_branch_protection directly (no coder needed).
+  For "merge PR #N" goals: integrator calls github_get_pr then github_merge_pr directly (no coder needed).
+  MERGE SAFETY: github_merge_pr refuses to merge a PR with conflicts, failing/pending CI checks,
+  requested changes, an unmet required review, or draft status, and returns the blocking reason.
+  A refusal is a legitimate final outcome — plan for it being reported, never for it being retried
+  or worked around.
   NOTE: All agents have access to spawn_goal — they can autonomously create new goals when they discover
   work beyond their current task scope.
 """
@@ -88,12 +94,16 @@ Rules:
      "summarise/report on X" → researcher then writer. "run a script" → coder is fine as terminal.
      "send a Slack message" → notifier is fine as terminal.
      "fix a GitHub issue" → researcher (reads code) → coder (writes fix) → integrator (creates PR + posts comment).
-     "review a GitHub PR" → researcher (reads changed files) → writer (writes review) → integrator (posts comment).
+     "review a GitHub PR" → researcher (github_get_pr_files — reads the REAL diff) → writer (writes the review) → integrator (github_review_pr submits it).
+     "merge a GitHub PR" → integrator alone (github_get_pr then github_merge_pr). No researcher, no coder.
+     "open an issue about X" → integrator alone (github_create_issue), or researcher → integrator when the issue needs investigation first.
 9. Task inputs MUST be self-contained — include every parameter the agent needs:
    - GitHub tasks: inputs must include "repo" (owner/repo format) and relevant issue/PR numbers.
    - researcher reading GitHub: inputs must include {{"repo": "owner/repo", "issue_number": N, "task": "read the repo structure and find files related to the issue"}}.
    - coder fixing a bug: inputs must include {{"code_context": "{{{{t1.output.code_context}}}}", "issue_summary": "{{{{t1.output.summary}}}}", "repo": "owner/repo", "file_to_fix": "path/to/file.py"}}.
    - integrator creating PR: inputs must include {{"repo": "owner/repo", "issue_number": N, "fixed_code": "{{{{t2.output.code}}}}"}}.
+   - integrator merging a PR: inputs must include {{"repo": "owner/repo", "pr_number": N}}.
+   - researcher reading a PR: inputs must include {{"repo": "owner/repo", "pr_number": N, "task": "read the full diff of the pull request"}}.
    - web researcher: inputs must include "search_query".
    - writer: inputs must reference prior task output e.g. {{"data": "{{{{t1.output}}}}"}}.
    - A task with empty inputs {{{{}}}} has no information to act on and will fail.
@@ -303,11 +313,36 @@ def _salvage_failed_generation(error_str: str) -> dict | None:
 
 _RAW_OUTPUT_AGENTS = {"researcher", "integrator"}
 
-def _is_github_automation_plan(p: "PlanSchema") -> bool:
-    """Return True when the plan looks like a GitHub automation workflow (researcher→coder→integrator).
-    In this pattern the integrator IS the terminal action (creates PR + posts comment) — no writer needed."""
+# A terminal integrator whose job is to CHANGE something on GitHub — merge, comment,
+# review, label, close — is answering the goal, not gathering data for a writer. Wording
+# the model uses for those actions, checked against the terminal task only.
+_GITHUB_WRITE_VERBS = ("merge", "comment", "review", "label", "close", "reopen",
+                       "approve", "pull request", "issue")
+
+
+def _integrator_terminal_is_an_action(p: "PlanSchema") -> bool:
+    """Return True when a terminal integrator IS the answer rather than raw data.
+
+    Two shapes qualify:
+
+    1. The issue-fix workflow (researcher→coder→integrator), where the integrator opens
+       the PR and comments as the final act.
+    2. A direct GitHub action on a named pull request or issue — "merge PR #7", "close
+       issue #12". These need no coder, so shape 1 alone rejected them: the orchestrator
+       burned all five attempts on a plan that was correct and the goal failed without
+       ever reaching GitHub.
+    """
     agent_names = {t.agent for t in p.tasks}
-    return "coder" in agent_names and "integrator" in agent_names
+    if "coder" in agent_names and "integrator" in agent_names:
+        return True
+
+    terminal = next(t for t in p.tasks if t.id == p.terminal)
+    if terminal.agent != "integrator":
+        return False
+    # Structural signal first: acting on a specific PR/issue is a side effect, not a lookup.
+    if any(k in ("pr_number", "issue_number", "pull_number") for k in (terminal.inputs or {})):
+        return True
+    return any(v in (terminal.description or "").lower() for v in _GITHUB_WRITE_VERBS)
 
 
 def _validate_plan(p: PlanSchema) -> None:
@@ -329,7 +364,7 @@ def _validate_plan(p: PlanSchema) -> None:
     # integrator creates real side-effects (PR + comment) as the final action.
     terminal_task = next(t for t in p.tasks if t.id == p.terminal)
     if terminal_task.agent in _RAW_OUTPUT_AGENTS and len(p.tasks) > 1:
-        if terminal_task.agent == "integrator" and _is_github_automation_plan(p):
+        if terminal_task.agent == "integrator" and _integrator_terminal_is_an_action(p):
             return  # automation pattern: integrator is the correct terminal
         raise ValueError(
             f"terminal task '{p.terminal}' uses agent '{terminal_task.agent}' which produces raw data. "
