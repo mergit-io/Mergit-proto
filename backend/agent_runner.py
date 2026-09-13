@@ -10,6 +10,7 @@ import uuid
 from typing import Any, Callable
 
 import db
+import language
 from agent_registry import get_agent_config
 from llm import acompletion
 from state import TaskRow
@@ -143,7 +144,36 @@ def _self_reported_failure(result: dict, schema_required: list[str]) -> str | No
     return None
 
 
-def _submission_problem(result: Any, schema_required: list[str]) -> str | None:
+def _wrong_language_for_task(result: dict, task_text: str) -> str | None:
+    """Describe a `code` field written in a language the task did not ask for.
+
+    Live failure, goal 4ad14cf1. The task was "Migrate the auth.py file to Rust". The
+    coder's only execution tool is `code_exec`, a Python interpreter, so it cannot run
+    Rust and cannot prove Rust works. It submitted PYTHON, ran that successfully, and set
+    `success: True`.
+
+    `_self_reported_failure` catches an agent that ADMITS failure. This is the inverse and
+    the worse shape — claiming success for work not done. PR #32 at least told the truth
+    about itself.
+
+    `_language_mismatches` in `github_pr` asks a related question, but only on the commit
+    path, and this goal never reached an integrator. The claim has to be checked where it
+    is made.
+    """
+    wanted = language.requested_language(task_text)
+    if not wanted:
+        return None
+    code = result.get("code")
+    if not isinstance(code, str) or not code.strip():
+        return None
+    actual = language.detect_language(code, expected=wanted)
+    if actual is None:
+        return None  # corroborated, or too small to identify — no opinion
+    return (f"the task asks for {wanted}, but the code you submitted is {actual}.")
+
+
+def _submission_problem(result: Any, schema_required: list[str],
+                        task_text: str = "") -> str | None:
     """The feedback to hand back when a submitted result cannot be accepted, else None.
 
     A task can end in four places — the `submit_result` tool call, JSON parsed out of a
@@ -172,6 +202,14 @@ def _submission_problem(result: Any, schema_required: list[str]) -> str | None:
             f"Your result had keys: {list(result.keys())}. "
             f"You MUST include ALL of: {schema_required}. "
             "Call submit_result again with the correct keys."
+        )
+    mismatch = _wrong_language_for_task(result, task_text)
+    if mismatch:
+        return (
+            f"submit_result rejected — {mismatch} Write the task in the language it asks "
+            "for. If you cannot run or verify that language with the tools you have, say "
+            "so plainly instead of submitting something else and calling it done — an "
+            "answer in the wrong language is not a partial answer, it is the wrong answer."
         )
     contradiction = _self_reported_failure(result, schema_required)
     if contradiction:
@@ -330,7 +368,8 @@ async def run(
                 # This is a submission by another name, so it answers to the same rules.
                 # Returning it unchecked let an agent skip every guard simply by printing
                 # its JSON instead of calling the tool.
-                problem = _submission_problem(result, config.get("output_schema", {}).get("required", []))
+                problem = _submission_problem(result, config.get("output_schema", {}).get("required", []),
+                                              task.description)
                 if problem is None:
                     logger.info("[task=%s agent=%s] Parsed JSON result from assistant text (no tool call)",
                                 task.id, task.agent_name)
@@ -368,7 +407,7 @@ async def run(
                 result = args.get("result", args)
                 # Validate required keys for agents that have strict output schemas
                 schema_required = config.get("output_schema", {}).get("required", [])
-                feedback = _submission_problem(result, schema_required)
+                feedback = _submission_problem(result, schema_required, task.description)
                 if feedback is not None:
                     logger.warning("[task=%s agent=%s] submit_result rejected: %s",
                                    task.id, task.agent_name, feedback[:160])
@@ -508,7 +547,7 @@ async def run(
                 result = _try_parse_json_result(fmsg.content or "")
             if result is None:
                 break  # nothing was submitted at all — the generic failure below says so
-            problem = _submission_problem(result, schema_required)
+            problem = _submission_problem(result, schema_required, task.description)
             if problem is None:
                 logger.info("[task=%s agent=%s] forced final submit_result succeeded", task.id, task.agent_name)
                 return result

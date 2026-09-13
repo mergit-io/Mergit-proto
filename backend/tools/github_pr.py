@@ -2,6 +2,7 @@ import asyncio
 import logging
 import re
 
+import language
 from tools.github_client import TOKEN_MISSING, client as _client, github_token, resolve_repo
 
 logger = logging.getLogger(__name__)
@@ -55,55 +56,11 @@ def _empty_contents(files) -> list[str]:
     return [f["path"] for f in files if not (f.get("content") or "").strip()]
 
 
-#: Syntax that only appears in one language, keyed by the language it belongs to. Used to
-#: decide what a blob of source IS, never to decide whether it is any good.
-_LANG_MARKERS: dict[str, tuple[re.Pattern, ...]] = {
-    "Python": (
-        re.compile(r"^\s*(?:async\s+)?def\s+\w+\s*\(", re.M),
-        re.compile(r"^\s*class\s+\w+", re.M),
-        re.compile(r"^\s*(?:import\s+\w|from\s+[\w.]+\s+import\s)", re.M),
-        re.compile(r"^\s*print\(", re.M),
-        re.compile(r"^\s*(?:if|for|while|with|elif|else|try|except)\b[^\n]*:\s*$", re.M),
-    ),
-    "Rust": (
-        re.compile(r"^\s*use\s+[\w:]+\s*;", re.M),
-        re.compile(r"\bfn\s+\w+\s*\("),
-        re.compile(r"\blet\s+(?:mut\s+)?\w+\s*(?::|=)"),
-        re.compile(r"^\s*(?:impl|pub\s+fn|#\[derive)", re.M),
-        re.compile(r"\bprintln!\s*\("),
-    ),
-    "Go": (
-        re.compile(r"^\s*package\s+\w+", re.M),
-        re.compile(r"\bfunc\s+\w*\s*\("),
-        re.compile(r"\w+\s*:=\s*"),
-        re.compile(r"\bfmt\.\w+\("),
-    ),
-    "JavaScript": (
-        re.compile(r"\bfunction\s+\w*\s*\("),
-        re.compile(r"^\s*(?:const|let|var)\s+\w+\s*=", re.M),
-        re.compile(r"=>"),
-        re.compile(r"\b(?:module\.exports|console\.log)\b"),
-    ),
-    "Java": (
-        re.compile(r"\b(?:public|private)\s+(?:static\s+)?(?:class|void|int|String)\b"),
-        re.compile(r"\bSystem\.out\.print"),
-        re.compile(r"^\s*package\s+[\w.]+\s*;", re.M),
-    ),
-}
-
-#: Only extensions whose language is unambiguous. `.ts`, `.h` and friends are left out on
-#: purpose — a wrong refusal costs more than a missed one.
-_EXT_LANG = {".py": "Python", ".rs": "Rust", ".go": "Go", ".js": "JavaScript",
-             ".mjs": "JavaScript", ".java": "Java"}
-
-_LANG_EXT = {"Python": ".py", "Rust": ".rs", "Go": ".go",
-             "JavaScript": ".js", "Java": ".java"}
-
-
-def _language_scores(source: str) -> dict[str, int]:
-    """How many distinct markers of each language the source shows."""
-    return {lang: sum(1 for pat in pats if pat.search(source))
-            for lang, pats in _LANG_MARKERS.items()}
+#: Language detection lives in `language.py` — `agent_runner` needs the same answers
+#: for a different failure (a coder asked for Rust that submits Python).
+_EXT_LANG = language.EXT_LANG
+_LANG_EXT = language.LANG_EXT
+_language_scores = language.language_scores
 
 
 def _language_mismatches(files) -> list[str]:
@@ -128,13 +85,9 @@ def _language_mismatches(files) -> list[str]:
         expected = _EXT_LANG.get(path[dot:].lower()) if dot > 0 else None
         if expected is None:
             continue
-        scores = _language_scores(f.get("content") or "")
-        if scores.get(expected, 0):
-            continue  # it looks like what the name promises
-        strong = [lang for lang, n in scores.items() if n >= 2 and lang != expected]
-        if len(strong) != 1:
-            continue  # no signal, or an ambiguous one — say nothing
-        actual = strong[0]
+        actual = language.detect_language(f.get("content") or "", expected=expected)
+        if actual is None:
+            continue  # corroborated, unsignposted or ambiguous — say nothing
         problems.append(
             f"{path} is named as {expected} but the content is {actual} "
             f"(it belongs in a {_LANG_EXT[actual]} file)"
