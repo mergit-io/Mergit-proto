@@ -8,6 +8,7 @@ from pydantic import BaseModel, ValidationError
 
 import db
 import model_config
+from config import settings
 from llm import acompletion
 from state import GoalRow
 
@@ -524,8 +525,34 @@ def _validate_plan(p: PlanSchema) -> None:
         )
 
 
+async def _run_as_loop(goal: GoalRow) -> None:
+    """One task, one context, no plan up front (EXECUTOR_MODE=loop).
+
+    Deliberately a task row rather than a special case in the worker: leases, the reclaim
+    sweep, retries, idempotency and proof minting are all keyed on tasks, and a loop that
+    bypassed them would be a coding agent with none of the durability this system has.
+    """
+    task_id = f"{goal.id[:8]}_op"
+    await db.create_tasks([{
+        "id": task_id,
+        "agent": "operator",
+        "description": goal.goal_text,
+        "inputs": {},
+        "depends_on": [],
+    }], goal.id, goal.trace_id)
+    await db.set_goal_plan(goal.id, json.dumps({
+        "mode": "loop",
+        "reasoning": "Interleaved executor: the plan is built and revised during the run.",
+        "tasks": [{"id": task_id, "agent": "operator", "description": goal.goal_text}],
+        "terminal": task_id,
+    }), task_id)
+    logger.info("Goal %s running in loop mode as task %s", goal.id, task_id)
+
+
 async def run_plan(goal: GoalRow) -> None:
     """Plan a goal and persist the tasks to the database."""
+    if settings.executor_mode == "loop":
+        return await _run_as_loop(goal)
     plan_obj = await plan(goal)
 
     # Make task IDs globally unique: prefix with first 8 chars of goal_id.

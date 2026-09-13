@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 import db
 import worker
+from config import settings
 from chain.client import get_client
 from models import HealthResponse
 
@@ -34,4 +35,5 @@ async def health() -> HealthResponse:
         ts=int(time.time()),
         chain=chain_status,
         chain_id=chain_id,
+        executor=settings.executor_mode,
     )
