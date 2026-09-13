@@ -213,6 +213,38 @@ async def _requeue_task_later(task_id: str, goal_id: str, delay: int) -> None:
     events.emit(goal_id, "task_update", {"task_id": task_id, "status": TaskStatus.READY})
 
 
+_UNFINISHED = {TaskStatus.PENDING, TaskStatus.READY, TaskStatus.RUNNING}
+
+
+async def blocked_task_ids(goal_id: str) -> list[str]:
+    """Tasks that can never run, because something they depend on failed.
+
+    `promote_ready_tasks` only promotes a task when EVERY dependency is DONE, so once a
+    dependency fails the task behind it waits forever and nothing measures that.
+
+    Goal 32d630f2: the review researcher failed, so the integrator that was going to open
+    the pull request the goal explicitly asked for sat at PENDING and could never run —
+    and the goal still reported COMPLETED once the writer finished.
+
+    Blockage is transitive: a task waiting on a blocked task is equally dead. A FAILED
+    task that nothing depends on blocks nothing, which is what keeps this safe for the
+    replanner — it deliberately leaves a failed task behind and adds new ones beside it.
+    """
+    tasks = await db.list_goal_tasks(goal_id)
+    dead = {t.id for t in tasks if t.status == TaskStatus.FAILED}
+    blocked: set[str] = set()
+    changed = True
+    while changed:  # transitive closure; a DAG converges in at most len(tasks) passes
+        changed = False
+        for t in tasks:
+            if t.id in blocked or t.status not in _UNFINISHED:
+                continue
+            if any(dep in dead or dep in blocked for dep in (t.depends_on or [])):
+                blocked.add(t.id)
+                changed = True
+    return [t.id for t in tasks if t.id in blocked]
+
+
 async def _after_task_done(task: Any, output: dict) -> None:
     goal = await db.get_goal(task.goal_id)
     if not goal:
@@ -226,6 +258,29 @@ async def _after_task_done(task: Any, output: dict) -> None:
         events.emit(task.goal_id, "task_update", {"task_id": tid, "status": TaskStatus.READY})
 
     if goal.terminal_task_id == task.id:
+        # The terminal task producing an answer is not the same as the goal being done.
+        # Work stranded behind a failed dependency never ran, and reporting COMPLETED
+        # over the top of it is how "migrate auth.py and raise a PR" came back green with
+        # no pull request. The answer is kept either way — only the verdict changes.
+        blocked = await blocked_task_ids(task.goal_id)
+        if blocked:
+            tasks = {t.id: t for t in await db.list_goal_tasks(task.goal_id)}
+            names = ", ".join(f"{tid} ({tasks[tid].agent_name}: {tasks[tid].description})"
+                              for tid in blocked)
+            error = (f"the terminal task finished, but {len(blocked)} planned task(s) could "
+                     f"never run because a dependency failed: {names}")
+            await db.update_goal_status(task.goal_id, GoalStatus.FAILED, output=output, error=error)
+            events.emit(task.goal_id, "goal_done", {
+                "status": GoalStatus.FAILED, "goal_id": task.goal_id,
+                "output": output, "error": error,
+            })
+            logger.warning("Goal %s finished with blocked work: %s", task.goal_id, error)
+            asyncio.create_task(
+                self_heal.settle_outcome(task.goal_id, GoalStatus.FAILED),
+                name=f"heal-settle-{task.goal_id[:8]}",
+            ).add_done_callback(_log_background_failure)
+            return
+
         await db.update_goal_status(task.goal_id, GoalStatus.COMPLETED, output=output)
         events.emit(task.goal_id, "goal_done", {
             "status": GoalStatus.COMPLETED, "goal_id": task.goal_id, "output": output,
