@@ -39,7 +39,9 @@ import types
 import pytest
 
 from agent_registry import AGENT_REGISTRY
-from agent_runner import _fabricated_urls, _self_reported_failure, _submission_problem
+from agent_runner import (_carries_tool_failure, _claimed_without_artifact,
+                          _fabricated_urls,
+                          _self_reported_failure, _submission_problem)
 
 CODER_REQUIRED = AGENT_REGISTRY["coder"]["output_schema"]["required"]
 INTEGRATOR_REQUIRED = AGENT_REGISTRY["integrator"]["output_schema"]["required"]
@@ -82,6 +84,108 @@ def test_an_issue_comment_url_is_policed_too():
     comment = "https://github.com/o/r/issues/1#issuecomment-5302011418"
     result = {"action": "commented", "result": comment}
     assert _fabricated_urls(result, known=set()) == [comment]
+
+
+# ── Handing back the failure and calling it the result ─────────────────────────
+#
+# Live failure, goal 373874b9. The goal named `owner/repo`, which does not exist. Every
+# tool said so, and every agent submitted that as its result:
+#
+#     integrator: {"action": "create_pr",
+#                  "result": {"error": "cannot access repo owner/repo: 404 Not Found"},
+#                  "url": None}
+#
+# Both integrator tasks submitted this, the goal reported COMPLETED, and its final output
+# was the 404 itself. Nothing objected. The required keys were present and non-empty; no
+# URL was claimed, so there was nothing for `_fabricated_urls` to compare; and `success`
+# was not False because the integrator schema has no `success` field.
+#
+# The third shape in the family. `_self_reported_failure` catches an agent that admits
+# failure, `_fabricated_urls` catches one that invents a success, and this catches one
+# that hands back the failure itself — the only one of the three needing no dishonesty
+# from the model, which is presumably why it lasted longest.
+
+FOUR_OH_FOUR = "cannot access repo owner/repo: 404 Not Found"
+
+
+def test_the_exact_integrator_result_that_submitted_a_404_is_rejected():
+    result = {"action": "create_pr", "result": {"error": FOUR_OH_FOUR}, "url": None}
+    assert _carries_tool_failure(result) is not None
+    assert _submission_problem(result, INTEGRATOR_REQUIRED, "", set()) is not None
+
+
+def test_the_same_lie_as_a_plain_string_is_rejected_too():
+    """The second run of goal 373874b9, after the envelope check went in. The model did
+    not need to try: it simply wrote the failure as prose instead of as `{"error": ...}`
+    and the envelope check had nothing to match.
+
+        {"action": "create_pr", "result": "Failed to create PR: Repository not found",
+         "url": None}
+
+    Reading the prose for words like "failed" would be the same mistake a third time, so
+    the question asked is structural — you say you opened a pull request, where is it?"""
+    result = {"action": "create_pr",
+              "result": "Failed to create PR: Repository not found", "url": None}
+    assert _claimed_without_artifact(result) == "create_pr"
+    assert _submission_problem(result, INTEGRATOR_REQUIRED, "", set()) is not None
+
+
+def test_an_action_that_produces_no_url_is_left_alone():
+    """Not every action has an address. Refusing these would fail real work."""
+    for action, payload in [
+        ("set_branch_protection", {"enabled": True}),
+        ("merge_pr", {"merged": True, "sha": "abc"}),
+        ("no_action_needed", "already fixed"),
+        ("commented", "posted a comment"),
+    ]:
+        result = {"action": action, "result": payload}
+        assert _claimed_without_artifact(result) is None, action
+
+
+def test_the_address_counts_wherever_the_agent_put_it():
+    """Agents report it as `url`, `pr_url` or inside the tool's payload. Which key was
+    used is not the question — whether there is an address at all is."""
+    url = "https://github.com/o/r/pull/42"
+    for shape in [{"url": url}, {"pr_url": url}, {"result": {"ok": True, "html_url": url}}]:
+        assert _claimed_without_artifact({"action": "create_pr", **shape}) is None, shape
+
+
+def test_an_ok_false_envelope_is_rejected():
+    result = {"action": "post_comment", "result": {"ok": False, "error": "no such issue"}}
+    assert _carries_tool_failure(result) is not None
+
+
+def test_a_failure_buried_deep_in_the_result_is_still_found():
+    result = {"action": "a", "result": {"steps": [{"pr": {"ok": False, "error": "boom"}}]}}
+    assert _carries_tool_failure(result) is not None
+
+
+def test_a_genuine_tool_success_is_accepted():
+    """The guard refuses agent output, so the cost of over-matching is real work thrown
+    away. A tool envelope that succeeded must pass untouched."""
+    url = "https://github.com/o/r/pull/42"
+    result = {"action": "create_pr", "result": {"ok": True, "url": url, "result": 42}}
+    assert _carries_tool_failure(result) is None
+    assert _submission_problem(result, INTEGRATOR_REQUIRED, "", {url}) is None
+
+
+def test_describing_an_error_in_prose_is_not_submitting_one():
+    """The coder's `output` legitimately holds whatever the program printed, and a
+    researcher's whole job may be reporting that something is broken. Only the tool
+    failure ENVELOPE is matched, never text that mentions an error."""
+    coder = {"code": "print(1)", "path": "a.py", "output": "404 Not Found", "success": True}
+    assert _carries_tool_failure(coder) is None
+
+    researcher = {"summary": "The endpoint returns an error for empty input",
+                  "key_points": ["error handling is missing"],
+                  "sources": ["https://github.com/o/r"]}
+    assert _carries_tool_failure(researcher) is None
+
+
+def test_an_empty_error_field_is_not_a_failure():
+    """Tools that succeed sometimes carry `error: None` or `error: ""` in the envelope."""
+    assert _carries_tool_failure({"action": "a", "result": {"error": None, "url": "u"}}) is None
+    assert _carries_tool_failure({"action": "a", "result": {"error": "", "number": 7}}) is None
 
 
 # ── The blank that was never filled in ─────────────────────────────────────────
