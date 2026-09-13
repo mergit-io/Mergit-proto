@@ -143,6 +143,50 @@ def _self_reported_failure(result: dict, schema_required: list[str]) -> str | No
     return None
 
 
+def _submission_problem(result: Any, schema_required: list[str]) -> str | None:
+    """The feedback to hand back when a submitted result cannot be accepted, else None.
+
+    A task can end in four places — the `submit_result` tool call, JSON parsed out of a
+    plain assistant message, the forced final submit after the iteration cap, and JSON
+    parsed out of THAT message. Only the first one checked anything, so the other three
+    were a way around every guard.
+
+    PR #32 went out through the forced final. The coder was asked to migrate a file to
+    Rust, its only execution tool is a Python interpreter, so it could not run what it
+    had written and truthfully submitted `success: False`. The loop rejected that ten
+    times, the cap hit, and the forced final returned the same payload unchecked. Every
+    route now funnels through here.
+    """
+    if not schema_required:
+        return None
+    if not isinstance(result, dict):
+        return (
+            f"submit_result rejected — the result must be a JSON object with the "
+            f"keys {schema_required}, but you sent a bare "
+            f"{type(result).__name__}. Call submit_result again, passing an object."
+        )
+    missing = [k for k in schema_required if k not in result]
+    if missing:
+        return (
+            f"submit_result rejected — missing required keys: {missing}. "
+            f"Your result had keys: {list(result.keys())}. "
+            f"You MUST include ALL of: {schema_required}. "
+            "Call submit_result again with the correct keys."
+        )
+    contradiction = _self_reported_failure(result, schema_required)
+    if contradiction:
+        return (
+            f"submit_result rejected — {contradiction} You are reporting failure "
+            "and submitting it as the task's result, which would hand an empty or "
+            "failed output to the next agent as if it had worked. Either do the "
+            "work and submit a real result, or if it genuinely cannot be done "
+            "(the file does not exist, the input you were given is wrong), say so "
+            "in every field rather than leaving them blank — do not submit a "
+            "success-shaped result that is empty."
+        )
+    return None
+
+
 async def run(
     task: TaskRow,
     resolved_inputs: dict,
@@ -283,9 +327,21 @@ async def run(
             # Try to parse a JSON result directly from the assistant message
             result = _try_parse_json_result(assistant_content)
             if result is not None:
-                logger.info("[task=%s agent=%s] Parsed JSON result from assistant text (no tool call)",
-                            task.id, task.agent_name)
-                return result
+                # This is a submission by another name, so it answers to the same rules.
+                # Returning it unchecked let an agent skip every guard simply by printing
+                # its JSON instead of calling the tool.
+                problem = _submission_problem(result, config.get("output_schema", {}).get("required", []))
+                if problem is None:
+                    logger.info("[task=%s agent=%s] Parsed JSON result from assistant text (no tool call)",
+                                task.id, task.agent_name)
+                    return result
+                logger.warning("[task=%s agent=%s] JSON in assistant text rejected: %s",
+                               task.id, task.agent_name, problem[:160])
+                messages.append({"role": "assistant", "content": assistant_content})
+                messages.append({"role": "user", "content": problem})
+                if iteration < max_iter - 1:
+                    continue
+                break
             # Nudge the model to call submit_result
             if iteration < max_iter - 1:
                 logger.warning("[task=%s] No tool call on iter %d — nudging agent to call submit_result",
@@ -312,43 +368,10 @@ async def run(
                 result = args.get("result", args)
                 # Validate required keys for agents that have strict output schemas
                 schema_required = config.get("output_schema", {}).get("required", [])
-                feedback = None
-                # A bare string here used to reach `k not in result`, which silently became
-                # a SUBSTRING test, and then `result.keys()` — crashing the task with
-                # "'str' object has no attribute 'keys'" instead of re-prompting. Settle the
-                # shape once, before anything reads it as a mapping.
-                if schema_required and not isinstance(result, dict):
-                    feedback = (
-                        f"submit_result rejected — the result must be a JSON object with the "
-                        f"keys {schema_required}, but you sent a bare "
-                        f"{type(result).__name__}. Call submit_result again, passing an object."
-                    )
-                    logger.warning("[task=%s agent=%s] submit_result was a %s, not an object — rejecting",
-                                   task.id, task.agent_name, type(result).__name__)
-                elif (missing := [k for k in schema_required if k not in result]):
-                    feedback = (
-                        f"submit_result rejected — missing required keys: {missing}. "
-                        f"Your result had keys: {list(result.keys())}. "
-                        f"You MUST include ALL of: {schema_required}. "
-                        "Call submit_result again with the correct keys."
-                    )
-                    logger.warning("[task=%s agent=%s] submit_result missing keys %s — rejecting",
-                                   task.id, task.agent_name, missing)
-                else:
-                    contradiction = _self_reported_failure(result, schema_required)
-                    if contradiction:
-                        feedback = (
-                            f"submit_result rejected — {contradiction} You are reporting failure "
-                            "and submitting it as the task's result, which would hand an empty or "
-                            "failed output to the next agent as if it had worked. Either do the "
-                            "work and submit a real result, or if it genuinely cannot be done "
-                            "(the file does not exist, the input you were given is wrong), say so "
-                            "in every field rather than leaving them blank — do not submit a "
-                            "success-shaped result that is empty."
-                        )
-                        logger.warning("[task=%s agent=%s] submit_result contradicts itself (%s) — rejecting",
-                                       task.id, task.agent_name, contradiction)
+                feedback = _submission_problem(result, schema_required)
                 if feedback is not None:
+                    logger.warning("[task=%s agent=%s] submit_result rejected: %s",
+                                   task.id, task.agent_name, feedback[:160])
                     # Anthropic: assistant msg (with tool_use) must come before tool_result
                     messages.append({"role": "assistant", "content": assistant_content or "", "tool_calls": [
                         {"id": tc_id, "type": "function", "function": {"name": tool_name, "arguments": args_str}}
@@ -464,24 +487,46 @@ async def run(
             "Partial but structured output is required — empty/no answer is a failure."
         ),
     })
-    try:
-        _fkw: dict = {"tools": [SUBMIT_RESULT_TOOL], "tool_choice": {"type": "function", "function": {"name": "submit_result"}}}
-        if not any(m in model for m in ("claude-opus-4", "claude-sonnet-4", "claude-haiku-4-5")):
-            _fkw["temperature"] = 0.1
-        final = await acompletion(role=task.agent_name, model=model, messages=messages, **_fkw)
-        fmsg = final.choices[0].message
-        if fmsg.tool_calls:
-            fargs = json.loads(fmsg.tool_calls[0].function.arguments)
-            result = fargs.get("result", fargs)
-            logger.info("[task=%s agent=%s] forced final submit_result succeeded", task.id, task.agent_name)
-            return result
-        parsed = _try_parse_json_result(fmsg.content or "")
-        if parsed is not None:
-            logger.info("[task=%s agent=%s] forced final: parsed JSON from content", task.id, task.agent_name)
-            return parsed
-    except Exception as exc:
-        logger.warning("[task=%s] forced final submit attempt failed: %s", task.id, exc)
+    # The result still has to be coherent. Running out of iterations is a reason to ask
+    # one last time, not a reason to accept anything: PR #32 was a `success: False` payload
+    # the loop had already rejected ten times, waved through here and committed to GitHub.
+    # A rejection gets ONE corrective call — a missing key is trivially fixable and failing
+    # the goal over it is waste — and after that the task fails rather than lying.
+    schema_required = config.get("output_schema", {}).get("required", [])
+    last_problem: str | None = None
+    for _attempt in range(2):
+        try:
+            _fkw: dict = {"tools": [SUBMIT_RESULT_TOOL], "tool_choice": {"type": "function", "function": {"name": "submit_result"}}}
+            if not any(m in model for m in ("claude-opus-4", "claude-sonnet-4", "claude-haiku-4-5")):
+                _fkw["temperature"] = 0.1
+            final = await acompletion(role=task.agent_name, model=model, messages=messages, **_fkw)
+            fmsg = final.choices[0].message
+            if fmsg.tool_calls:
+                fargs = json.loads(fmsg.tool_calls[0].function.arguments)
+                result = fargs.get("result", fargs)
+            else:
+                result = _try_parse_json_result(fmsg.content or "")
+            if result is None:
+                break  # nothing was submitted at all — the generic failure below says so
+            problem = _submission_problem(result, schema_required)
+            if problem is None:
+                logger.info("[task=%s agent=%s] forced final submit_result succeeded", task.id, task.agent_name)
+                return result
+            last_problem = problem
+            logger.warning("[task=%s agent=%s] forced final submit rejected: %s",
+                           task.id, task.agent_name, problem[:160])
+            messages.append({
+                "role": "user",
+                "content": problem + " This is your final attempt — submit a coherent result now.",
+            })
+        except Exception as exc:
+            logger.warning("[task=%s] forced final submit attempt failed: %s", task.id, exc)
+            break
 
+    if last_problem is not None:
+        raise RuntimeError(
+            f"Agent {task.agent_name} could not produce a usable result: {last_problem}"
+        )
     raise RuntimeError(f"Agent {task.agent_name} did not call submit_result within {max_iter} iterations")
 
 
