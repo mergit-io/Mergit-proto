@@ -3,7 +3,7 @@ import logging
 import re
 
 import language
-from tools import grounding, scope_creep
+from tools import execution_claims, grounding, scope_creep
 from tools.github_client import (
     TOKEN_MISSING,
     client as _client,
@@ -571,6 +571,22 @@ async def github_pr(args: dict) -> dict:
                          "are making them and why. If you found nothing wrong, report that "
                          "— it is a complete and successful answer, and it does not need a "
                          "pull request."}
+
+    # Grounding and scope-creep both ask about the diff. This asks about a claim whose
+    # subject is not the diff at all: work the body says was done outside it. The deployed
+    # demo shipped `mergit-e2e-sandbox#67` saying "Ran the following commands … all outputs
+    # are as expected" on a deployment where `code_exec` is unregistered, so nothing could
+    # have run. See tools/execution_claims.py.
+    claimed = execution_claims.claims(body)
+    if claimed and not await execution_claims.executed_in_goal(args.get("_goal_id")):
+        logger.warning("Refusing PR on %s — body claims execution that never happened: %s",
+                       repo_name, claimed)
+        return {"action": "create_pr", "result": None, "url": None, "ok": False,
+                "error": f"the body claims work this run never did — {'; '.join(claimed[:3])}. "
+                         "Nothing in this goal executed any code. Either run it and report "
+                         "what actually happened, or drop the claim: a body that says the "
+                         "fix was reasoned about and not executed is honest and will be "
+                         "accepted. Do not describe commands you did not run."}
 
     # `g.get_user()` needs a token that HAS a user. An installation token does not — it
     # authenticates as the app, and this call fails against it. So the fork path (and only
