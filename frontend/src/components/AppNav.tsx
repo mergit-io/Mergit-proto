@@ -1,5 +1,6 @@
 import { LayoutDashboard, ExternalLink, Cpu, GitBranch, Zap, Workflow } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { WalletConnect } from "./WalletConnect";
 
 export function AppNav() {
   const nav = useNavigate();
@@ -71,6 +72,7 @@ export function AppNav() {
             <GitBranch className="w-3.5 h-3.5" />
             GitHub
           </a>
+          <WalletConnect />
         </nav>
       </div>
     </header>
