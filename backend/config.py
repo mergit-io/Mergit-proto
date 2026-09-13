@@ -24,6 +24,16 @@ class Settings(BaseSettings):
     port: int = 8000
     db_path: str = "./omnibox.db"
     workspace_dir: str = "./workspace"
+    frontend_url: str = "http://localhost:3000"
+
+    # OAuth
+    oauth_google_client_id: str = ""
+    oauth_google_client_secret: str = ""
+    oauth_google_redirect_uri: str = "http://localhost:8000/api/auth/google/callback"
+    oauth_github_client_id: str = ""
+    oauth_github_client_secret: str = ""
+    oauth_github_redirect_uri: str = "http://localhost:8000/api/auth/github/callback"
+    auth_secret_key: str = "change-me-in-env"
 
     # Worker
     max_concurrent_tasks: int = 5
