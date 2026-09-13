@@ -2,10 +2,11 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import useSWR, { mutate } from "swr";
 import { api } from "../lib/api";
-import type { GoalSummary } from "../lib/api";
+import type { GoalSummary, ServiceProvider } from "../lib/api";
 import { GoalRow } from "../components/GoalCard";
 import { GoalInput } from "../components/GoalInput";
 import { Shell } from "../components/AppNav";
+import { timeAgo } from "../components/GoalCard";
 import {
   Empty,
   Hash,
@@ -107,6 +108,81 @@ function ProofField() {
         )}
       </div>
     </div>
+  );
+}
+
+/** Which apps this account's runs have actually reached.
+ *
+ *  The dashboard's other panels are about Mergit — its agents, its proofs. This one is
+ *  about the world outside it, and it is here because "works across four apps" is a claim
+ *  the console was making nowhere: a goal could finish, mint a proof and settle on chain
+ *  while every Slack call in it was refused. Each cell is one service, its landed-call
+ *  count, and a link to the last thing it left behind, so the claim is checkable from the
+ *  first screen rather than asserted on it.
+ */
+function AppsReached() {
+  // The same key and the same argument as the Services page. SWR caches on the key alone,
+  // so a second fetcher asking for a different window under this key would make the two
+  // pages clobber each other — see the note in ProofField for the time that happened.
+  const { data } = useSWR("/api/services", () => api.getServices(10), {
+    refreshInterval: 30000,
+  });
+
+  const providers: ServiceProvider[] = data?.providers ?? [];
+  const reached = providers.filter((p) => p.calls.ok > 0).length;
+
+  return (
+    <Panel
+      title="Apps reached"
+      right={
+        <Link to="/app/services" className="micro hover:text-text transition-colors">
+          {providers.length ? `${reached}/${providers.length} — Services →` : "Services →"}
+        </Link>
+      }
+    >
+      {providers.length === 0 ? (
+        <p className="px-4 py-5 text-xs text-dim">
+          No service calls yet. A goal that reads a thread or opens a pull request fills
+          this in.
+        </p>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-line-soft">
+          {providers.map((p) => (
+            <div key={p.key} className="px-4 py-3.5 min-w-0">
+              <div className="flex items-center gap-2">
+                <span
+                  className={`w-1.5 h-1.5 shrink-0 ${
+                    p.calls.ok > 0 ? "bg-mint" : p.calls.failed > 0 ? "bg-red" : "bg-faint"
+                  }`}
+                />
+                <Micro>{p.label}</Micro>
+              </div>
+              <p className="font-display font-bold tabular text-2xl leading-none mt-2">
+                {p.calls.ok}
+                <span className="text-dim font-mono text-micro uppercase ml-1.5 tracking-normal">
+                  landed
+                </span>
+              </p>
+              {p.last_artifact ? (
+                <a
+                  href={p.last_artifact.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block truncate mt-1.5 font-mono text-xs text-dim hover:text-text underline underline-offset-2 decoration-line transition-colors"
+                  title={p.last_artifact.url}
+                >
+                  {p.last_artifact.label}
+                </a>
+              ) : (
+                <p className="mt-1.5 micro">
+                  {p.last_used_at ? `Last tried ${timeAgo(p.last_used_at)}` : "Not used yet"}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </Panel>
   );
 }
 
@@ -217,6 +293,10 @@ export function Dashboard() {
         <Metric label="Failed" value={failed} />
         <Metric label="Total goals" value={goals.length} accent />
       </MetricRow>
+
+      <div className="mt-6">
+        <AppsReached />
+      </div>
 
       <div className="grid lg:grid-cols-[1fr_320px] gap-6 mt-6 items-start">
         <Panel

@@ -236,6 +236,62 @@ export interface ChainInfo {
   contracts: Record<string, string>;
 }
 
+// ── Services: what landed on each connected app ────────────────────────────────
+
+/** One link a call left behind — a pull request, an issue, a page, a message. */
+export interface ServiceArtifact {
+  provider: string;
+  tool: string;
+  url: string;
+  label: string;
+}
+
+export interface ServiceProvider {
+  key: string;
+  label: string;
+  does: string;
+  /** connected = this user granted it · available = they can · deployment = a shared
+   *  token is acting for everyone · unconfigured = nothing is set. */
+  access: "connected" | "available" | "deployment" | "unconfigured";
+  account: string;
+  connectable: boolean;
+  tools: number;
+  /** Outcomes read from the response body, not the row status — a refusal and Slack's
+   *  HTTP 200 `{ok: false}` both count against, not for. */
+  calls: { ok: number; failed: number; refused: number; pending: number };
+  last_used_at: number | null;
+  last_artifact: ServiceArtifact | null;
+}
+
+export interface ServiceRun {
+  goal_id: string;
+  title: string;
+  status: string;
+  created_at: number;
+  providers: string[];
+  artifacts: ServiceArtifact[];
+  failures: number;
+}
+
+export interface ServicesPayload {
+  providers: ServiceProvider[];
+  runs: ServiceRun[];
+  window: number;
+  calls_read: number;
+  now: number;
+}
+
+export interface ServiceUse {
+  ts: number;
+  provider: string;
+  tool: string;
+  goal_id: string;
+  goal_title: string;
+  outcome: "ok" | "failed" | "refused" | "pending";
+  url: string;
+  label: string;
+}
+
 export const api = {
   submitGoal: (goal: string) =>
     request<{ goal_id: string; status: string; created_at: number }>("/goals", {
@@ -302,4 +358,9 @@ export const api = {
   getHealAttempts: (limit = 100) => request<HealAttempt[]>(`/heal/attempts?limit=${limit}`),
 
   getHealStats: () => request<HealStats>("/heal/stats"),
+
+  getServices: (runs = 8) => request<ServicesPayload>(`/services?runs=${runs}`),
+
+  getServiceActivity: (limit = 50) =>
+    request<{ uses: ServiceUse[]; window: number }>(`/services/activity?limit=${limit}`),
 };
