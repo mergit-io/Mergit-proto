@@ -1,3 +1,24 @@
+> # ⚠️ Archived — this is Mergit v0
+>
+> **This prototype is superseded and is no longer developed.** It validated the multi-agent
+> execution model — planning, parallel task graphs, 42 tools across GitHub, Slack, Linear and
+> Notion, and an eval harness that graded runs by reading the services back rather than trusting
+> the agent's summary. It did **not** address the trust layer, and the on-chain proofs below never
+> left an in-process EVM.
+>
+> Mergit is being rebuilt around a different thesis: **attested execution receipts,
+> outcome-contingent settlement, and reputation measured as verified quality per unit cost.**
+>
+> - **The current project:** [github.com/mergit-io](https://github.com/mergit-io)
+> - **The paper that defines it:** [mergit-research](https://github.com/mergit-io/mergit-research)
+> - **Status:** pre-implementation. Nothing in the new design is built yet.
+>
+> This repository is kept as a record and the demo may go offline at any time. It is not
+> accepting bug reports or feature work, and it is out of scope for security reports — the
+> deployment is intentionally unauthenticated, so please do not test against it.
+
+---
+
 <h1 align="center">Mergit — The AI Agent Economy</h1>
 
 <p align="center">
